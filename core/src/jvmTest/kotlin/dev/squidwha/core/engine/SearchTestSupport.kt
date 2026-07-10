@@ -1,8 +1,5 @@
 package dev.squidwha.core.engine
 
-import com.dokar.quickjs.binding.define
-import com.dokar.quickjs.binding.function
-import com.dokar.quickjs.evaluate
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -12,6 +9,7 @@ import io.ktor.http.headersOf
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
+import org.graalvm.polyglot.proxy.ProxyObject
 import java.security.MessageDigest
 
 object RecordedHttp {
@@ -39,16 +37,18 @@ internal val flameComicsBundle: String by lazy {
     BundleLoader.verify(readFixture(FLAME_COMICS_FIXTURE), FLAME_COMICS_SHA256)
 }
 
-/** initialise() + getSearchResults through the full runtime, query passed via binding. */
+/** initialise() + getSearchResults through the full runtime, raw result as JsonObject. */
 internal suspend fun runFlameComicsSearch(host: ApplicationHost, title: String): JsonObject =
-    ExtensionRuntime(flameComicsBundle, host).withExtension { qjs ->
-        qjs.define("__query") {
-            function("title") { title }
-        }
-        qjs.callJson("source.FlameComics.initialise()")
-        // complex results cross the boundary as JSON strings (dokar3/any pattern)
-        val json = qjs.callJson(
-            "source.FlameComics.getSearchResults({ title: __query.title() }, undefined, { id: 'search' })"
-        )
-        Json.parseToJsonElement(json).jsonObject
+    ExtensionRuntime(flameComicsBundle, host).withExtension { handle ->
+        val extension = handle.extension("FlameComics")
+        handle.invokeAwait(extension, "initialise")
+        Json.parseToJsonElement(
+            handle.invokeAwaitJson(
+                extension,
+                "getSearchResults",
+                ProxyObject.fromMap(mapOf("title" to title)),
+                ProxyObject.fromMap(mapOf<String, Any>()),
+                ProxyObject.fromMap(mapOf("id" to "search")),
+            )
+        ).jsonObject
     }

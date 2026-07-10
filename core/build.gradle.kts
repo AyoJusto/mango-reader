@@ -9,8 +9,11 @@ kotlin {
         commonMain.dependencies {
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
-            implementation(libs.quickjs.kt)
             implementation(libs.ktor.client.core)
+        }
+        jvmMain.dependencies {
+            api(libs.graalvm.polyglot)
+            implementation(libs.graalvm.js)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

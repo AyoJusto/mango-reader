@@ -1,7 +1,5 @@
 package dev.squidwha.core.engine
 
-import com.dokar.quickjs.binding.define
-import com.dokar.quickjs.binding.function
 import dev.squidwha.core.domain.MangaEntry
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
@@ -10,6 +8,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import org.graalvm.polyglot.proxy.ProxyObject
 
 /**
  * First slice of the Paperback adapter: one installed 0.9 extension, normalized to
@@ -21,19 +20,16 @@ class PaperbackExtension(
     private val host: ApplicationHost,
 ) {
     suspend fun search(title: String, page: Int = 1): List<MangaEntry> =
-        ExtensionRuntime(bundleJs, host).withExtension { qjs ->
-            // everything third-party (source id, query) crosses via bindings, never
-            // interpolated into the evaluated expression
-            qjs.define("__query") {
-                function("sourceId") { sourceId }
-                function("title") { title }
-                function("page") { page }
-            }
-            qjs.callJson("source[__query.sourceId()].initialise()")
+        ExtensionRuntime(bundleJs, host).withExtension { handle ->
+            val extension = handle.extension(sourceId)
+            handle.invokeAwait(extension, "initialise")
             val result = Json.parseToJsonElement(
-                qjs.callJson(
-                    "source[__query.sourceId()].getSearchResults(" +
-                        "{ title: __query.title() }, { page: __query.page() }, { id: 'search' })"
+                handle.invokeAwaitJson(
+                    extension,
+                    "getSearchResults",
+                    ProxyObject.fromMap(mapOf("title" to title)),
+                    ProxyObject.fromMap(mapOf("page" to page)),
+                    ProxyObject.fromMap(mapOf("id" to "search")),
                 )
             ).jsonObject
             val items = result["items"]?.jsonArray

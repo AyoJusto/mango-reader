@@ -1,6 +1,5 @@
 package dev.squidwha.core.engine
 
-import com.dokar.quickjs.evaluate
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
@@ -16,23 +15,22 @@ class BundleBootTest {
 
     @Test
     fun exposesPreInstantiatedExtension() = runBlocking {
-        ExtensionRuntime(bundleJs).withExtension { qjs ->
+        ExtensionRuntime(bundleJs).withExtension { handle ->
+            val extension = handle.extension("FlameComics")
+            assertTrue(extension.hasMembers(), "expected a pre-instantiated extension object")
             assertTrue(
-                qjs.evaluate(
-                    "typeof source === 'object' && " +
-                        "typeof source.FlameComics === 'object' && " +
-                        "typeof source.FlameComicsExtension === 'function'"
-                )
+                handle.source.getMember("FlameComicsExtension").canInstantiate(),
+                "expected the extension class alongside the instance",
             )
         }
     }
 
     @Test
     fun initialiseCompletesAndRegistersInterceptors() = runBlocking {
-        ExtensionRuntime(bundleJs).withExtension { qjs ->
-            qjs.evaluate<Any?>("source.FlameComics.initialise()")
+        ExtensionRuntime(bundleJs).withExtension { handle ->
+            handle.invokeAwait(handle.extension("FlameComics"), "initialise")
             // FlameComics registers rate-limit, cookie, and API interceptors
-            assertEquals(3, qjs.evaluate<Int>("Application.__interceptorCount()"))
+            assertEquals(3, handle.registeredInterceptors)
         }
     }
 
@@ -46,7 +44,8 @@ class BundleBootTest {
             .first { it["id"]!!.jsonPrimitive.content == "FlameComics" }
         assertTrue(flame["capabilities"]!!.jsonArray.isNotEmpty())
 
-        ExtensionRuntime(bundleJs).withExtension { qjs ->
+        ExtensionRuntime(bundleJs).withExtension { handle ->
+            val extension = handle.extension("FlameComics")
             val methods = listOf(
                 "initialise",
                 "getSearchResults",
@@ -55,10 +54,7 @@ class BundleBootTest {
                 "getChapterDetails",
             )
             for (method in methods) {
-                assertTrue(
-                    qjs.evaluate("typeof source.FlameComics.$method === 'function'"),
-                    "extension is missing $method",
-                )
+                assertTrue(extension.canInvokeMember(method), "extension is missing $method")
             }
         }
     }

@@ -1,24 +1,31 @@
 # Manhwa Reader — Project Planning
 
-A platform-agnostic modern manhwa/manga reader that reuses Paperback (iOS) extensions.
-Start on Windows desktop, land on macOS/iOS later as a genuinely native app.
-Written entirely in Kotlin. The only JavaScript in the project is the third-party extension
-bundles themselves, which are executed, never authored.
+A modern, clean, performant manhwa/manga reader for Windows desktop that reuses Paperback
+(iOS) 0.9 extensions. Written entirely in Kotlin. The only JavaScript in the project is the
+third-party extension bundles themselves, which are executed, never authored.
+
+**Objective rework, 2026-07-10.** Native iOS stopped being a hard goal; the accepted Apple
+path (months out, if ever) is a thin client talking to `:core` hosted as a server. That frees
+the backend to be JVM-first, which enabled the engine pivot to GraalJS (section 6): Kotlin
+holds real handles to extension objects, and the hand-authored JS glue layer is gone.
 
 ---
 
 ## 1. Vision and non-negotiables
 
 - **Great reader first.** The reading experience is the product. Dark, minimal, webtoon-style.
-- **One language: Kotlin.** UI, engine, and logic are all Kotlin. No JS/TS is written by hand.
+  Modern, clean, and performant on PC is the bar; everything else is secondary.
+- **One language: Kotlin.** UI, engine, and logic are all Kotlin. No JS/TS is written by hand —
+  with GraalJS this is literal: the only JS that runs is the extension bundles.
 - **Reuse Paperback extensions.** They are maintained JS bundles that already run on iOS's
   JavaScriptCore, so they run in any embeddable JS engine. **Implement the 0.9 SDK's
   `Application` surface as the one host contract; run 0.8 bundles through Paperback's official
   0.8→0.9 compat wrapper** (see section 6). Corpus reality (verified 2026-07-10): Inkdex is the
   0.9 registry (68 sources, rebuilt continuously); Netsky's repos are the 0.8 corpus (~133
   sources). Supporting both mirrors what the real Paperback 0.9 app does.
-- **Desktop now, Apple later, same codebase.** Windows is the current setup. macOS/iOS reuse the
-  identical Compose UI and core.
+- **Desktop now; other devices later connect to `:core` as a server.** Windows is the only
+  machine today. If/when Apple devices arrive, `:server` (Ktor, wrapping the same `:core`)
+  serves a thin client. Embedded-native-on-iOS is no longer a design constraint.
 - **One agnostic source contract.** Everything talks to a single `MangaSource` interface.
   Paperback is the first adapter. A Tachiyomi adapter could slot in later untouched.
 
@@ -74,8 +81,8 @@ version catalog (`libs.versions.toml`) and let Renovate/Dependabot bump them.
 | Concern | Choice | Version (Jul 2026) | Notes |
 |---|---|---|---|
 | Language | **Kotlin** | **2.4.0** | latest stable (Jun 3 2026); 2.4.20 is EAP only |
-| UI | **Compose Multiplatform** | **1.11.0** | Skia-rendered native UI; iOS/web improvements |
-| JS engine | **QuickJS via `dokar3/quickjs-kt`** | **1.0.5** | targets JVM, Android, iOS, macOS, **Windows (mingw_x64)**, Linux |
+| UI | **Compose Multiplatform** | **1.11.0** | Skia-rendered; desktop is the target that matters |
+| JS engine | **GraalJS** (`org.graalvm.polyglot`) | **25.1.x** | JVM polyglot: real object handles from Kotlin, promise interop, strong sandbox controls. Replaced quickjs-kt 2026-07-10 when JVM-only became acceptable. |
 | HTTP | **Ktor Client** | **3.5.1** | JetBrains, multiplatform |
 | Persistence | **SQLDelight** (chosen over Room, 2026-07-10) | latest via catalog | typesafe SQL, all targets |
 | Serialization | **kotlinx.serialization** | latest via catalog | match the Kotlin 2.4.0 line |
@@ -84,11 +91,11 @@ version catalog (`libs.versions.toml`) and let Renovate/Dependabot bump them.
 | DI | manual constructor injection (chosen 2026-07-10) | — | revisit only if wiring pain appears |
 | Server (future only) | **Ktor Server** | 3.4.x | JVM-only module; lighter than Spring for wrapping :core |
 
-> **Version caveat, resolved 2026-07-10.** `quickjs-kt` 1.0.5 is built against Kotlin 2.3.20,
-> but the M0 smoke build confirmed it resolves and runs cleanly on **Kotlin 2.4.0** (JVM,
-> Windows). Pins live in `gradle/libs.versions.toml`. Separate watch item: quickjs-kt issue
-> #199 reports intermittent JVM crashes with async bindings on *long-lived* engine instances,
-> so the engine uses short-lived per-call instances (see section 6).
+> **Engine history.** M0 was built and proven on `quickjs-kt` 1.0.5 (the only KMP-native-capable
+> engine, chosen when embedded iOS was a hard goal). It worked, but everything JS-side had to be
+> phrased as evaluated strings, which made the engine layer ugly. When iOS-native was dropped
+> (2026-07-10), the engine moved to GraalJS on the JVM. Short-lived context-per-call lifecycle
+> is retained. Pins live in `gradle/libs.versions.toml`.
 
 **No Spring anywhere in the app.** Not a taste call: Spring is JVM-only and cannot compile to
 Kotlin/Native, so it cannot live in `:core`, which must reach iOS. Spring knowledge still transfers
@@ -196,20 +203,22 @@ Keep infrastructure out of these types. No HTTP, no DB, no framework leakage.
   pluggable source format. It uses its own source format rather than Paperback's, and leans Android
   Compose rather than full Multiplatform, but the architecture is the blueprint. Read it before
   writing the engine.
-- **One engine, all platforms.** `quickjs-kt` gives QuickJS on JVM desktop, Kotlin/Native (iOS),
-  and Android through a single Kotlin API, and it publishes a **Windows (mingw_x64)** target, so the
-  Windows-first start is covered. Write the shim once.
-- **Reconstruct the Paperback SDK surface in Kotlin.** The extensions expect a set of host objects
-  (request manager, source registration, the types). You provide those as Kotlin functions bound
-  into the QuickJS context. First real task: study `@paperback/types` for your pinned version and a
-  real compiled extension to map exactly what must be provided.
+- **GraalJS, typed handles, zero glue JS.** The polyglot API gives Kotlin real references to the
+  extension objects: methods are invoked with `invokeMember`, promises bridge to coroutines, and
+  the `Application` host surface is a Kotlin `ProxyObject` (unknown members throw named errors
+  from Kotlin, not from a JS Proxy trap). No prelude, no expression strings, no mailbox.
+- **Reconstruct the Paperback SDK surface in Kotlin.** The extensions expect the `Application`
+  host object. It is implemented entirely in Kotlin and bound into the context. The surface was
+  mapped empirically in M0 against FlameComics: scheduleRequest, get/setState, Selector +
+  SelectorRegistry, registerInterceptor, getDefaultUserAgent, sleep, arrayBufferToUTF8String,
+  and the rest of `impl/Application.ts` lands in M1.
 - **cheerio runs inside QuickJS.** 0.9 bundles are fully self-contained: sources that scrape HTML
   inline their own cheerio (verified against real bundles), and the host provides no parser.
   0.8 bundles loaded via the compat wrapper may expect a constructor-injected cheerio — resolve
   empirically in M1.
-- **Engine lifecycle: fresh instance per call.** One short-lived QuickJS instance per extension
-  call, closed in `finally` (mirrors `dokar3/any`, avoids quickjs-kt issue #199). Extension state
-  persists host-side behind `getState`/`setState`, so nothing is lost between instances.
+- **Engine lifecycle: fresh instance per call.** One short-lived GraalJS context per extension
+  call, closed in `finally` (mirrors `dokar3/any`). Extension state persists host-side behind
+  `getState`/`setState`, so nothing is lost between instances.
 - **Network is a host binding.** The extension request manager is backed by Ktor Client, so all
   network (headers, cookies, later Cloudflare handling) is Kotlin you control.
 - **Runs off the UI thread.** `quickjs-kt` is coroutine-integrated; extension calls run on a
@@ -333,13 +342,15 @@ you want generated audio shared across devices.
 
 ## 13. Decisions (resolved 2026-07-10)
 
-- Default host: embedded/native. `:core` isolation keeps a future `:server` cheap either way.
+- Host model (reworked 2026-07-10): Windows desktop client is the product. Apple/other devices,
+  if ever, connect to `:core` behind a future `:server`. Embedded-native iOS dropped as a goal.
+- Engine (reworked 2026-07-10): GraalJS on the JVM, replacing quickjs-kt. Driven by the host
+  model change plus the readability cost of string-glued JS.
 - Persistence: SQLDelight.
 - DI: manual constructor injection; revisit only if wiring pain appears.
-- Kotlin 2.4.0, confirmed compatible with quickjs-kt 1.0.5 in the M0 smoke build.
-- SDK: one host surface, the 0.9 `Application` API, types pinned to `1.0.0-alpha.92`; 0.8 runs
-  via the official compat wrapper, wired in M1.
+- Kotlin 2.4.0.
+- SDK: one host surface, the 0.9 `Application` API, types pinned to `1.0.0-alpha.92`; 0.8 via
+  the official compat wrapper remains an M1 option, prioritized behind the 0.9 corpus.
 - Downloads are in v1: manager in M2 core, UI in M3.
-- Loop: lean (single implementer + TDD + code review + human merge gate) during M0–M1; the
+- Loop: lean (single implementer + TDD + code review, no per-task gate) during M0–M1; the
   four-role loop from section 11 starts at M2.
-- Still open: validate `quickjs-kt` on Kotlin/Native early in M5 so there is no iOS surprise.
