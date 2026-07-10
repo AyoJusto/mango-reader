@@ -12,9 +12,12 @@ import kotlinx.coroutines.delay
  * host functions the JS prelude wraps. Everything an extension can reach goes through
  * here; nothing else is bound into the engine.
  */
+// Extensions' scrapers are written against what sites serve to Paperback on iOS, so the
+// default UA is a plain mobile Safari one (the official polyfills randomize a mobile UA;
+// nothing advertises Paperback). Injectable because some sources may need a specific UA.
 class ApplicationHost(
     private val userAgent: String =
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Paperback/0.9",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
 ) {
     private val state = mutableMapOf<String, Any?>()
 
