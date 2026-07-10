@@ -1,0 +1,18 @@
+-- Installed Paperback source bundles. Timestamps are epoch millis.
+
+CREATE TABLE installed_source (
+  source_id TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  bundle_sha256 TEXT NOT NULL,
+  installed_at INTEGER NOT NULL
+);
+
+selectAllInstalledSources:
+SELECT * FROM installed_source ORDER BY installed_at DESC;
+
+selectInstalledSource:
+SELECT * FROM installed_source WHERE source_id = ?;
+
+upsertInstalledSource:
+INSERT OR REPLACE INTO installed_source(source_id, name, bundle_sha256, installed_at)
+VALUES (?, ?, ?, ?);
