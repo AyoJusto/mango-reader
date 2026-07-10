@@ -275,8 +275,12 @@ De-risk the unknown before building around it.
 - **M1 — Engine hardened.** Details, chapters, pages for that source. Full `Application` surface
   with an audit table. 0.8 bundles running via the official compat wrapper. Sandbox in place.
   `MangaSource` finalized. Two or three more extensions loaded to shake out shim gaps.
-- **M2 — Core.** Wrap the engine, add SQLDelight (library, progress, source registry), expose the
-  repository interfaces. Still headless, driven by tests.
+- **M2 — Core. DONE 2026-07-10.** SQLDelight 2.3.2 (library, progress, source registry, cookie
+  jar, downloads); `LibraryRepository`, `CatalogRepository` (registry owns the pinned bundle
+  sha256), per-source `CookieStore` wired into `ApplicationHost`, `FileDownloadManager`.
+  Headless, driven by tests. Not yet wired: production composition (a real `SqlCookieStore`
+  into `ExtensionRuntime`'s host, file-backed driver) lands with `:app` in M3. Download
+  ceilings recorded in §10.
 - **M3 — Reader app.** Compose Multiplatform desktop on Windows: dark library grid, source browse,
   and a proper immersive long-strip reader with the perf recipe above.
 - **M4 — Extension management.** Install/update from a Paperback-style repo, per-source settings.
@@ -295,6 +299,11 @@ De-risk the unknown before building around it.
 - **Moving target.** Paperback keeps compatibility roughly one version behind and 0.9 has been a long
   beta while 0.8 stays the shipping SDK. Building the shim to 0.9 but loading 0.8 bundles hedges
   both: forward-compatible, but working today. Pin `@paperback/types` and re-verify when 0.9 ships.
+- **Downloads bypass extension interceptors and host policy (M2.4 ceiling).** Images are
+  fetched by the app with `Page.headers` only: sources that sign image URLs in interceptors
+  will 403 (route through host interceptors when a real source needs it, M3+), and the
+  download client skips `ApplicationHost`'s per-host rate limit — when the project-wide host
+  allowlist lands, the download path must go through the same policy as `scheduleRequest`.
 - **Cloudflare (decided 2026-07-10, mirrors Paperback's manual-check flow).** Detection lives in
   `:core`: `ApplicationHost.scheduleRequest` turns a Cloudflare-challenge response into a named
   error carrying source + URL (M1.5 error taxonomy). Solving lives in `:app`: an embedded
