@@ -1,7 +1,7 @@
 # Application surface audit (Paperback 0.9)
 
 Every member of the 0.9 `Application` API, as implemented by `ApplicationHost.ApplicationProxy`
-(`core/src/jvmMain/kotlin/dev/squidwha/core/engine/ApplicationHost.kt`). Status legend:
+(`core/src/jvmMain/kotlin/dev/mango/core/engine/ApplicationHost.kt`). Status legend:
 
 - **implemented** — real Kotlin behavior backing it
 - **stub (no-op)** — present so extensions that call it don't crash, does nothing
@@ -76,7 +76,7 @@ across hosts).
 The HTTP call and body read inside `scheduleRequest`'s dispatch are wrapped in
 `kotlinx.coroutines.withTimeout`; exceeding it throws `ExtensionNetworkException`.
 
-**Error taxonomy** (`dev.squidwha.core.engine`, all raised at the `ApplicationHost`/
+**Error taxonomy** (`dev.mango.core.engine`, all raised at the `ApplicationHost`/
 `ExtensionRuntime` boundary):
 
 | Name | Meaning | Thrown from |

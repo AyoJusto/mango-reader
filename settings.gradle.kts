@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "squidwha"
+rootProject.name = "mango"
 include(":core")
