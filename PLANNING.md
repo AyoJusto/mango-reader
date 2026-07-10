@@ -1,0 +1,345 @@
+# Manhwa Reader — Project Planning
+
+A platform-agnostic modern manhwa/manga reader that reuses Paperback (iOS) extensions.
+Start on Windows desktop, land on macOS/iOS later as a genuinely native app.
+Written entirely in Kotlin. The only JavaScript in the project is the third-party extension
+bundles themselves, which are executed, never authored.
+
+---
+
+## 1. Vision and non-negotiables
+
+- **Great reader first.** The reading experience is the product. Dark, minimal, webtoon-style.
+- **One language: Kotlin.** UI, engine, and logic are all Kotlin. No JS/TS is written by hand.
+- **Reuse Paperback extensions.** They are maintained JS bundles that already run on iOS's
+  JavaScriptCore, so they run in any embeddable JS engine. **Implement the 0.9 SDK's
+  `Application` surface as the one host contract; run 0.8 bundles through Paperback's official
+  0.8→0.9 compat wrapper** (see section 6). Corpus reality (verified 2026-07-10): Inkdex is the
+  0.9 registry (68 sources, rebuilt continuously); Netsky's repos are the 0.8 corpus (~133
+  sources). Supporting both mirrors what the real Paperback 0.9 app does.
+- **Desktop now, Apple later, same codebase.** Windows is the current setup. macOS/iOS reuse the
+  identical Compose UI and core.
+- **One agnostic source contract.** Everything talks to a single `MangaSource` interface.
+  Paperback is the first adapter. A Tachiyomi adapter could slot in later untouched.
+
+---
+
+## 2. Architecture: modular monolith (not client/server)
+
+Two modules in one process, with a clean boundary between them. No HTTP hop between UI and core.
+
+```
++-------------------------------------------------------------+
+|  :app  (Compose Multiplatform UI)                           |
+|  Windows/macOS desktop now -> iOS later. Dark webtoon look. |
+|  Depends on :core through a repository interface only.      |
++-------------------------------------------------------------+
+                     | suspend fun / Flow (in-process)
++-------------------------------------------------------------+
+|  :core  (Kotlin Multiplatform)                              |
+|  - Extension engine (QuickJS + Paperback 0.9/0.8 SDK shim)  |
+|  - Library, read progress, downloads                        |
+|  - SQLite persistence                                       |
+|  - Domain model + MangaSource contract                      |
+|  Knows nothing about how it is hosted.                      |
++-------------------------------------------------------------+
+                     |
+     Paperback 0.9 + 0.8 extension bundles (untrusted JS)
+
+           (future, optional)
++-------------------------------------------------------------+
+|  :server  (JVM only, Ktor)  -- NOT built now                |
+|  Also depends on :core, exposes it over HTTP for            |
+|  multi-device sync. App and server are two hosts of :core.  |
++-------------------------------------------------------------+
+```
+
+**Why not split into two running processes.** The embedded engine is the whole reason iOS can be
+native and server-less. Putting HTTP between UI and core throws that away and forces a hosted
+server on Apple. So the split is at the module boundary, not the process boundary.
+
+**Why the boundary still matters.** Because `:core` is host-ignorant, adding a `:server` later is a
+thin wrapper with zero rewrite. The door to client/server stays open for free. This is a deliberate
+"keep both options" stance, not fence-sitting: the isolated `:core` is the one decision that makes
+either future cheap.
+
+---
+
+## 3. Tech stack
+
+All Kotlin, all first-party or well-established, all Kotlin Multiplatform capable (except the
+optional JVM-only server). Versions below are the latest as of July 2026; pin them in a Gradle
+version catalog (`libs.versions.toml`) and let Renovate/Dependabot bump them.
+
+| Concern | Choice | Version (Jul 2026) | Notes |
+|---|---|---|---|
+| Language | **Kotlin** | **2.4.0** | latest stable (Jun 3 2026); 2.4.20 is EAP only |
+| UI | **Compose Multiplatform** | **1.11.0** | Skia-rendered native UI; iOS/web improvements |
+| JS engine | **QuickJS via `dokar3/quickjs-kt`** | **1.0.5** | targets JVM, Android, iOS, macOS, **Windows (mingw_x64)**, Linux |
+| HTTP | **Ktor Client** | **3.5.1** | JetBrains, multiplatform |
+| Persistence | **SQLDelight** (chosen over Room, 2026-07-10) | latest via catalog | typesafe SQL, all targets |
+| Serialization | **kotlinx.serialization** | latest via catalog | match the Kotlin 2.4.0 line |
+| Async | **kotlinx.coroutines** | latest via catalog | match the Kotlin 2.4.0 line |
+| Image loading | **Coil 3** | latest 3.x via catalog | Compose Multiplatform, memory + disk cache |
+| DI | manual constructor injection (chosen 2026-07-10) | — | revisit only if wiring pain appears |
+| Server (future only) | **Ktor Server** | 3.4.x | JVM-only module; lighter than Spring for wrapping :core |
+
+> **Version caveat, resolved 2026-07-10.** `quickjs-kt` 1.0.5 is built against Kotlin 2.3.20,
+> but the M0 smoke build confirmed it resolves and runs cleanly on **Kotlin 2.4.0** (JVM,
+> Windows). Pins live in `gradle/libs.versions.toml`. Separate watch item: quickjs-kt issue
+> #199 reports intermittent JVM crashes with async bindings on *long-lived* engine instances,
+> so the engine uses short-lived per-call instances (see section 6).
+
+**No Spring anywhere in the app.** Not a taste call: Spring is JVM-only and cannot compile to
+Kotlin/Native, so it cannot live in `:core`, which must reach iOS. Spring knowledge still transfers
+directly (layered services, repository interfaces, dependency inversion). Only the library names
+change. Spring Boot could run in a future `:server`, but Ktor Server is the better-fitting tool
+there and shares the coroutines/serialization stack.
+
+---
+
+## 4. Module boundary (the contract the UI sees)
+
+The UI never touches the engine or the DB directly. It talks to repositories in `:core`.
+
+```kotlin
+// in :core, consumed by :app
+interface LibraryRepository {
+    fun observeLibrary(): Flow<List<LibraryItem>>
+    suspend fun addToLibrary(sourceId: String, mangaId: String)
+    suspend fun progress(chapterId: String): ReadProgress?
+    suspend fun setProgress(chapterId: String, page: Int)
+}
+
+interface CatalogRepository {
+    suspend fun installedSources(): List<SourceInfo>
+    suspend fun search(sourceId: String, query: String, page: Int): List<MangaEntry>
+    suspend fun details(sourceId: String, mangaId: String): MangaDetails
+    suspend fun chapters(sourceId: String, mangaId: String): List<Chapter>
+    suspend fun pages(sourceId: String, chapterId: String): List<Page>
+}
+```
+
+Same discipline as the engine being ignorant of its host, now applied to the whole core.
+
+---
+
+## 5. Domain model
+
+Normalize every source's messy shape at the engine boundary into these.
+
+```kotlin
+data class MangaEntry(
+    val sourceId: String,
+    val mangaId: String,
+    val title: String,
+    val cover: String? = null,
+)
+
+data class MangaDetails(
+    val entry: MangaEntry,
+    val authors: List<String>,
+    val description: String? = null,
+    val status: MangaStatus = MangaStatus.UNKNOWN,
+    val tags: List<String> = emptyList(),
+)
+
+data class Chapter(
+    val chapterId: String,
+    val number: Double,
+    val title: String? = null,
+    val language: String? = null,
+    val publishedAt: Instant? = null,
+)
+
+data class Page(
+    val index: Int,
+    val url: String,
+    val headers: Map<String, String> = emptyMap(), // referer etc.
+)
+
+// the agnostic port. Paperback is the first implementation.
+interface MangaSource {
+    val sourceId: String
+    suspend fun search(query: String, page: Int): List<MangaEntry>
+    suspend fun getDetails(mangaId: String): MangaDetails
+    suspend fun getChapters(mangaId: String): List<Chapter>
+    suspend fun getPages(chapterId: String): List<Page>
+}
+```
+
+Keep infrastructure out of these types. No HTTP, no DB, no framework leakage.
+
+---
+
+## 6. Extension engine (the risk lives here)
+
+- **One host surface: the 0.9 `Application` API.** Reality check (verified 2026-07-10): 0.9 is
+  still a TestFlight beta, but its extension corpus is alive — Inkdex builds 68 sources against
+  `@paperback/types 1.0.0-alpha.92`, rebuilt continuously. We implement the 0.9 `Application`
+  global in Kotlin (reference: `packages/types/src/impl/Application.ts` on the `0.9` branch of
+  `Paperback-iOS/paperback-toolchain`) and run 0.8 bundles through Paperback's official
+  ~2,300-line 0.8→0.9 compat wrapper (`packages/types/src/compat/0.8/`) instead of writing our
+  own 0.8 shim. Types pin: `1.0.0-alpha.92`.
+- **Official host shim exists as blueprint.** `@paperback/runtime-polyfills` in
+  `paperback-toolchain` is a working Node reimplementation of the host: on 0.8, `App` is a Proxy
+  whose `create*` factories are identity functions; only the request manager, state manager, and
+  raw data need real implementations. The `0.9` branch has an `ApplicationPolyfill`.
+- **Extension sources to pull from.** Inkdex (0.9, base URL
+  `https://inkdex.github.io/extensions/0.9/stable`) and Netsky's repos (0.8:
+  `netskys-extensions`, `extensions-generic-0.8`). A registry is a static base URL serving
+  `versioning.json` plus `<SourceId>/index.js` per source. M0 target: FlameComics (28 KB,
+  JSON API, no cheerio).
+- **Prior art to study first (do not skip this).** `dokar3/any` is a multi-source reader built on
+  JavaScript extensions + Jetpack Compose, by the same author as `quickjs-kt`. It is a working
+  reference for the exact pattern in this plan: wiring a JS engine to a Compose reader with a
+  pluggable source format. It uses its own source format rather than Paperback's, and leans Android
+  Compose rather than full Multiplatform, but the architecture is the blueprint. Read it before
+  writing the engine.
+- **One engine, all platforms.** `quickjs-kt` gives QuickJS on JVM desktop, Kotlin/Native (iOS),
+  and Android through a single Kotlin API, and it publishes a **Windows (mingw_x64)** target, so the
+  Windows-first start is covered. Write the shim once.
+- **Reconstruct the Paperback SDK surface in Kotlin.** The extensions expect a set of host objects
+  (request manager, source registration, the types). You provide those as Kotlin functions bound
+  into the QuickJS context. First real task: study `@paperback/types` for your pinned version and a
+  real compiled extension to map exactly what must be provided.
+- **cheerio runs inside QuickJS.** 0.9 bundles are fully self-contained: sources that scrape HTML
+  inline their own cheerio (verified against real bundles), and the host provides no parser.
+  0.8 bundles loaded via the compat wrapper may expect a constructor-injected cheerio — resolve
+  empirically in M1.
+- **Engine lifecycle: fresh instance per call.** One short-lived QuickJS instance per extension
+  call, closed in `finally` (mirrors `dokar3/any`, avoids quickjs-kt issue #199). Extension state
+  persists host-side behind `getState`/`setState`, so nothing is lost between instances.
+- **Network is a host binding.** The extension request manager is backed by Ktor Client, so all
+  network (headers, cookies, later Cloudflare handling) is Kotlin you control.
+- **Runs off the UI thread.** `quickjs-kt` is coroutine-integrated; extension calls run on a
+  background dispatcher and never block scrolling.
+
+**Hard security invariant:** an extension gets **no** capability except the injected request
+manager. No filesystem, no arbitrary network, no process access. This is enforced in every review.
+
+---
+
+## 7. UI and theming
+
+- **Dark, minimal, webtoon-first.** Reference: **Mihon** (open-source manga reader, Jetpack Compose,
+  ships a pure-black AMOLED theme). Same domain, same look, same toolkit.
+- **Theme from one place.** `MaterialTheme` wrapping a `darkColorScheme(...)` at the root; every
+  component follows it. Swapping/adding themes is swapping that object.
+- **Custom themes are first-class.** For a look that is not "Material default," build a design system
+  with `CompositionLocal` tokens (color, type, spacing) and drop Material. A custom palette (e.g.
+  Kanagawa Dragon) becomes the default scheme in ~10 lines.
+- **The reader surface is custom regardless.** A `LazyColumn` long-strip with immersive mode: near-
+  black background, hidden system bars on mobile / borderless-fullscreen window on desktop, controls
+  that fade in and out. Its "theme" is mostly the background color behind the pages.
+- **Desktop vs mobile: shared look, tuned input.** Rendering and theming are write-once. Interaction
+  differs: wheel/trackpad scroll and key paging on desktop, fling and tap zones on mobile. Small,
+  real, per-platform work.
+
+---
+
+## 8. Performance (the "scroll like Discord" goal)
+
+The JS engine is **not** the bottleneck. Extension calls are network-bound, so cache them; QuickJS
+interpreter speed is noise. Scroll smoothness is a rendering + image-pipeline problem, solved in
+Kotlin:
+
+- `LazyColumn` for the strip: virtualizes so only visible/near items compose. Stable keys.
+- **Coil 3** with memory + disk cache.
+- **Prefetch** images for pages and the next chapter just ahead of scroll position, during idle.
+- **Decode off the main thread**, downsample to viewport width (do not push 4000px bitmaps through
+  the compositor).
+
+Compose renders through Skia and is native-compiled; Discord is Electron, so native Compose can
+match or beat it.
+
+---
+
+## 9. Build order (milestones)
+
+De-risk the unknown before building around it.
+
+- **M0 — Engine spike (the whole ballgame).** A Kotlin test that loads *one* real Paperback extension
+  (Inkdex FlameComics, a 28 KB 0.9 JSON-API bundle) through `quickjs-kt` 1.0.5, runs its search,
+  and returns normalized `MangaEntry`. No UI, no DB. Kotlin 2.4.0 + quickjs-kt compatibility was
+  verified 2026-07-10. Task-level breakdown lives in the implementation plan.
+- **M1 — Engine hardened.** Details, chapters, pages for that source. Full `Application` surface
+  with an audit table. 0.8 bundles running via the official compat wrapper. Sandbox in place.
+  `MangaSource` finalized. Two or three more extensions loaded to shake out shim gaps.
+- **M2 — Core.** Wrap the engine, add SQLDelight (library, progress, source registry), expose the
+  repository interfaces. Still headless, driven by tests.
+- **M3 — Reader app.** Compose Multiplatform desktop on Windows: dark library grid, source browse,
+  and a proper immersive long-strip reader with the perf recipe above.
+- **M4 — Extension management.** Install/update from a Paperback-style repo, per-source settings.
+- **M5+ — Apple targets.** macOS/iOS from the same `:app`; validate `quickjs-kt` on Kotlin/Native.
+
+---
+
+## 10. Known risks and hard rules
+
+- **The SDK shim is the risk.** Paperback's runtime contract is discovered empirically, not handed
+  to you. Pin to 0.8, expect iteration. Keep a tight human loop here.
+- **Untrusted code execution.** Extensions are third-party JS. Invariant from section 6 is enforced
+  every review.
+- **Be a polite scraper.** Cache aggressively, rate-limit per source. Faster app, no IP bans.
+  Personal, local tool; treat source sites with restraint.
+- **Moving target.** Paperback keeps compatibility roughly one version behind and 0.9 has been a long
+  beta while 0.8 stays the shipping SDK. Building the shim to 0.9 but loading 0.8 bundles hedges
+  both: forward-compatible, but working today. Pin `@paperback/types` and re-verify when 0.9 ships.
+
+---
+
+## 11. Claude Code workflow (the loop)
+
+Four sharp, distinct mandates. Value comes from non-overlap. Use git worktrees for parallel branches.
+
+| Role | Mandate |
+|---|---|
+| **Implementer** | One task with written acceptance criteria. Code + unit tests. One branch/PR. |
+| **Reviewer A — architecture** | Honors `MangaSource` and the module boundary (no infra in domain, `:core` host-ignorant, `:app` only touches repositories)? Simple over clever? |
+| **Reviewer B — security/robustness** | Extension sandbox intact (no capability leak)? Network resilience, error handling, rate limiting, caching? |
+| **Tester** | Integration + regression against real extension fixtures. Repro on failures. |
+
+**Loop:** task -> Implementer -> Tester -> Reviewer A + B in parallel -> changes? back to Implementer
+-> green + both approve -> human gate -> merge -> next.
+
+**Shared `CLAUDE.md` invariants (every role enforces):**
+- the `MangaSource` interface and the `:core`/`:app` boundary are law
+- no infrastructure in the domain layer
+- extensions get zero capabilities beyond the request manager
+- prefer the simple, readable solution over the clever abstraction
+- thin tests, no infra logic in test bodies
+
+**Honest caveat:** four autonomous agents burn tokens and can bikeshed. Human gate at merge during
+the engine phase, where the spec is still being discovered. Loosen once tasks go mechanical.
+
+---
+
+## 12. Later roadmap (design for it, do not build it yet)
+
+Add an **enrichment** service behind its own interface. The reader asks "is there an audio/animation
+track for this chapter?" and plays it if present. Fully decoupled from the reader core.
+
+- **Storybook / voice-read mode.** Per chapter: feed each page image to a vision-language model to
+  get structured `{ order, speaker, text }` (webtoons are linear vertical strips, which helps), then
+  synthesize with **ElevenLabs**, mapping speakers to voices, and cache the audio track.
+- **Animation.** Much further out; same enrichment slot, same "play if present" contract.
+
+These need cloud compute (VLM + ElevenLabs), but that does **not** force a server: the app can call
+those APIs directly with the user's own key and cache locally. A `:server` only earns its place if
+you want generated audio shared across devices.
+
+---
+
+## 13. Decisions (resolved 2026-07-10)
+
+- Default host: embedded/native. `:core` isolation keeps a future `:server` cheap either way.
+- Persistence: SQLDelight.
+- DI: manual constructor injection; revisit only if wiring pain appears.
+- Kotlin 2.4.0, confirmed compatible with quickjs-kt 1.0.5 in the M0 smoke build.
+- SDK: one host surface, the 0.9 `Application` API, types pinned to `1.0.0-alpha.92`; 0.8 runs
+  via the official compat wrapper, wired in M1.
+- Downloads are in v1: manager in M2 core, UI in M3.
+- Loop: lean (single implementer + TDD + code review + human merge gate) during M0–M1; the
+  four-role loop from section 11 starts at M2.
+- Still open: validate `quickjs-kt` on Kotlin/Native early in M5 so there is no iOS surprise.
