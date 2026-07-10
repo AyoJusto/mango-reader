@@ -76,25 +76,37 @@ class ExtensionHandle internal constructor(
         return if (serialized.isNull) "null" else serialized.asString()
     }
 
-    private fun awaitIfPromise(value: Value, what: String): Value {
-        val isThenable = value.hasMembers() && value.canInvokeMember("then")
-        if (!isThenable) return value
-        var fulfilled: Value? = null
-        var rejected: Value? = null
-        var settled = false
-        value.invokeMember(
-            "then",
-            ProxyExecutable { args -> fulfilled = args.getOrNull(0); settled = true; null },
-            ProxyExecutable { args -> rejected = args.getOrNull(0); settled = true; null },
-        )
-        // graal drains the microtask queue when the outermost JS frame exits, and all
-        // host bindings are synchronous, so a promise that is still pending here would
-        // never settle — surface it instead of hanging
-        if (!settled) throw ExtensionCallException("$what returned a promise that never settled")
-        rejected?.let { throw ExtensionCallException("$what rejected: ${describe(it)}") }
-        return fulfilled ?: context.eval("js", "undefined")
-    }
-
-    private fun describe(error: Value): String =
-        error.getMember("stack")?.takeIf { it.isString }?.asString() ?: error.toString()
+    private fun awaitIfPromise(value: Value, what: String): Value = awaitPromise(context, value, what)
 }
+
+/**
+ * Settles a value that may be a JS promise, by registering then-callbacks and reading the
+ * result back out synchronously. Only valid at the outermost host->guest boundary — see the
+ * NOTE inside for why this cannot be used from within a running JS call.
+ */
+internal fun awaitPromise(context: Context, value: Value, what: String): Value {
+    val isThenable = value.hasMembers() && value.canInvokeMember("then")
+    if (!isThenable) return value
+    var fulfilled: Value? = null
+    var rejected: Value? = null
+    var settled = false
+    value.invokeMember(
+        "then",
+        ProxyExecutable { args -> fulfilled = args.getOrNull(0); settled = true; null },
+        ProxyExecutable { args -> rejected = args.getOrNull(0); settled = true; null },
+    )
+    // graal drains the microtask queue when the outermost JS frame exits, and all
+    // host bindings are synchronous, so a promise that is still pending here would
+    // never settle — surface it instead of hanging. NOTE: this only works for calls made
+    // directly from Kotlin at the outermost host->guest boundary; anything invoked from
+    // *inside* a running JS call (e.g. an interceptor invoked from scheduleRequest, itself
+    // called from deep in a bundle's async chain) must compose as a native JS promise
+    // chain instead (see ApplicationHost.scheduleRequest) — this pattern does not settle
+    // when nested.
+    if (!settled) throw ExtensionCallException("$what returned a promise that never settled")
+    rejected?.let { throw ExtensionCallException("$what rejected: ${describePromiseError(it)}") }
+    return fulfilled ?: context.eval("js", "undefined")
+}
+
+internal fun describePromiseError(error: Value): String =
+    error.getMember("stack")?.takeIf { it.isString }?.asString() ?: error.toString()

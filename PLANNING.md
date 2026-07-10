@@ -181,22 +181,22 @@ Keep infrastructure out of these types. No HTTP, no DB, no framework leakage.
 
 ## 6. Extension engine (the risk lives here)
 
-- **One host surface: the 0.9 `Application` API.** Reality check (verified 2026-07-10): 0.9 is
-  still a TestFlight beta, but its extension corpus is alive — Inkdex builds 68 sources against
-  `@paperback/types 1.0.0-alpha.92`, rebuilt continuously. We implement the 0.9 `Application`
-  global in Kotlin (reference: `packages/types/src/impl/Application.ts` on the `0.9` branch of
-  `Paperback-iOS/paperback-toolchain`) and run 0.8 bundles through Paperback's official
-  ~2,300-line 0.8→0.9 compat wrapper (`packages/types/src/compat/0.8/`) instead of writing our
-  own 0.8 shim. Types pin: `1.0.0-alpha.92`.
-- **Official host shim exists as blueprint.** `@paperback/runtime-polyfills` in
-  `paperback-toolchain` is a working Node reimplementation of the host: on 0.8, `App` is a Proxy
-  whose `create*` factories are identity functions; only the request manager, state manager, and
-  raw data need real implementations. The `0.9` branch has an `ApplicationPolyfill`.
-- **Extension sources to pull from.** Inkdex (0.9, base URL
-  `https://inkdex.github.io/extensions/0.9/stable`) and Netsky's repos (0.8:
-  `netskys-extensions`, `extensions-generic-0.8`). A registry is a static base URL serving
-  `versioning.json` plus `<SourceId>/index.js` per source. M0 target: FlameComics (28 KB,
-  JSON API, no cheerio).
+- **One host surface, one SDK generation: the 0.9 `Application` API.** Decision 2026-07-10:
+  0.9 extensions ONLY. Inkdex builds 68 sources against `@paperback/types 1.0.0-alpha.92`,
+  rebuilt continuously — corpus enough. We implement the 0.9 `Application` global in Kotlin
+  (reference: `packages/types/src/impl/Application.ts`, branch `0.9` of
+  `Paperback-iOS/paperback-toolchain`; member-by-member audit in docs/application-surface.md).
+  Types pin: `1.0.0-alpha.92`.
+- **0.8 compat was built, then cut (2026-07-10).** A working spike lives on branch
+  `archive/0.8-compat`: the official compat wrapper vendored as a 55 KB esbuild IIFE from the
+  `@paperback/types` npm tarball, cheerio bundled for host injection, a Compat08Runtime load
+  path, plus two hard-won facts — the wrapper's ownKeys-less JS Proxy false-positives Graal's
+  interop assertions under `-ea`, and the madara 0.8 corpus sits behind Cloudflare (two
+  sources 403'd live validation). Resurrect from that branch if 0.8 ever earns its place;
+  do not rebuild from scratch.
+- **Extension source to pull from.** Inkdex 0.9: base URL
+  `https://inkdex.github.io/extensions/0.9/stable`, serving `versioning.json` plus
+  `<SourceId>/index.js` per source. M0 target: FlameComics (28 KB, JSON API, no cheerio).
 - **Prior art to study first (do not skip this).** `dokar3/any` is a multi-source reader built on
   JavaScript extensions + Jetpack Compose, by the same author as `quickjs-kt`. It is a working
   reference for the exact pattern in this plan: wiring a JS engine to a Compose reader with a
@@ -295,6 +295,14 @@ De-risk the unknown before building around it.
 - **Moving target.** Paperback keeps compatibility roughly one version behind and 0.9 has been a long
   beta while 0.8 stays the shipping SDK. Building the shim to 0.9 but loading 0.8 bundles hedges
   both: forward-compatible, but working today. Pin `@paperback/types` and re-verify when 0.9 ships.
+- **Cloudflare (decided 2026-07-10, mirrors Paperback's manual-check flow).** Detection lives in
+  `:core`: `ApplicationHost.scheduleRequest` turns a Cloudflare-challenge response into a named
+  error carrying source + URL (M1.5 error taxonomy). Solving lives in `:app`: an embedded
+  Chromium via KCEF opens the challenge, the user clicks through, and the harvested
+  `cf_clearance` cookie goes into the per-source cookie jar (`:core`, SQLDelight, M2) — landing
+  M3/M4 when a window exists. The clearance cookie is UA-bound, so a solved source pins its UA
+  to the WebView's. `executeInWebView` stays a named unsupported error until KCEF lands, then
+  shares the machinery. Until then, tests and shake-outs use non-Cloudflare sources.
 
 ---
 
@@ -309,12 +317,25 @@ Four sharp, distinct mandates. Value comes from non-overlap. Use git worktrees f
 | **Reviewer B — security/robustness** | Extension sandbox intact (no capability leak)? Network resilience, error handling, rate limiting, caching? |
 | **Tester** | Integration + regression against real extension fixtures. Repro on failures. |
 
-**Loop (reworked 2026-07-10):** the orchestrator session writes a verified-delegation contract
-per task (locked decisions, steps with expected observations, mismatch branches, STOP rule,
-runnable verification, pasted-evidence handback), an implementer subagent executes it, the
-orchestrator judges the handback, independently re-runs verification, runs the multi-agent
-review workflow at task/milestone granularity, and commits. The orchestrator does not
-implement inline. Human involvement is at milestone reports, not per-task gates.
+**Loop (hardened 2026-07-10, after burning a task on stale scope):** four stages, strictly
+separated.
+
+0. **Scope gate.** Before any dispatch, the orchestrator re-validates the task against the
+   owner's latest stated objectives — not this document. Inherited or assumed scope gets a
+   question first. Every contract carries a scope fence: build only what is listed;
+   adjacent ideas go in the report, never into code.
+1. **Discover.** Facts (signatures, shapes, endpoints) are extracted before the contract
+   exists — orchestrator inline or a focused research agent. Implementer contracts contain
+   locked facts, never discovery steps.
+2. **Implement.** A sonnet subagent executes a verified-delegation contract (locked
+   decisions, expected observations, mismatch branches, STOP rule, pasted-evidence
+   handback). Small changes in already-loaded files the orchestrator does inline.
+3. **Review.** One opus reviewer per batch, always for sandbox/request/normalization
+   diffs, skipped for low-risk ones. Multi-agent review only at milestone exits with
+   explicit owner approval.
+
+The orchestrator independently re-runs verification, commits, and reports at milestones;
+there is no per-task human gate.
 
 **Shared `CLAUDE.md` invariants (every role enforces):**
 - the `MangaSource` interface and the `:core`/`:app` boundary are law
@@ -353,8 +374,8 @@ you want generated audio shared across devices.
 - Persistence: SQLDelight.
 - DI: manual constructor injection; revisit only if wiring pain appears.
 - Kotlin 2.4.0.
-- SDK: one host surface, the 0.9 `Application` API, types pinned to `1.0.0-alpha.92`; 0.8 via
-  the official compat wrapper remains an M1 option, prioritized behind the 0.9 corpus.
+- SDK (final 2026-07-10): 0.9 extensions only, types pinned to `1.0.0-alpha.92`. The 0.8
+  compat spike is archived on `archive/0.8-compat`, not on the roadmap.
 - Downloads are in v1: manager in M2 core, UI in M3.
 - Loop: lean (single implementer + TDD + code review, no per-task gate) during M0–M1; the
   four-role loop from section 11 starts at M2.
