@@ -13,6 +13,14 @@ class ExtensionCallException(message: String, cause: Throwable? = null) :
     Exception(message, cause)
 
 /**
+ * Raised when a guest error is the in-bundle Cloudflare-challenge protocol: an error object
+ * with `type === "cloudflareError"` and a `resolutionRequest` naming the URL to solve.
+ * Solving is out of scope here (M3/M4 webview work); this just names the condition so
+ * callers can distinguish it from an ordinary extension failure.
+ */
+class CloudflareChallengeException(val url: String?, message: String) : Exception(message)
+
+/**
  * Runs a verified Paperback 0.9 bundle in a fresh GraalJS context: create, bind the
  * Application proxy, evaluate the bundle, run the block, close. One context per call
  * (see PLANNING.md section 6); durable extension state lives in [ApplicationHost].
@@ -32,6 +40,16 @@ class ExtensionRuntime(
                 .build().use { context ->
                     val application = host.applicationProxyFor(context)
                     context.getBindings("js").putMember("Application", application)
+                    // browser global probed at module top level by the bundles' inlined
+                    // HTML parser (its Buffer fallback crashes GraalJS). Browser semantics:
+                    // base64 -> binary string, one char per byte, hence ISO-8859-1 — NOT
+                    // the UTF-8 convention of Application.base64Decode.
+                    context.getBindings("js").putMember(
+                        "atob",
+                        ProxyExecutable { args ->
+                            String(java.util.Base64.getDecoder().decode(args[0].asString()), Charsets.ISO_8859_1)
+                        },
+                    )
                     try {
                         context.eval(Source.newBuilder("js", bundleJs, "bundle.js").buildLiteral())
                     } catch (e: PolyglotException) {
@@ -64,6 +82,7 @@ class ExtensionHandle internal constructor(
         val result = try {
             target.invokeMember(method, *args)
         } catch (e: PolyglotException) {
+            if (e.isGuestException) cloudflareChallengeIn(e.guestObject)?.let { throw it }
             throw ExtensionCallException("$method failed: ${e.message}", e)
         }
         return awaitIfPromise(result, method)
@@ -104,9 +123,29 @@ internal fun awaitPromise(context: Context, value: Value, what: String): Value {
     // chain instead (see ApplicationHost.scheduleRequest) — this pattern does not settle
     // when nested.
     if (!settled) throw ExtensionCallException("$what returned a promise that never settled")
-    rejected?.let { throw ExtensionCallException("$what rejected: ${describePromiseError(it)}") }
+    rejected?.let {
+        cloudflareChallengeIn(it)?.let { cf -> throw cf }
+        throw ExtensionCallException("$what rejected: ${describePromiseError(it)}")
+    }
     return fulfilled ?: context.eval("js", "undefined")
 }
 
 internal fun describePromiseError(error: Value): String =
     error.getMember("stack")?.takeIf { it.isString }?.asString() ?: error.toString()
+
+/**
+ * Recognizes the in-bundle Cloudflare-challenge error shape (`type === "cloudflareError"`,
+ * `resolutionRequest.url`) and builds the named exception for it. Returns null for any other
+ * error value so ordinary failures fall through to [ExtensionCallException] unchanged.
+ */
+internal fun cloudflareChallengeIn(error: Value?): CloudflareChallengeException? {
+    if (error == null || !error.hasMembers() || !error.hasMember("type")) return null
+    val type = error.getMember("type")?.takeIf { it.isString }?.asString()
+    if (type != "cloudflareError") return null
+    val url = error.getMember("resolutionRequest")
+        ?.takeIf { it.hasMembers() }
+        ?.getMember("url")
+        ?.takeIf { it.isString }
+        ?.asString()
+    return CloudflareChallengeException(url, "Cloudflare challenge required to continue")
+}

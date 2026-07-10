@@ -247,9 +247,12 @@ class ApplicationHost(
                     // ponytail: multi-value headers comma-joined except Set-Cookie, which
                     // lives in the dedicated `cookies` field the bundle's cookie
                     // interceptor actually reads
+                    // keys lowercased: bundles do exact lookups like headers["cf-mitigated"],
+                    // and iOS/HTTP2 give them lowercase names; wire casing (Cf-Mitigated)
+                    // would silently break their challenge detection
                     "headers" to ProxyObject.fromMap(
                         response.headers.entries()
-                            .associate { it.key to it.value.joinToString(", ") }
+                            .associate { it.key.lowercase() to it.value.joinToString(", ") }
                     ),
                     "cookies" to ProxyArray.fromList(cookies.map { cookieProxy(it, response.call.request.url.host) }),
                 )
