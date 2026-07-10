@@ -15,6 +15,11 @@ package dev.squidwha.core.engine
 internal val APPLICATION_PRELUDE = """
 "use strict";
 globalThis.Application = (function () {
+  // __host cannot be hidden from bundles (quickjs-kt binds it non-configurable and
+  // non-writable), so it is part of the sandbox surface. INVARIANT: every policy
+  // (rate limits, allowlists, timeouts) is enforced inside the Kotlin bindings
+  // themselves; this prelude only marshals. Bypassing it must gain a bundle nothing.
+  var host = globalThis.__host;
   var selectors = new Map();
   var nextSelectorId = 1;
   var interceptors = [];
@@ -22,12 +27,12 @@ globalThis.Application = (function () {
     isResourceLimited: false,
     filterAdultTitles: false,
     filterMatureTitles: false,
-    getDefaultUserAgent: function () { return __host.getDefaultUserAgent(); },
-    getState: function (key) { return __host.getState(key); },
-    setState: function (value, key) { __host.setState(value, key); },
-    sleep: function (seconds) { return __host.sleep(seconds); },
-    scheduleRequest: function (request) { return __host.scheduleRequest(request); },
-    arrayBufferToUTF8String: function (buffer) { return __host.arrayBufferToUTF8String(buffer); },
+    getDefaultUserAgent: function () { return host.getDefaultUserAgent(); },
+    getState: function (key) { return host.getState(key); },
+    setState: function (value, key) { host.setState(value, key); },
+    sleep: function (seconds) { return host.sleep(seconds); },
+    scheduleRequest: function (request) { return host.scheduleRequest(request); },
+    arrayBufferToUTF8String: function (buffer) { return host.arrayBufferToUTF8String(buffer); },
     Selector: function (obj, method) {
       var id = "sel-" + nextSelectorId++;
       selectors.set(id, function () { return obj[method].apply(obj, arguments); });

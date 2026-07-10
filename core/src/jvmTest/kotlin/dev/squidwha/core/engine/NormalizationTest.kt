@@ -1,8 +1,12 @@
 package dev.squidwha.core.engine
 
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class NormalizationTest {
@@ -21,5 +25,16 @@ class NormalizationTest {
             assertTrue(entry.title.isNotBlank(), "blank title in $entry")
         }
         assertTrue(entries.any { it.cover != null }, "expected at least one cover url")
+    }
+
+    @Test
+    fun jsonNullAndMissingFieldsBecomeNamedErrorsNotNullStrings() {
+        val withNullTitle = buildJsonObject {
+            put("mangaId", JsonPrimitive("42"))
+            put("title", JsonNull)
+        }
+        assertFailsWith<ExtensionDataException> { withNullTitle.requiredString("title", "X") }
+        assertFailsWith<ExtensionDataException> { withNullTitle.requiredString("missing", "X") }
+        assertEquals("42", withNullTitle.requiredString("mangaId", "X"))
     }
 }

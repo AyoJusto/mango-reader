@@ -29,7 +29,8 @@ class ApplicationHost(
         "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
     private val onResponse: ((url: String, status: Int, body: ByteArray) -> Unit)? = null,
 ) {
-    private val state = mutableMapOf<String, Any?>()
+    // shared across concurrent engine instances; bindings run on dispatcher threads
+    private val state = java.util.Collections.synchronizedMap(mutableMapOf<String, Any?>())
 
     fun bindTo(quickJs: QuickJs) {
         quickJs.define("__host") {
@@ -51,9 +52,13 @@ class ApplicationHost(
                     ?: throw UnsupportedOperationException("this ApplicationHost has no HTTP client")
                 val request = args[0] as? Map<*, *>
                     ?: throw IllegalArgumentException("scheduleRequest expects a request object")
+                val requestedUrl = request["url"] as? String
+                    ?: throw IllegalArgumentException("request has no url")
                 val response = execute(client, request)
                 val bytes = response.body<ByteArray>()
-                onResponse?.invoke(response.call.request.url.toString(), response.status.value, bytes)
+                // record/replay is keyed by the URL the extension asked for, not the
+                // post-redirect one, so replay lookups always hit
+                onResponse?.invoke(requestedUrl, response.status.value, bytes)
                 listOf(
                     mapOf(
                         "url" to response.call.request.url.toString(),
@@ -76,7 +81,24 @@ class ApplicationHost(
                 header(k.toString(), v.toString())
             }
             if (headers[HttpHeaders.UserAgent] == null) header(HttpHeaders.UserAgent, userAgent)
-            (request["data"] as? String)?.let { setBody(it) }
+            (request["cookies"] as? List<*>)?.takeIf { it.isNotEmpty() }?.let { cookies ->
+                val pairs = cookies.map { cookie ->
+                    val c = cookie as? Map<*, *>
+                        ?: throw IllegalArgumentException("unsupported cookie shape: $cookie")
+                    "${c["name"]}=${c["value"]}"
+                }
+                header(HttpHeaders.Cookie, pairs.joinToString("; "))
+            }
+            when (val data = request["data"]) {
+                null -> {}
+                is String -> setBody(data)
+                is ByteArray -> setBody(data)
+                // fail loudly instead of sending an empty body; add JSON-object
+                // bodies when a real source needs them (M1 shake-out)
+                else -> throw IllegalArgumentException(
+                    "unsupported request data type: ${data::class.simpleName}"
+                )
+            }
         }
     }
 }
