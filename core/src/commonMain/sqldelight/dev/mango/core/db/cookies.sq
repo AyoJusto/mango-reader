@@ -1,0 +1,19 @@
+-- Per-source cookie jar. expires_at is epoch millis, NULL = session cookie (kept until
+-- explicitly replaced; there is no browser session to end).
+
+CREATE TABLE cookie (
+  source_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  value TEXT NOT NULL,
+  domain TEXT NOT NULL,
+  path TEXT NOT NULL,
+  expires_at INTEGER,
+  PRIMARY KEY (source_id, name, domain, path)
+);
+
+selectCookies:
+SELECT * FROM cookie WHERE source_id = ?;
+
+upsertCookie:
+INSERT OR REPLACE INTO cookie(source_id, name, value, domain, path, expires_at)
+VALUES (?, ?, ?, ?, ?, ?);

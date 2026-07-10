@@ -1,5 +1,7 @@
 package dev.mango.core.engine
 
+import dev.mango.core.domain.CookieStore
+import dev.mango.core.domain.StoredCookie
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.header
@@ -46,6 +48,8 @@ class ApplicationHost(
     private val onResponse: ((url: String, status: Int, body: ByteArray) -> Unit)? = null,
     private val minRequestIntervalMillis: Long = 500,
     private val requestTimeoutMillis: Long = 30_000,
+    // pre-scoped to this host's source; persistence itself lives behind the domain port
+    private val cookieStore: CookieStore? = null,
 ) {
     // shared across contexts and threads; values stored as JSON strings because
     // polyglot Values die with their context
@@ -58,6 +62,9 @@ class ApplicationHost(
     // bucket instead of widening this lock.
     private val hostDispatchLock = Any()
     private val lastDispatchAtMillis = mutableMapOf<String, Long>()
+
+    // ponytail: JUL because :core has no logging dependency; swap when the app picks one
+    private val log = java.util.logging.Logger.getLogger(ApplicationHost::class.java.name)
 
     fun applicationProxyFor(context: Context, callJob: Job? = null): ApplicationProxy =
         ApplicationProxy(context, callJob)
@@ -282,6 +289,28 @@ class ApplicationHost(
 
             val cookies = response.headers.getAll(HttpHeaders.SetCookie).orEmpty()
                 .map { parseServerSetCookieHeader(it) }
+            // per-source cookie jar: whatever the site set is on the next request too, even
+            // from a fresh context (future landing slot for cf_clearance, PLANNING §10)
+            cookieStore?.let { store ->
+                runBlocking(callJob ?: EmptyCoroutineContext) {
+                    // a jar write must never sink a response the site already served
+                    runCatching {
+                        cookies.forEach { c ->
+                            store.put(
+                                StoredCookie(
+                                    name = c.name,
+                                    value = c.value,
+                                    domain = c.domain ?: response.call.request.url.host,
+                                    path = c.path ?: "/",
+                                    expiresAtMillis = c.expires?.timestamp,
+                                )
+                            )
+                        }
+                    }.onFailure {
+                        log.warning("cookie jar write failed for $requestedHost: $it")
+                    }
+                }
+            }
             val responseObject = ProxyObject.fromMap(
                 mapOf(
                     "url" to response.call.request.url.toString(),
@@ -348,12 +377,25 @@ class ApplicationHost(
             h.memberKeys.forEach { key -> header(key, h.getMember(key).asString()) }
         }
         if (headers[HttpHeaders.UserAgent] == null) header(HttpHeaders.UserAgent, userAgent)
-        request.getMember("cookies")?.takeIf { it.hasArrayElements() && it.arraySize > 0 }?.let { cookies ->
-            val pairs = (0 until cookies.arraySize).map { i ->
-                val c = cookies.getArrayElement(i)
-                "${c.getMember("name").asString()}=${c.getMember("value").asString()}"
+        val cookiePairs = linkedMapOf<String, String>()
+        cookieStore?.let { store ->
+            runCatching { Url(url).host }.getOrNull()?.let { host ->
+                // a jar read fault degrades to "no stored cookies", never an aborted call
+                runCatching { store.cookiesFor(host) }
+                    .onFailure { log.warning("cookie jar read failed for $host: $it") }
+                    .getOrDefault(emptyList())
+                    .forEach { cookiePairs[it.name] = it.value }
             }
-            header(HttpHeaders.Cookie, pairs.joinToString("; "))
+        }
+        request.getMember("cookies")?.takeIf { it.hasArrayElements() && it.arraySize > 0 }?.let { cookies ->
+            (0 until cookies.arraySize).forEach { i ->
+                val c = cookies.getArrayElement(i)
+                // the extension's explicit cookie wins over the jar on a name collision
+                cookiePairs[c.getMember("name").asString()] = c.getMember("value").asString()
+            }
+        }
+        if (cookiePairs.isNotEmpty()) {
+            header(HttpHeaders.Cookie, cookiePairs.entries.joinToString("; ") { "${it.key}=${it.value}" })
         }
         request.getMember("data")?.takeIf { !it.isNull }?.let { data ->
             when {
