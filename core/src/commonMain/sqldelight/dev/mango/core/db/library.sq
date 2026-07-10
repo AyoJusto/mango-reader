@@ -1,0 +1,36 @@
+-- Library + read progress. Timestamps are epoch millis.
+
+CREATE TABLE library_item (
+  source_id TEXT NOT NULL,
+  manga_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  cover TEXT,
+  added_at INTEGER NOT NULL,
+  PRIMARY KEY (source_id, manga_id)
+);
+
+CREATE TABLE read_progress (
+  source_id TEXT NOT NULL,
+  manga_id TEXT NOT NULL,
+  chapter_id TEXT NOT NULL,
+  page INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (source_id, manga_id, chapter_id)
+);
+
+selectAllLibraryItems:
+SELECT * FROM library_item ORDER BY added_at DESC;
+
+upsertLibraryItem:
+INSERT OR REPLACE INTO library_item(source_id, manga_id, title, cover, added_at)
+VALUES (?, ?, ?, ?, ?);
+
+deleteLibraryItem:
+DELETE FROM library_item WHERE source_id = ? AND manga_id = ?;
+
+selectProgress:
+SELECT * FROM read_progress WHERE source_id = ? AND manga_id = ? AND chapter_id = ?;
+
+upsertProgress:
+INSERT OR REPLACE INTO read_progress(source_id, manga_id, chapter_id, page, updated_at)
+VALUES (?, ?, ?, ?, ?);

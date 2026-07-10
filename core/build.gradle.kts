@@ -1,5 +1,14 @@
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.sqldelight)
+}
+
+sqldelight {
+    databases {
+        create("MangoDatabase") {
+            packageName.set("dev.mango.core.db")
+        }
+    }
 }
 
 kotlin {
@@ -10,10 +19,13 @@ kotlin {
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.ktor.client.core)
+            implementation(libs.sqldelight.runtime)
+            implementation(libs.sqldelight.coroutines)
         }
         jvmMain.dependencies {
             api(libs.graalvm.polyglot)
             implementation(libs.graalvm.js)
+            implementation(libs.sqldelight.sqlite.driver)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

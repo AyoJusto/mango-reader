@@ -308,44 +308,35 @@ De-risk the unknown before building around it.
 
 ## 11. Claude Code workflow (the loop)
 
-Four sharp, distinct mandates. Value comes from non-overlap. Use git worktrees for parallel branches.
+**Lean loop, model-tiered (adopted 2026-07-10 after the M1 retro; operative rules live in
+`CLAUDE.md`, this section is the rationale).** The four-role orchestration was retired: on a
+~2k-line codebase the briefing and handoff overhead exceeded the work itself, and M1's
+serial dependency chain gave the roles nothing to parallelize.
 
-| Role | Mandate |
+The economics that replaced it: spend big-model tokens on low-volume, high-leverage work
+(decisions, review) and cheap tokens on high-volume work (writing code and tests).
+
+| Tier | Role |
 |---|---|
-| **Implementer** | One task with written acceptance criteria. Code + unit tests. One branch/PR. |
-| **Reviewer A — architecture** | Honors `MangaSource` and the module boundary (no infra in domain, `:core` host-ignorant, `:app` only touches repositories)? Simple over clever? |
-| **Reviewer B — security/robustness** | Extension sandbox intact (no capability leak)? Network resilience, error handling, rate limiting, caching? |
-| **Tester** | Integration + regression against real extension fixtures. Repro on failures. |
+| Fable 5 (session) | Architect and decision maker: milestone plans, task briefs, arbitrates review findings. Writes no bulk code. |
+| Opus | Reviewer: `/code-review` at chunk boundaries against the `CLAUDE.md` invariants. |
+| Sonnet subagents | Implementers: execute a short brief (locked decisions, files, acceptance criteria), code + tests. |
 
-**Loop (hardened 2026-07-10, after burning a task on stale scope):** four stages, strictly
-separated.
+Guards learned in M1:
+- Never dispatch discovery to the implementer. Research subagents may discover, but their
+  findings report back to the decision maker and get reviewed before entering a brief —
+  M1's briefs were expensive precisely because the implementer contracts had to contain
+  the discovery.
+- Dispatch per chunk (M2.1-sized), never per task, so briefing overhead amortizes.
+- Scope gate is a habit, not a stage: one sentence re-validating the chunk against the
+  owner's latest stated objectives.
+- Review is mandatory for sandbox/`scheduleRequest`/normalization diffs, skipped for schema
+  and repository plumbing. The orchestrator re-runs verification, commits, and reports at
+  milestones; no per-task human gate.
 
-0. **Scope gate.** Before any dispatch, the orchestrator re-validates the task against the
-   owner's latest stated objectives — not this document. Inherited or assumed scope gets a
-   question first. Every contract carries a scope fence: build only what is listed;
-   adjacent ideas go in the report, never into code.
-1. **Discover.** Facts (signatures, shapes, endpoints) are extracted before the contract
-   exists — orchestrator inline or a focused research agent. Implementer contracts contain
-   locked facts, never discovery steps.
-2. **Implement.** A sonnet subagent executes a verified-delegation contract (locked
-   decisions, expected observations, mismatch branches, STOP rule, pasted-evidence
-   handback). Small changes in already-loaded files the orchestrator does inline.
-3. **Review.** One opus reviewer per batch, always for sandbox/request/normalization
-   diffs, skipped for low-risk ones. Multi-agent review only at milestone exits with
-   explicit owner approval.
-
-The orchestrator independently re-runs verification, commits, and reports at milestones;
-there is no per-task human gate.
-
-**Shared `CLAUDE.md` invariants (every role enforces):**
-- the `MangaSource` interface and the `:core`/`:app` boundary are law
-- no infrastructure in the domain layer
-- extensions get zero capabilities beyond the request manager
-- prefer the simple, readable solution over the clever abstraction
-- thin tests, no infra logic in test bodies
-
-**Honest caveat:** four autonomous agents burn tokens and can bikeshed. Human gate at merge during
-the engine phase, where the spec is still being discovered. Loosen once tasks go mechanical.
+**Multi-agent fan-out is reserved for wide, mechanical, parallelizable work** — e.g. the M4
+extension shake-out (one agent per source against the compat matrix) — and needs explicit
+owner approval. Sequential feature-building never qualifies.
 
 ---
 
@@ -377,5 +368,8 @@ you want generated audio shared across devices.
 - SDK (final 2026-07-10): 0.9 extensions only, types pinned to `1.0.0-alpha.92`. The 0.8
   compat spike is archived on `archive/0.8-compat`, not on the roadmap.
 - Downloads are in v1: manager in M2 core, UI in M3.
-- Loop: lean (single implementer + TDD + code review, no per-task gate) during M0–M1; the
-  four-role loop from section 11 starts at M2.
+- Loop (reworked 2026-07-10 after the M1 retro): model-tiered lean loop from section 11 —
+  Fable 5 architects and decides, Sonnet subagents implement per-chunk briefs, Opus reviews
+  at chunk boundaries. Discovery never goes to implementers (research subagents report
+  back for review before facts enter a brief). Four-role loop retired; multi-agent
+  fan-out only for wide mechanical work (M4 shake-out) with owner approval.
