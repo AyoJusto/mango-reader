@@ -21,13 +21,18 @@ import org.graalvm.polyglot.proxy.ProxyObject
  * First slice of the Paperback adapter: one installed 0.9 extension, normalized to
  * domain types at this boundary. Grows into the full MangaSource implementation in M1.
  */
-class PaperbackExtension(
+class PaperbackExtension private constructor(
     val sourceId: String,
-    private val bundleJs: String,
-    private val host: ApplicationHost,
+    private val runtime: ExtensionRuntimeSource,
 ) {
+    constructor(sourceId: String, bundleJs: String, host: ApplicationHost) :
+        this(sourceId, ExtensionRuntime(bundleJs, host))
+
+    /** For a legacy 0.8 source run through the compat wrapper ([Compat08Runtime]). */
+    constructor(sourceId: String, runtime: Compat08Runtime) : this(sourceId, runtime as ExtensionRuntimeSource)
+
     suspend fun search(title: String, page: Int = 1): List<MangaEntry> =
-        ExtensionRuntime(bundleJs, host).withExtension { handle ->
+        runtime.withExtension { handle ->
             val extension = handle.extension(sourceId)
             handle.invokeAwait(extension, "initialise")
             val result = Json.parseToJsonElement(
@@ -55,7 +60,7 @@ class PaperbackExtension(
         }
 
     suspend fun getDetails(mangaId: String): MangaDetails =
-        ExtensionRuntime(bundleJs, host).withExtension { handle ->
+        runtime.withExtension { handle ->
             val extension = handle.extension(sourceId)
             handle.invokeAwait(extension, "initialise")
             // 0.9 getMangaDetails takes the raw mangaId string (confirmed in the bundle)
@@ -89,7 +94,7 @@ class PaperbackExtension(
         }
 
     suspend fun getChapters(mangaId: String): List<Chapter> =
-        ExtensionRuntime(bundleJs, host).withExtension { handle ->
+        runtime.withExtension { handle ->
             val extension = handle.extension(sourceId)
             handle.invokeAwait(extension, "initialise")
             val result = Json.parseToJsonElement(
@@ -116,7 +121,7 @@ class PaperbackExtension(
         }
 
     suspend fun getPages(chapterId: String, mangaId: String): List<Page> =
-        ExtensionRuntime(bundleJs, host).withExtension { handle ->
+        runtime.withExtension { handle ->
             val extension = handle.extension(sourceId)
             handle.invokeAwait(extension, "initialise")
             val result = Json.parseToJsonElement(

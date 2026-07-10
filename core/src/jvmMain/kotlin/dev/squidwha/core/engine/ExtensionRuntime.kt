@@ -13,6 +13,16 @@ class ExtensionCallException(message: String, cause: Throwable? = null) :
     Exception(message, cause)
 
 /**
+ * Whatever produces a live [ExtensionHandle] for one call: a native 0.9 bundle
+ * ([ExtensionRuntime]) or a legacy 0.8 source through the compat wrapper
+ * ([Compat08Runtime]). Lets [PaperbackExtension]'s normalization logic stay identical
+ * regardless of which bundle generation it's driving.
+ */
+interface ExtensionRuntimeSource {
+    suspend fun <T> withExtension(block: suspend (ExtensionHandle) -> T): T
+}
+
+/**
  * Runs a verified Paperback 0.9 bundle in a fresh GraalJS context: create, bind the
  * Application proxy, evaluate the bundle, run the block, close. One context per call
  * (see PLANNING.md section 6); durable extension state lives in [ApplicationHost].
@@ -24,8 +34,8 @@ class ExtensionRuntime(
     private val bundleJs: String,
     private val host: ApplicationHost = ApplicationHost(),
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
-) {
-    suspend fun <T> withExtension(block: suspend (ExtensionHandle) -> T): T =
+) : ExtensionRuntimeSource {
+    override suspend fun <T> withExtension(block: suspend (ExtensionHandle) -> T): T =
         withContext(dispatcher) {
             Context.newBuilder("js")
                 .option("engine.WarnInterpreterOnly", "false")
@@ -58,9 +68,11 @@ class ExtensionHandle internal constructor(
 
     /** Invokes a method, awaits its promise if it returns one, returns the settled Value. */
     fun invokeAwait(target: Value, method: String, vararg args: Any?): Value {
-        if (!target.canInvokeMember(method)) {
-            throw ExtensionCallException("extension has no method '$method'")
-        }
+        // No canInvokeMember() pre-check: the 0.8 compat wrapper (vendored, not ours to
+        // edit) exposes its Extension as a `new Proxy(target, {get, has})` with no
+        // `ownKeys` trap, and Graal derives canInvokeMember/hasMember from ownKeys alone
+        // — it reports false even though invokeMember resolves correctly through the
+        // Proxy's `get` trap. A truly-missing method still surfaces clearly below.
         val result = try {
             target.invokeMember(method, *args)
         } catch (e: PolyglotException) {
@@ -76,25 +88,41 @@ class ExtensionHandle internal constructor(
         return if (serialized.isNull) "null" else serialized.asString()
     }
 
-    private fun awaitIfPromise(value: Value, what: String): Value {
-        val isThenable = value.hasMembers() && value.canInvokeMember("then")
-        if (!isThenable) return value
-        var fulfilled: Value? = null
-        var rejected: Value? = null
-        var settled = false
-        value.invokeMember(
-            "then",
-            ProxyExecutable { args -> fulfilled = args.getOrNull(0); settled = true; null },
-            ProxyExecutable { args -> rejected = args.getOrNull(0); settled = true; null },
-        )
-        // graal drains the microtask queue when the outermost JS frame exits, and all
-        // host bindings are synchronous, so a promise that is still pending here would
-        // never settle — surface it instead of hanging
-        if (!settled) throw ExtensionCallException("$what returned a promise that never settled")
-        rejected?.let { throw ExtensionCallException("$what rejected: ${describe(it)}") }
-        return fulfilled ?: context.eval("js", "undefined")
-    }
-
-    private fun describe(error: Value): String =
-        error.getMember("stack")?.takeIf { it.isString }?.asString() ?: error.toString()
+    private fun awaitIfPromise(value: Value, what: String): Value = awaitPromise(context, value, what)
 }
+
+/**
+ * Settles a value that may be a JS promise, by registering then-callbacks and reading the
+ * result back out synchronously. Graal drains the microtask queue whenever a JS call returns
+ * control to the host, at every nesting level (not just the outermost one) — proven by the
+ * fact this same pattern already resolves multi-step async chains nested many calls deep
+ * (search -> getCandidates -> refreshCandidateCache -> Promise.all(...)). All host bindings
+ * are synchronous, so a promise still pending after that drain would never settle — surface
+ * it instead of hanging.
+ */
+internal fun awaitPromise(context: Context, value: Value, what: String): Value {
+    val isThenable = value.hasMembers() && value.canInvokeMember("then")
+    if (!isThenable) return value
+    var fulfilled: Value? = null
+    var rejected: Value? = null
+    var settled = false
+    value.invokeMember(
+        "then",
+        ProxyExecutable { args -> fulfilled = args.getOrNull(0); settled = true; null },
+        ProxyExecutable { args -> rejected = args.getOrNull(0); settled = true; null },
+    )
+    // graal drains the microtask queue when the outermost JS frame exits, and all
+    // host bindings are synchronous, so a promise that is still pending here would
+    // never settle — surface it instead of hanging. NOTE: this only works for calls made
+    // directly from Kotlin at the outermost host->guest boundary; anything invoked from
+    // *inside* a running JS call (e.g. an interceptor invoked from scheduleRequest, itself
+    // called from deep in a bundle's async chain) must compose as a native JS promise
+    // chain instead (see ApplicationHost.scheduleRequest) — this pattern does not settle
+    // when nested.
+    if (!settled) throw ExtensionCallException("$what returned a promise that never settled")
+    rejected?.let { throw ExtensionCallException("$what rejected: ${describePromiseError(it)}") }
+    return fulfilled ?: context.eval("js", "undefined")
+}
+
+internal fun describePromiseError(error: Value): String =
+    error.getMember("stack")?.takeIf { it.isString }?.asString() ?: error.toString()

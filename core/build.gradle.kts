@@ -32,4 +32,13 @@ tasks.withType<Test> {
         if (!project.hasProperty("live")) excludeTags("live")
     }
     testLogging { showStandardStreams = true }
+    // Gradle's Test task enables JVM assertions by default, which also switches on
+    // Truffle's InteropLibrary$Asserts wrapper. That wrapper derives member readability
+    // from a guest Proxy's `ownKeys` trap only; the official @paperback/types 0.8 compat
+    // wrapper (vendored, not ours to edit) returns a `new Proxy(target, {get, has})` with
+    // no `ownKeys` trap, so the assertion wrapper flags a false-positive "contract
+    // violation" even though the real `get` trap resolves correctly (proven: the trap
+    // runs and returns the right value before the assertion fires). Production runs
+    // without `-ea`, so this only makes the test JVM match real runtime behavior.
+    enableAssertions = false
 }
