@@ -27,6 +27,7 @@ globalThis.Application = (function () {
     setState: function (value, key) { __host.setState(value, key); },
     sleep: function (seconds) { return __host.sleep(seconds); },
     scheduleRequest: function (request) { return __host.scheduleRequest(request); },
+    arrayBufferToUTF8String: function (buffer) { return __host.arrayBufferToUTF8String(buffer); },
     Selector: function (obj, method) {
       var id = "sel-" + nextSelectorId++;
       selectors.set(id, function () { return obj[method].apply(obj, arguments); });
