@@ -309,8 +309,12 @@ Four sharp, distinct mandates. Value comes from non-overlap. Use git worktrees f
 | **Reviewer B — security/robustness** | Extension sandbox intact (no capability leak)? Network resilience, error handling, rate limiting, caching? |
 | **Tester** | Integration + regression against real extension fixtures. Repro on failures. |
 
-**Loop:** task -> Implementer -> Tester -> Reviewer A + B in parallel -> changes? back to Implementer
--> green + both approve -> human gate -> merge -> next.
+**Loop (reworked 2026-07-10):** the orchestrator session writes a verified-delegation contract
+per task (locked decisions, steps with expected observations, mismatch branches, STOP rule,
+runnable verification, pasted-evidence handback), an implementer subagent executes it, the
+orchestrator judges the handback, independently re-runs verification, runs the multi-agent
+review workflow at task/milestone granularity, and commits. The orchestrator does not
+implement inline. Human involvement is at milestone reports, not per-task gates.
 
 **Shared `CLAUDE.md` invariants (every role enforces):**
 - the `MangaSource` interface and the `:core`/`:app` boundary are law
