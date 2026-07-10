@@ -38,7 +38,7 @@ class ReadPathTest {
     fun pagesAreAbsoluteUrlsInIndexOrder() = runBlocking {
         val ext = extension()
         val firstChapter = ext.getChapters("57").first()
-        val pages = ext.getPages(firstChapter.chapterId, "57")
+        val pages = ext.getPages("57", firstChapter.chapterId)
         assertTrue(pages.isNotEmpty(), "expected pages from recorded fixtures")
         pages.forEachIndexed { i, page ->
             assertEquals(i, page.index, "pages out of index order: $pages")

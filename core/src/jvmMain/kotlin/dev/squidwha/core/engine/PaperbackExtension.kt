@@ -3,6 +3,7 @@ package dev.squidwha.core.engine
 import dev.squidwha.core.domain.Chapter
 import dev.squidwha.core.domain.MangaDetails
 import dev.squidwha.core.domain.MangaEntry
+import dev.squidwha.core.domain.MangaSource
 import dev.squidwha.core.domain.MangaStatus
 import dev.squidwha.core.domain.Page
 import kotlin.time.Instant
@@ -22,11 +23,11 @@ import org.graalvm.polyglot.proxy.ProxyObject
  * domain types at this boundary. Grows into the full MangaSource implementation in M1.
  */
 class PaperbackExtension(
-    val sourceId: String,
+    override val sourceId: String,
     private val bundleJs: String,
     private val host: ApplicationHost,
-) {
-    suspend fun search(title: String, page: Int = 1): List<MangaEntry> =
+) : MangaSource {
+    override suspend fun search(query: String, page: Int): List<MangaEntry> =
         ExtensionRuntime(bundleJs, host).withExtension { handle ->
             val extension = handle.extension(sourceId)
             handle.invokeAwait(extension, "initialise")
@@ -34,7 +35,7 @@ class PaperbackExtension(
                 handle.invokeAwaitJson(
                     extension,
                     "getSearchResults",
-                    ProxyObject.fromMap(mapOf("title" to title)),
+                    ProxyObject.fromMap(mapOf("title" to query)),
                     ProxyObject.fromMap(mapOf("page" to page)),
                     ProxyObject.fromMap(mapOf("id" to "search")),
                 )
@@ -54,7 +55,7 @@ class PaperbackExtension(
             }
         }
 
-    suspend fun getDetails(mangaId: String): MangaDetails =
+    override suspend fun getDetails(mangaId: String): MangaDetails =
         ExtensionRuntime(bundleJs, host).withExtension { handle ->
             val extension = handle.extension(sourceId)
             handle.invokeAwait(extension, "initialise")
@@ -88,7 +89,7 @@ class PaperbackExtension(
             )
         }
 
-    suspend fun getChapters(mangaId: String): List<Chapter> =
+    override suspend fun getChapters(mangaId: String): List<Chapter> =
         ExtensionRuntime(bundleJs, host).withExtension { handle ->
             val extension = handle.extension(sourceId)
             handle.invokeAwait(extension, "initialise")
@@ -115,7 +116,7 @@ class PaperbackExtension(
             }
         }
 
-    suspend fun getPages(chapterId: String, mangaId: String): List<Page> =
+    override suspend fun getPages(mangaId: String, chapterId: String): List<Page> =
         ExtensionRuntime(bundleJs, host).withExtension { handle ->
             val extension = handle.extension(sourceId)
             handle.invokeAwait(extension, "initialise")

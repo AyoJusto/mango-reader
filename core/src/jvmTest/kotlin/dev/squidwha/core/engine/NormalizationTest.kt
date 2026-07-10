@@ -17,7 +17,7 @@ class NormalizationTest {
             bundleJs = flameComicsBundle,
             host = ApplicationHost(http = RecordedHttp.replayClient()),
         )
-        val entries = extension.search(title = "")
+        val entries = extension.search(query = "")
         assertTrue(entries.isNotEmpty(), "expected entries from recorded fixtures")
         for (entry in entries) {
             assertEquals("FlameComics", entry.sourceId)

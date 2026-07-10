@@ -53,7 +53,7 @@ class ReadPathMatrixTest {
         val ext = mangaBat()
         val first = ext.search("solo").first()
         val firstChapter = ext.getChapters(first.mangaId).first()
-        val pages = ext.getPages(firstChapter.chapterId, first.mangaId)
+        val pages = ext.getPages(first.mangaId, firstChapter.chapterId)
         assertTrue(pages.isNotEmpty(), "expected pages from recorded fixtures")
         pages.forEachIndexed { i, page ->
             assertEquals(i, page.index, "pages out of index order: $pages")

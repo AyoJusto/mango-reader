@@ -38,7 +38,7 @@ class LiveRecordReadPathTest {
         println("live chapters: ${chapters.size}; first: ${chapters.firstOrNull()}")
         assertTrue(chapters.isNotEmpty())
 
-        val pages = extension.getPages(chapters.first().chapterId, "57")
+        val pages = extension.getPages("57", chapters.first().chapterId)
         println("live pages: ${pages.size}; first: ${pages.firstOrNull()}")
         assertTrue(pages.isNotEmpty())
     }

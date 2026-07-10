@@ -57,3 +57,56 @@ request-interceptor chain has already settled, which is a normal synchronous hos
 call, not a nested await. This composes correctly because it never needs an out-of-band drain:
 resolution is entirely internal to GraalJS's own engine until the *true* outermost call
 (`ExtensionHandle.invokeAwait` for `getSearchResults` et al.) finally returns to Kotlin.
+
+## Host policy (M1.5)
+
+All policy below is enforced in Kotlin, inside `ApplicationHost`/`ExtensionRuntime` — never in
+the JS prelude, per CLAUDE.md's trust-boundary invariant. An extension bundle cannot opt out of
+any of it.
+
+**Rate limit.** `ApplicationHost(minRequestIntervalMillis = 500)` (constructor default).
+Before each dispatch, a synchronized map of `host -> lastDispatchAtMillis` is consulted; if the
+same host was last dispatched to less than `minRequestIntervalMillis` ago, the coroutine
+suspends (`delay`) for the remainder before the request goes out. A coarse single lock
+serializes every host through one map (`ponytail:` comment at `ApplicationHost.hostDispatchLock`
+names the upgrade path — a per-host token bucket — if a source ever needs real concurrency
+across hosts).
+
+**Request timeout.** `ApplicationHost(requestTimeoutMillis = 30_000)` (constructor default).
+The HTTP call and body read inside `scheduleRequest`'s dispatch are wrapped in
+`kotlinx.coroutines.withTimeout`; exceeding it throws `ExtensionNetworkException`.
+
+**Error taxonomy** (`dev.squidwha.core.engine`, all raised at the `ApplicationHost`/
+`ExtensionRuntime` boundary):
+
+| Name | Meaning | Thrown from |
+|---|---|---|
+| `ExtensionNetworkException` | A network-layer failure: an `IOException` from the underlying HTTP client, or the host's own `requestTimeoutMillis` timeout. Message always starts with `[network]`. | `ApplicationHost.ApplicationProxy.dispatch` (inside `scheduleRequest`'s promise chain); recovered intact across the JS promise boundary in `ExtensionRuntime.awaitPromise` / `invokeAwait`. |
+| `ExtensionCallException` | Generic bundle-call failure: bad method name, bundle eval error, or any promise rejection that isn't recognized as one of the more specific types above. | `ExtensionRuntime.ExtensionHandle.invokeAwait`, `awaitPromise`. |
+| `CloudflareChallengeException` | The bundle's own `type === "cloudflareError"` challenge protocol fired. Solving is out of scope (M3/M4). | `ExtensionRuntime.cloudflareChallengeIn`, called from `invokeAwait`/`awaitPromise`. |
+| `CancellationException` (kotlinx.coroutines) | The caller's coroutine was cancelled, including mid-flight during a blocked HTTP call. Never swallowed or rewrapped by `invokeAwait`/`awaitPromise`/`scheduleRequest` — always rethrown untouched. | Propagates from wherever the cancelled call was suspended; typically `ApplicationHost.dispatch`'s `runBlocking`. |
+
+**Why `ExtensionNetworkException`/`CancellationException` survive the JS promise round-trip.**
+`scheduleRequest`'s dispatch runs inside a `.then()` callback (see the design note above), so a
+Kotlin exception thrown there doesn't unwind the Java call stack — the JS engine catches it per
+normal Promise semantics and turns it into that promise's rejection reason, a guest-visible
+error value. `ExtensionRuntime.hostExceptionIn<T>` recovers the original host exception from
+that rejection value via `Value.throwException()`. Empirically (verified with a live
+IOException/CancellationException round-trip through the real promise chain), this always
+surfaces as a `PolyglotException` with `isHostException() == true`, whose `asHostException()`
+is the original Kotlin exception — never a bare rethrow of `T`, even though Graal's API allows
+that in principle. As a last-resort fallback (documented, not yet observed to trigger), a
+rejection whose description contains the `ExtensionNetworkException.SENTINEL` string
+(`"[network]"`) is treated as a network exception even if the typed unwrap above ever fails
+for some rejection shape — ugly but dependable, since the sentinel is baked into every
+`ExtensionNetworkException` message.
+
+**Cancellation reaches an in-flight blocking HTTP call.** `ApplicationHost.dispatch`'s HTTP
+call runs inside a nested `runBlocking` (required because `dispatch` is invoked synchronously
+from a JS callback, which can't be `suspend`). A plain `runBlocking { }` would start a Job
+disconnected from the caller's coroutine, so cancelling the caller wouldn't reach it.
+`ExtensionRuntime.withExtension` captures the calling coroutine's `Job` and threads it through
+`ApplicationHost.applicationProxyFor(context, callJob)` into `ApplicationProxy`, so
+`dispatch` uses `runBlocking(callJob ?: EmptyCoroutineContext)` — the nested coroutine becomes
+a real child of the caller's Job, so cancelling the caller promptly interrupts an in-flight
+HTTP call instead of leaving it running to completion unobserved.

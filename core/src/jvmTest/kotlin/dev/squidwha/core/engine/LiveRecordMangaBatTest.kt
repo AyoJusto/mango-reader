@@ -43,7 +43,7 @@ class LiveRecordMangaBatTest {
         println("live chapters: ${chapters.size}; first: ${chapters.firstOrNull()}")
         assertTrue(chapters.isNotEmpty())
 
-        val pages = extension.getPages(chapters.first().chapterId, first.mangaId)
+        val pages = extension.getPages(first.mangaId, chapters.first().chapterId)
         println("live pages: ${pages.size}; first: ${pages.firstOrNull()}")
         assertTrue(pages.isNotEmpty())
     }

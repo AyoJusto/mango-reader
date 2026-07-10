@@ -8,15 +8,22 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
+import io.ktor.http.Url
 import io.ktor.http.parseServerSetCookieHeader
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.graalvm.polyglot.Context
 import org.graalvm.polyglot.Value
 import org.graalvm.polyglot.proxy.ProxyArray
 import org.graalvm.polyglot.proxy.ProxyExecutable
 import org.graalvm.polyglot.proxy.ProxyObject
+import java.io.IOException
 import java.security.MessageDigest
 import java.util.Base64
+import kotlin.coroutines.EmptyCoroutineContext
 
 /**
  * The Paperback 0.9 `Application` surface, implemented entirely in Kotlin and bound
@@ -37,15 +44,28 @@ class ApplicationHost(
     private val userAgent: String =
         "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
     private val onResponse: ((url: String, status: Int, body: ByteArray) -> Unit)? = null,
+    private val minRequestIntervalMillis: Long = 500,
+    private val requestTimeoutMillis: Long = 30_000,
 ) {
     // shared across contexts and threads; values stored as JSON strings because
     // polyglot Values die with their context
     private val state = java.util.Collections.synchronizedMap(mutableMapOf<String, String>())
     private val secureState = java.util.Collections.synchronizedMap(mutableMapOf<String, String>())
 
-    fun applicationProxyFor(context: Context): ApplicationProxy = ApplicationProxy(context)
+    // per-host politeness floor, enforced here (never in JS — see CLAUDE.md's trust
+    // boundary invariant). ponytail: a single lock serializing every host is coarse; if a
+    // future source needs real concurrency across hosts, upgrade to a per-host token
+    // bucket instead of widening this lock.
+    private val hostDispatchLock = Any()
+    private val lastDispatchAtMillis = mutableMapOf<String, Long>()
 
-    inner class ApplicationProxy internal constructor(private val context: Context) : ProxyObject {
+    fun applicationProxyFor(context: Context, callJob: Job? = null): ApplicationProxy =
+        ApplicationProxy(context, callJob)
+
+    inner class ApplicationProxy internal constructor(
+        private val context: Context,
+        private val callJob: Job? = null,
+    ) : ProxyObject {
         private val selectors = mutableMapOf<String, Pair<Value, String>>()
         private var nextSelectorId = 1
         private val discoverSections = mutableMapOf<String, Value>()
@@ -228,11 +248,33 @@ class ApplicationHost(
         private fun dispatch(client: HttpClient, request: Value): ProxyObject {
             val requestedUrl = request.getMember("url")?.takeIf { it.isString }?.asString()
                 ?: throw IllegalArgumentException("request has no url")
+            val requestedHost = runCatching { Url(requestedUrl).host }.getOrDefault(requestedUrl)
 
-            // blocking is fine: each context owns its thread for the duration of a call
-            val (response, bytes) = runBlocking {
-                val r = execute(client, request, requestedUrl)
-                r to r.body<ByteArray>()
+            // blocking is fine: each context owns its thread for the duration of a call.
+            // runBlocking adopts callJob (this call's coroutine Job, threaded in from
+            // ExtensionRuntime.withExtension) as its parent instead of starting a
+            // disconnected one, so cancelling the coroutine that started this extension
+            // call actually interrupts an in-flight HTTP request here, rather than being
+            // invisible to it (see ExtensionNetworkException / CancellationException
+            // taxonomy, M1.5).
+            val (response, bytes) = runBlocking(callJob ?: EmptyCoroutineContext) {
+                awaitHostRateLimit(requestedHost)
+                try {
+                    withTimeout(requestTimeoutMillis) {
+                        val r = execute(client, request, requestedUrl)
+                        r to r.body<ByteArray>()
+                    }
+                } catch (e: TimeoutCancellationException) {
+                    throw ExtensionNetworkException(
+                        "request to $requestedUrl (host=$requestedHost) timed out after ${requestTimeoutMillis}ms",
+                        e,
+                    )
+                } catch (e: IOException) {
+                    throw ExtensionNetworkException(
+                        "request to $requestedUrl (host=$requestedHost) failed: ${e.message}",
+                        e,
+                    )
+                }
             }
             // record/replay is keyed by the URL the extension asked for (post-interceptor,
             // since that's what actually goes over the wire), not the post-redirect one
@@ -276,6 +318,23 @@ class ApplicationHost(
         value.isHostObject -> value.asHostObject()
         value.hasBufferElements() -> ByteArray(value.bufferSize.toInt()) { value.readBufferByte(it.toLong()) }
         else -> throw IllegalArgumentException("expected a buffer, got $value")
+    }
+
+    /**
+     * Enforced politeness floor: suspends so consecutive dispatches to the same [host] are
+     * at least [minRequestIntervalMillis] apart. The slot is reserved under the lock before
+     * delaying, so two concurrent calls to the same host queue correctly instead of both
+     * reading a stale "last dispatch" time and racing through together.
+     */
+    private suspend fun awaitHostRateLimit(host: String) {
+        val waitMillis = synchronized(hostDispatchLock) {
+            val now = System.currentTimeMillis()
+            val last = lastDispatchAtMillis[host]
+            val wait = if (last == null) 0L else (minRequestIntervalMillis - (now - last)).coerceAtLeast(0L)
+            lastDispatchAtMillis[host] = now + wait
+            wait
+        }
+        if (waitMillis > 0) delay(waitMillis)
     }
 
     private suspend fun execute(
