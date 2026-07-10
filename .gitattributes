@@ -1,0 +1,2 @@
+# Extension bundle fixtures must stay byte-exact or their pinned sha256 breaks.
+core/src/jvmTest/resources/fixtures/** -text
