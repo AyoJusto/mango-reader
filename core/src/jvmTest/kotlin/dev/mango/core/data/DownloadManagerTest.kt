@@ -1,0 +1,215 @@
+package dev.mango.core.data
+
+import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
+import dev.mango.core.db.MangoDatabase
+import dev.mango.core.domain.CatalogRepository
+import dev.mango.core.domain.Chapter
+import dev.mango.core.domain.DownloadManager
+import dev.mango.core.domain.DownloadStatus
+import dev.mango.core.domain.MangaDetails
+import dev.mango.core.domain.MangaEntry
+import dev.mango.core.domain.Page
+import dev.mango.core.domain.SourceInfo
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.client.request.HttpRequestData
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
+import java.nio.file.Files
+import java.nio.file.Path
+import java.util.Properties
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
+
+/** Integration tests for [FileDownloadManager], driven only through the [DownloadManager] contract. */
+class DownloadManagerTest {
+    /** Canned pages per "sourceId/mangaId/chapterId", the only member these tests exercise. */
+    private class FakeCatalogRepository(private val pages: Map<String, List<Page>>) : CatalogRepository {
+        override suspend fun installedSources(): List<SourceInfo> = throw UnsupportedOperationException()
+        override suspend fun install(info: SourceInfo, bundleSha256: String): Unit = throw UnsupportedOperationException()
+        override suspend fun search(sourceId: String, query: String, page: Int): List<MangaEntry> =
+            throw UnsupportedOperationException()
+        override suspend fun details(sourceId: String, mangaId: String): MangaDetails =
+            throw UnsupportedOperationException()
+        override suspend fun chapters(sourceId: String, mangaId: String): List<Chapter> =
+            throw UnsupportedOperationException()
+
+        override suspend fun pages(sourceId: String, mangaId: String, chapterId: String): List<Page> =
+            pages["$sourceId/$mangaId/$chapterId"] ?: error("no fixture pages for $sourceId/$mangaId/$chapterId")
+    }
+
+    private fun mockClient(
+        bytesByUrl: Map<String, ByteArray>,
+        failingUrls: Set<String> = emptySet(),
+        recorded: MutableList<HttpRequestData> = mutableListOf(),
+    ): HttpClient = HttpClient(MockEngine { request ->
+        recorded += request
+        val url = request.url.toString()
+        if (url in failingUrls) {
+            respond(ByteArray(0), HttpStatusCode.InternalServerError)
+        } else {
+            val bytes = bytesByUrl[url] ?: error("no fixture bytes for $url")
+            respond(bytes, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "image/jpeg"))
+        }
+    })
+
+    private fun newManager(catalog: CatalogRepository, http: HttpClient, root: Path): DownloadManager {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())
+        MangoDatabase.Schema.create(driver)
+        return FileDownloadManager(
+            db = MangoDatabase(driver),
+            catalog = catalog,
+            http = http,
+            root = root,
+            pageDelayMillis = 0,
+        )
+    }
+
+    @Test
+    fun enqueueThenProcessQueueDownloadsAllPagesAndMarksDone() = runTest {
+        val root = Files.createTempDirectory("downloads-test")
+        val pages = listOf(
+            Page(index = 0, url = "https://cdn.example/c1/0.jpg", headers = mapOf("Referer" to "https://example/m1")),
+            Page(index = 1, url = "https://cdn.example/c1/1.jpg", headers = mapOf("Referer" to "https://example/m1")),
+        )
+        val bytesByUrl = mapOf(pages[0].url to byteArrayOf(1, 2, 3), pages[1].url to byteArrayOf(4, 5, 6, 7))
+        val recorded = mutableListOf<HttpRequestData>()
+        val manager = newManager(
+            FakeCatalogRepository(mapOf("src/m1/c1" to pages)),
+            mockClient(bytesByUrl, recorded = recorded),
+            root,
+        )
+
+        manager.enqueue("src", "m1", "c1")
+        manager.processQueue()
+
+        val file0 = root.resolve("src/m1/c1/0000.jpg")
+        val file1 = root.resolve("src/m1/c1/0001.jpg")
+        assertTrue(Files.exists(file0))
+        assertTrue(Files.exists(file1))
+        assertEquals(listOf<Byte>(1, 2, 3), Files.readAllBytes(file0).toList())
+        assertEquals(listOf<Byte>(4, 5, 6, 7), Files.readAllBytes(file1).toList())
+
+        val row = manager.observeDownloads().first().single()
+        assertEquals(DownloadStatus.DONE, row.status)
+        assertEquals(2, row.pagesTotal)
+        assertEquals(2, row.pagesDone)
+
+        assertTrue(recorded.isNotEmpty())
+        assertTrue(recorded.all { it.headers[HttpHeaders.Referrer] == "https://example/m1" })
+    }
+
+    @Test
+    fun urlWithoutAnExtensionFallsBackToImg() = runTest {
+        val root = Files.createTempDirectory("downloads-test")
+        val page = Page(index = 0, url = "https://cdn.example/c1/page-one")
+        val manager = newManager(
+            FakeCatalogRepository(mapOf("src/m1/c1" to listOf(page))),
+            mockClient(mapOf(page.url to byteArrayOf(9))),
+            root,
+        )
+
+        manager.enqueue("src", "m1", "c1")
+        manager.processQueue()
+
+        assertTrue(Files.exists(root.resolve("src/m1/c1/0000.img")))
+    }
+
+    @Test
+    fun aFailingPageFailsItsChapterButALaterQueuedChapterStillCompletes() = runTest {
+        val root = Files.createTempDirectory("downloads-test")
+        val badPages = listOf(
+            Page(index = 0, url = "https://cdn.example/bad/0.jpg"),
+            Page(index = 1, url = "https://cdn.example/bad/1.jpg"),
+        )
+        val goodPages = listOf(Page(index = 0, url = "https://cdn.example/good/0.jpg"))
+        val bytesByUrl = mapOf(
+            badPages[0].url to byteArrayOf(1),
+            badPages[1].url to byteArrayOf(2),
+            goodPages[0].url to byteArrayOf(3),
+        )
+        val manager = newManager(
+            FakeCatalogRepository(mapOf("src/bad/c1" to badPages, "src/good/c1" to goodPages)),
+            mockClient(bytesByUrl, failingUrls = setOf(badPages[1].url)),
+            root,
+        )
+
+        manager.enqueue("src", "bad", "c1")
+        manager.enqueue("src", "good", "c1")
+        manager.processQueue()
+
+        assertTrue(Files.exists(root.resolve("src/bad/c1/0000.jpg")))
+        assertFalse(Files.exists(root.resolve("src/bad/c1/0001.jpg")))
+
+        val rowsByMangaId = manager.observeDownloads().first().associateBy { it.mangaId }
+        assertEquals(DownloadStatus.FAILED, rowsByMangaId.getValue("bad").status)
+        assertEquals(DownloadStatus.DONE, rowsByMangaId.getValue("good").status)
+    }
+
+    @Test
+    fun reEnqueueingAFailedChapterRecoversOnTheNextProcessQueue() = runTest {
+        val root = Files.createTempDirectory("downloads-test")
+        val page = Page(index = 0, url = "https://cdn.example/c1/0.jpg")
+        var shouldFail = true
+        val http = HttpClient(MockEngine {
+            if (shouldFail) respond(ByteArray(0), HttpStatusCode.InternalServerError)
+            else respond(byteArrayOf(5), HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "image/jpeg"))
+        })
+        val manager = newManager(FakeCatalogRepository(mapOf("src/m1/c1" to listOf(page))), http, root)
+
+        manager.enqueue("src", "m1", "c1")
+        manager.processQueue()
+        assertEquals(DownloadStatus.FAILED, manager.observeDownloads().first().single().status)
+        assertFalse(Files.exists(root.resolve("src/m1/c1/0000.jpg")))
+
+        shouldFail = false
+        manager.enqueue("src", "m1", "c1")
+        manager.processQueue()
+
+        val row = manager.observeDownloads().first().single()
+        assertEquals(DownloadStatus.DONE, row.status)
+        assertTrue(Files.exists(root.resolve("src/m1/c1/0000.jpg")))
+    }
+
+    @Test
+    fun hostileIdsCannotEscapeTheDownloadRoot() = runTest {
+        val root = Files.createTempDirectory("downloads-test")
+        // Path.resolve walks up on ".." and discards the base entirely for absolute args
+        val relativeEscape = "..\\..\\evil"
+        val absoluteEscape = root.parent.resolve("abs-escape").toString()
+        val page = Page(index = 0, url = "https://cdn.example/c1/0.jpg")
+        val manager = newManager(
+            FakeCatalogRepository(mapOf("src/$relativeEscape/$absoluteEscape" to listOf(page))),
+            mockClient(mapOf(page.url to byteArrayOf(1))),
+            root,
+        )
+
+        manager.enqueue("src", relativeEscape, absoluteEscape)
+        manager.processQueue()
+
+        assertEquals(DownloadStatus.DONE, manager.observeDownloads().first().single().status)
+        assertFalse(Files.exists(root.parent.resolve("evil")))
+        assertFalse(Files.exists(root.parent.resolve("abs-escape")))
+        val written = Files.walk(root).use { stream -> stream.filter(Files::isRegularFile).toList() }
+        assertEquals(1, written.size, "expected the page to land inside the download root")
+    }
+
+    @Test
+    fun observeDownloadsEmitsTheRowAfterEnqueueWithStatusQueued() = runTest {
+        val root = Files.createTempDirectory("downloads-test")
+        val manager = newManager(FakeCatalogRepository(emptyMap()), mockClient(emptyMap()), root)
+
+        manager.enqueue("src", "m1", "c1")
+
+        val row = manager.observeDownloads().first().single()
+        assertEquals(DownloadStatus.QUEUED, row.status)
+        assertEquals(0, row.pagesTotal)
+        assertEquals(0, row.pagesDone)
+    }
+}

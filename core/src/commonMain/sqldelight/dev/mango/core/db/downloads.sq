@@ -1,0 +1,27 @@
+-- Chapter download queue/status. Timestamps are epoch millis; status is one of
+-- QUEUED, RUNNING, DONE, FAILED (see DownloadStatus).
+
+CREATE TABLE download (
+  source_id TEXT NOT NULL,
+  manga_id TEXT NOT NULL,
+  chapter_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  pages_total INTEGER NOT NULL,
+  pages_done INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (source_id, manga_id, chapter_id)
+);
+
+selectAllDownloads:
+SELECT * FROM download ORDER BY updated_at DESC;
+
+selectQueuedDownloads:
+SELECT * FROM download WHERE status = 'QUEUED' ORDER BY updated_at ASC;
+
+upsertDownload:
+INSERT OR REPLACE INTO download(source_id, manga_id, chapter_id, status, pages_total, pages_done, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+updateDownloadProgress:
+UPDATE download SET status = ?, pages_total = ?, pages_done = ?, updated_at = ?
+WHERE source_id = ? AND manga_id = ? AND chapter_id = ?;
