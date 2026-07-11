@@ -291,12 +291,19 @@ De-risk the unknown before building around it.
   Ceilings: text glyphs on the nav rail (no material-icons artifact resolves for CMP 1.11 —
   pick an icon strategy in M4), reader title shows chapter id, next-chapter prefetch not
   built, downloads bypass host policy (§10).
-- **M4 — Self-sufficient app (in progress 2026-07-11).** Offline reading from downloads;
+- **M4 — Self-sufficient app. DONE 2026-07-11.** Offline reading from downloads;
   extension install/update from the Inkdex 0.9 repo (schema v3: version + per-source UA);
-  Cloudflare solve via embedded Chromium (KCEF) harvesting cf_clearance into the per-source
-  cookie jar; settings page (theme picker), download selection (all/unread/range),
-  cross-extension search — shipped as a dedicated Search tab in the nav rail (installed
-  sources as filter chips, results grouped per source).
+  Cloudflare solve via embedded Chromium (jcefmaven) harvesting cf_clearance into the
+  per-source cookie jar; settings page (theme picker, live apply), download selection
+  (all/unread/range, reversed bounds normalized), cross-extension search — a dedicated
+  Search tab: parallel fan-out over enabled sources, per-source error isolation, sections
+  keyed to what was actually searched, single-source refetch after a Cloudflare solve.
+  Exit: Opus review over the M4.4 diff (13 confirmed findings, all fixed same day), both
+  suites green, live smoke green (full read path against FlameComics). Milestone discovery:
+  `:app` had silently run zero JUnit4-style Compose tests since M3 (missing
+  junit-vintage-engine — now catalog-pinned; 39 tests execute). Ceilings: Details opened
+  from Search returns to Library (no fromSearch case); Browse's own source-list load is
+  still unguarded against a registry read failure (Browse is replaced wholesale in M5).
 - **M5 — Discovery: extension home pages (planned 2026-07-11).** Browse becomes one tab per
   installed extension rendering that source's own homepage sections ("Most Recent",
   "Popular" — whatever the extension publishes). Paperback bundles declare the

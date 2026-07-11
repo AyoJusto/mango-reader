@@ -206,7 +206,10 @@ fun DetailsScreenContent(
                 TextButton(
                     onClick = {
                         if (from != null && to != null) {
-                            onDownloadAll(details.entry, chapters.filter { it.number in from..to })
+                            // normalize: From=10 To=5 means 5..10, not an empty range that
+                            // silently downloads nothing
+                            val range = minOf(from, to)..maxOf(from, to)
+                            onDownloadAll(details.entry, chapters.filter { it.number in range })
                             showRangeDialog = false
                         }
                     },

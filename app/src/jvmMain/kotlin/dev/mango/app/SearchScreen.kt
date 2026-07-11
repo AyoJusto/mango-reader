@@ -37,9 +37,12 @@ import dev.mango.core.domain.ChallengeSolver
 import dev.mango.core.domain.MangaEntry
 import dev.mango.core.domain.SourceInfo
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import java.util.logging.Level
+import java.util.logging.Logger
 
 /** One installed source's results/error within the search screen's per-source section. */
 @Composable
@@ -48,7 +51,10 @@ private fun SearchSourceSection(
     results: List<MangaEntry>,
     error: String?,
     challengeUrl: String?,
+    // solving = THIS source's solve is running; solveEnabled = no solve is running anywhere
+    // (one embedded browser at a time, but only the solving source shows the progress hint)
     solving: Boolean,
+    solveEnabled: Boolean,
     onOpenDetails: (MangaEntry) -> Unit,
     onSolveChallenge: () -> Unit,
 ) {
@@ -58,7 +64,7 @@ private fun SearchSourceSection(
             if (error != null) {
                 Text(text = error, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
                 if (challengeUrl != null) {
-                    Button(onClick = onSolveChallenge, enabled = !solving) { Text("Solve challenge") }
+                    Button(onClick = onSolveChallenge, enabled = solveEnabled) { Text("Solve challenge") }
                 }
             } else {
                 Text(
@@ -83,11 +89,13 @@ private fun SearchSourceSection(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            // no item keys: extension data is untrusted and a duplicate mangaId in one
+            // response must not crash composition with a duplicate-key exception
             else -> LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth().height(280.dp),
             ) {
-                items(results, key = { "${it.sourceId}/${it.mangaId}" }) { entry ->
+                items(results) { entry ->
                     CoverCell(entry = entry, onClick = { onOpenDetails(entry) }, modifier = Modifier.height(280.dp))
                 }
             }
@@ -109,7 +117,7 @@ fun SearchScreenContent(
     errorsBySource: Map<String, String>,
     challengeUrlsBySource: Map<String, String>,
     onOpenDetails: (MangaEntry) -> Unit,
-    solving: Boolean = false,
+    solvingSourceId: String? = null,
     onSolveChallenge: (String) -> Unit = {},
 ) {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -145,21 +153,31 @@ fun SearchScreenContent(
             } else if (!hasSearched) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        text = "Search across all installed sources",
+                        text = if (sources.isNotEmpty() && enabledSourceIds.isEmpty()) {
+                            "No sources selected"
+                        } else {
+                            "Search across all installed sources"
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             } else {
-                val enabledSources = sources.filter { it.sourceId in enabledSourceIds }
+                // sections reflect what was actually searched (the result/error maps), not the
+                // live chip state: toggling a chip after a search must neither fabricate a
+                // false "No results" section nor hide results already fetched
+                val searchedSources = sources.filter {
+                    it.sourceId in resultsBySource || it.sourceId in errorsBySource
+                }
                 LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    items(enabledSources, key = { it.sourceId }) { source ->
+                    items(searchedSources, key = { it.sourceId }) { source ->
                         SearchSourceSection(
                             source = source,
                             results = resultsBySource[source.sourceId] ?: emptyList(),
                             error = errorsBySource[source.sourceId],
                             challengeUrl = challengeUrlsBySource[source.sourceId],
-                            solving = solving,
+                            solving = solvingSourceId == source.sourceId,
+                            solveEnabled = solvingSourceId == null,
                             onOpenDetails = onOpenDetails,
                             onSolveChallenge = { onSolveChallenge(source.sourceId) },
                         )
@@ -184,11 +202,15 @@ class SearchState {
     var results by mutableStateOf<Map<String, List<MangaEntry>>>(emptyMap())
     var errors by mutableStateOf<Map<String, String>>(emptyMap())
     var challengeUrls by mutableStateOf<Map<String, String>>(emptyMap())
-    var solving by mutableStateOf(false)
+    var solvingSourceId by mutableStateOf<String?>(null)
+
+    // last fan-out, cancelled when a new search is submitted so overlapping runs can't
+    // interleave stale results into the new query's maps; plain field, not UI state
+    var searchJob: Job? = null
 }
 
 /**
- * Stateful loader: one-shot source list, then a fan-out search-on-submit across every enabled
+ * Stateful loader: source list reloaded on entry, then a fan-out search-on-submit across every enabled
  * source in parallel. Each source's search is isolated in its own try/catch so one source
  * failing (or being Cloudflare-gated) never hides another source's results.
  */
@@ -205,51 +227,74 @@ fun SearchScreen(
         // Reload on every entry, not one-shot: an extension installed on the Extensions tab
         // must show up here without restarting the app. Newly appearing sources default to
         // enabled; sources the user already disabled stay disabled.
-        val previousIds = state.sources.map { it.sourceId }.toSet()
-        val loaded = catalog.installedSources()
-        val loadedIds = loaded.map { it.sourceId }.toSet()
-        val newlyAppeared = loadedIds - previousIds
-        state.enabledSourceIds = (state.enabledSourceIds intersect loadedIds) + newlyAppeared
-        state.sources = loaded
+        try {
+            val previousIds = state.sources.map { it.sourceId }.toSet()
+            val loaded = catalog.installedSources()
+            val loadedIds = loaded.map { it.sourceId }.toSet()
+            val newlyAppeared = loadedIds - previousIds
+            state.enabledSourceIds = (state.enabledSourceIds intersect loadedIds) + newlyAppeared
+            state.sources = loaded
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // a failed registry read keeps the previous (possibly empty) list; crashing the
+            // whole app out of a LaunchedEffect over a local DB hiccup would be worse
+            Logger.getLogger("SearchScreen").log(Level.WARNING, "failed to load installed sources", e)
+        }
+    }
+
+    // One source's search, isolated so its failure never affects the others; on success any
+    // stale error/challenge for that source is cleared (the solve flow re-runs just this).
+    suspend fun searchOne(sourceId: String, query: String) {
+        try {
+            val found = catalog.search(sourceId, query)
+            state.results = state.results + (sourceId to found)
+            state.errors = state.errors - sourceId
+            state.challengeUrls = state.challengeUrls - sourceId
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: ChallengeRequiredException) {
+            state.errors = state.errors + (sourceId to "Protected by Cloudflare")
+            e.url?.let { url -> state.challengeUrls = state.challengeUrls + (sourceId to url) }
+        } catch (e: Exception) {
+            state.errors = state.errors + (sourceId to (e.message ?: "Search failed"))
+        }
     }
 
     fun search() {
         val enabled = state.enabledSourceIds
         val query = state.query
-        scope.launch {
+        // nothing enabled: the idle hint already reads "No sources selected"
+        if (enabled.isEmpty()) return
+        state.searchJob?.cancel()
+        state.searchJob = scope.launch {
             state.isLoading = true
             state.results = emptyMap()
             state.errors = emptyMap()
             state.challengeUrls = emptyMap()
-            coroutineScope {
-                enabled.map { sourceId ->
-                    async {
-                        try {
-                            val found = catalog.search(sourceId, query)
-                            state.results = state.results + (sourceId to found)
-                        } catch (e: CancellationException) {
-                            throw e
-                        } catch (e: ChallengeRequiredException) {
-                            state.errors = state.errors + (sourceId to "Protected by Cloudflare")
-                            e.url?.let { url -> state.challengeUrls = state.challengeUrls + (sourceId to url) }
-                        } catch (e: Exception) {
-                            state.errors = state.errors + (sourceId to (e.message ?: "Search failed"))
-                        }
-                    }
+            try {
+                coroutineScope {
+                    enabled.map { sourceId -> async { searchOne(sourceId, query) } }
                 }
+            } finally {
+                // finally also runs on cancellation (tab switch mid-search), so the
+                // shell-hoisted state can never get stuck showing the spinner
+                state.isLoading = false
             }
-            state.isLoading = false
         }
     }
 
     fun solveChallenge(sourceId: String) {
         val url = state.challengeUrls[sourceId] ?: return
+        val query = state.query
         scope.launch {
-            state.solving = true
+            state.solvingSourceId = sourceId
             try {
-                if (challengeSolver.solve(sourceId, url)) search()
+                // refetch only the solved source: re-running the whole fan-out would hit the
+                // other sources again for nothing (polite-scraper rule, PLANNING §10)
+                if (challengeSolver.solve(sourceId, url)) searchOne(sourceId, query)
             } finally {
-                state.solving = false
+                state.solvingSourceId = null
             }
         }
     }
@@ -272,7 +317,7 @@ fun SearchScreen(
         errorsBySource = state.errors,
         challengeUrlsBySource = state.challengeUrls,
         onOpenDetails = onOpenDetails,
-        solving = state.solving,
+        solvingSourceId = state.solvingSourceId,
         onSolveChallenge = { sourceId -> solveChallenge(sourceId) },
     )
 }

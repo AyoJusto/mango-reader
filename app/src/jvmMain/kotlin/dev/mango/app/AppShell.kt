@@ -202,10 +202,14 @@ fun AppShell(
                                         }
                                     },
                                     onDownloadAll = { entry, chapters ->
-                                        scope.launch {
-                                            library.addToLibrary(entry)
-                                            chapters.forEach { downloads.enqueue(entry, it) }
-                                            downloads.processQueue()
+                                        // empty selection ("unread" with everything read) must
+                                        // not side-effect the library or spin the queue
+                                        if (chapters.isNotEmpty()) {
+                                            scope.launch {
+                                                library.addToLibrary(entry)
+                                                chapters.forEach { downloads.enqueue(entry, it) }
+                                                downloads.processQueue()
+                                            }
                                         }
                                     },
                                 )

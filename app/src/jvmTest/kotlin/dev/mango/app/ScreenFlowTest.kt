@@ -233,4 +233,44 @@ class ScreenFlowTest {
 
         assertEquals(listOf("c2", "c3", "c4"), downloaded?.map { it.chapterId })
     }
+
+    @Test
+    fun downloadRangeNormalizesReversedBounds() {
+        val library = FakeLibraryRepository()
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        val chapters = (1..5).map { n ->
+            Chapter(chapterId = "c$n", number = n.toDouble(), title = null, publishedAt = null)
+        }
+        val catalog = FakeCatalogRepository(
+            details = mapOf(("FlameComics" to "manga-1") to details),
+            chapters = mapOf(("FlameComics" to "manga-1") to chapters),
+        )
+        var downloaded: List<Chapter>? = null
+
+        rule.setContent {
+            MangoTheme {
+                DetailsScreen(
+                    sourceId = "FlameComics",
+                    mangaId = "manga-1",
+                    catalog = catalog,
+                    library = library,
+                    challengeSolver = FakeChallengeSolver(),
+                    onOpenChapter = {},
+                    onDownloadAll = { _, chs -> downloaded = chs },
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Download range…").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("From").performTextInput("4")
+        rule.onNodeWithText("To").performTextInput("2")
+        rule.waitForIdle()
+        rule.onNodeWithText("Download").performClick()
+        rule.waitForIdle()
+
+        assertEquals(listOf("c2", "c3", "c4"), downloaded?.map { it.chapterId })
+    }
 }

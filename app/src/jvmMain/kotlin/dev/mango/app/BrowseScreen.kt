@@ -108,6 +108,8 @@ fun BrowseScreenContent(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    // no item keys: extension data is untrusted and a duplicate mangaId in one
+                    // response must not crash composition with a duplicate-key exception
                     else -> LazyVerticalGrid(
                         columns = GridCells.Adaptive(minSize = 160.dp),
                         contentPadding = PaddingValues(0.dp),
@@ -115,7 +117,7 @@ fun BrowseScreenContent(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize(),
                     ) {
-                        items(results, key = { "${it.sourceId}/${it.mangaId}" }) { entry ->
+                        items(results) { entry ->
                             CoverCell(entry = entry, onClick = { onOpenDetails(entry) })
                         }
                     }
