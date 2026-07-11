@@ -112,9 +112,20 @@ fun AppShell(
                                     onOpenChapter = { chapter ->
                                         screen = Screen.Reader(current.sourceId, current.mangaId, chapter.chapterId)
                                     },
-                                    onDownloadChapter = { chapter ->
+                                    // Downloading a chapter (or the whole series) implies the user
+                                    // cares about it: it lands in the library too, same as a manual
+                                    // "Add to library" tap.
+                                    onDownloadChapter = { entry, chapter ->
                                         scope.launch {
-                                            downloads.enqueue(current.sourceId, current.mangaId, chapter.chapterId)
+                                            library.addToLibrary(entry)
+                                            downloads.enqueue(entry, chapter)
+                                            downloads.processQueue()
+                                        }
+                                    },
+                                    onDownloadAll = { entry, chapters ->
+                                        scope.launch {
+                                            library.addToLibrary(entry)
+                                            chapters.forEach { downloads.enqueue(entry, it) }
                                             downloads.processQueue()
                                         }
                                     },

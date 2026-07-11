@@ -1,7 +1,9 @@
 package dev.mango.app
 
+import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import dev.mango.core.domain.MangaEntry
 import java.nio.file.Files
+import java.util.Properties
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -46,6 +48,27 @@ class AppGraphTest {
         val items = second.library.observeLibrary().first()
 
         assertEquals(1, items.size)
+        assertEquals(entry, items.single().entry)
+    }
+
+    @Test
+    fun aV1DatabaseMigratesInPlaceAndKeepsUserData() = runBlocking {
+        val dataDir = Files.createTempDirectory("app-graph-test")
+        val first = AppGraph(dataDir)
+        val entry = MangaEntry(sourceId = "Test", mangaId = "manga-1", title = "Test Manga")
+        first.library.addToLibrary(entry)
+
+        // rewind the db to the v1 shape: drop the v2 columns, stamp user_version = 1
+        val driver = JdbcSqliteDriver("jdbc:sqlite:${dataDir.resolve("mango.db")}", Properties())
+        driver.execute(null, "ALTER TABLE download DROP COLUMN manga_title", 0)
+        driver.execute(null, "ALTER TABLE download DROP COLUMN chapter_number", 0)
+        driver.execute(null, "PRAGMA user_version = 1", 0)
+        driver.close()
+
+        // constructing a graph must take the migrate branch, not recreate, keeping the row
+        val migrated = AppGraph(dataDir)
+        val items = migrated.library.observeLibrary().first()
+
         assertEquals(entry, items.single().entry)
     }
 }

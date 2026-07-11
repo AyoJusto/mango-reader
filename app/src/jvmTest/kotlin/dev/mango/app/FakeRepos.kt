@@ -85,11 +85,13 @@ class FakeDownloadManager(initial: List<Download> = emptyList()) : DownloadManag
 
     override fun observeDownloads(): Flow<List<Download>> = state
 
-    override suspend fun enqueue(sourceId: String, mangaId: String, chapterId: String) {
+    override suspend fun enqueue(entry: MangaEntry, chapter: Chapter) {
         state.value = state.value + Download(
-            sourceId = sourceId,
-            mangaId = mangaId,
-            chapterId = chapterId,
+            sourceId = entry.sourceId,
+            mangaId = entry.mangaId,
+            chapterId = chapter.chapterId,
+            mangaTitle = entry.title,
+            chapterNumber = chapter.number,
             status = DownloadStatus.QUEUED,
             pagesTotal = 0,
             pagesDone = 0,

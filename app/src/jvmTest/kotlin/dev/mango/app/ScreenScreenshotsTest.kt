@@ -103,7 +103,8 @@ class ScreenScreenshotsTest {
                     inLibrary = false,
                     onToggleLibrary = {},
                     onOpenChapter = {},
-                    onDownloadChapter = {},
+                    onDownloadChapter = { _, _ -> },
+                    onDownloadAll = { _, _ -> },
                 )
             }
         }

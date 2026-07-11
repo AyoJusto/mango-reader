@@ -42,6 +42,7 @@ import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.LibraryRepository
 import dev.mango.core.domain.MangaDetails
+import dev.mango.core.domain.MangaEntry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -53,7 +54,8 @@ fun DetailsScreenContent(
     inLibrary: Boolean,
     onToggleLibrary: () -> Unit,
     onOpenChapter: (Chapter) -> Unit,
-    onDownloadChapter: (Chapter) -> Unit,
+    onDownloadChapter: (MangaEntry, Chapter) -> Unit,
+    onDownloadAll: (MangaEntry, List<Chapter>) -> Unit,
 ) {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -106,10 +108,15 @@ fun DetailsScreenContent(
                             }
                         }
                     }
-                    if (inLibrary) {
-                        OutlinedButton(onClick = onToggleLibrary) { Text("In library — remove") }
-                    } else {
-                        Button(onClick = onToggleLibrary) { Text("Add to library") }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (inLibrary) {
+                            OutlinedButton(onClick = onToggleLibrary) { Text("In library — remove") }
+                        } else {
+                            Button(onClick = onToggleLibrary) { Text("Add to library") }
+                        }
+                        TextButton(onClick = { onDownloadAll(details.entry, chapters) }) {
+                            Text("Download all")
+                        }
                     }
                 }
             }
@@ -146,7 +153,7 @@ fun DetailsScreenContent(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            TextButton(onClick = { onDownloadChapter(chapter) }) {
+                            TextButton(onClick = { onDownloadChapter(details.entry, chapter) }) {
                                 Text("↓")
                             }
                         }
@@ -157,10 +164,6 @@ fun DetailsScreenContent(
         }
     }
 }
-
-/** "8.0" reads as a float; chapters are "8" or "8.5". */
-private fun formatChapterNumber(number: Double): String =
-    if (number == number.toLong().toDouble()) number.toLong().toString() else number.toString()
 
 /** Raw Instant.toString() is machine format; readers get the date only. */
 private fun formatDate(instant: kotlin.time.Instant): String =
@@ -174,7 +177,8 @@ fun DetailsScreen(
     catalog: CatalogRepository,
     library: LibraryRepository,
     onOpenChapter: (Chapter) -> Unit,
-    onDownloadChapter: (Chapter) -> Unit = {},
+    onDownloadChapter: (MangaEntry, Chapter) -> Unit = { _, _ -> },
+    onDownloadAll: (MangaEntry, List<Chapter>) -> Unit = { _, _ -> },
 ) {
     var details by remember(sourceId, mangaId) { mutableStateOf<MangaDetails?>(null) }
     var chapters by remember(sourceId, mangaId) { mutableStateOf<List<Chapter>>(emptyList()) }
@@ -227,6 +231,7 @@ fun DetailsScreen(
             },
             onOpenChapter = onOpenChapter,
             onDownloadChapter = onDownloadChapter,
+            onDownloadAll = onDownloadAll,
         )
     }
 }

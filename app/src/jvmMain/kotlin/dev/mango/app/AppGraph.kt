@@ -45,14 +45,28 @@ class AppGraph(dataDir: Path = defaultDataDir()) {
         // soon as the driver opens, so a crash mid-create would otherwise leave a schemaless
         // file that bricks every later launch. user_version 0 means setup never completed,
         // which means no user data can exist yet — safe to start over from an empty file.
-        // ponytail: no migrations until the schema changes; version stays pinned at 1.
+        // Any other version behind the current schema holds real user data (library,
+        // downloads) and gets migrated in place instead.
         var driver = JdbcSqliteDriver(url, Properties())
-        if (userVersion(driver) == 0L) {
-            driver.close()
-            Files.deleteIfExists(dbFile)
-            driver = JdbcSqliteDriver(url, Properties())
-            MangoDatabase.Schema.create(driver)
-            driver.execute(null, "PRAGMA user_version = 1", 0)
+        val v = userVersion(driver)
+        when {
+            v == 0L -> {
+                driver.close()
+                Files.deleteIfExists(dbFile)
+                driver = JdbcSqliteDriver(url, Properties())
+                MangoDatabase.Schema.create(driver)
+                stamp(driver, MangoDatabase.Schema.version)
+            }
+            v < MangoDatabase.Schema.version -> {
+                // migrate + stamp atomically: a crash between them would re-run the ALTERs
+                // on the next launch ("duplicate column") and brick the DB permanently
+                MangoDatabase(driver).transaction {
+                    MangoDatabase.Schema.migrate(driver, v, MangoDatabase.Schema.version)
+                    stamp(driver, MangoDatabase.Schema.version)
+                }
+            }
+            v > MangoDatabase.Schema.version ->
+                error("database is version $v but this app only knows ${MangoDatabase.Schema.version} — app downgrade?")
         }
         db = MangoDatabase(driver)
 
@@ -81,5 +95,9 @@ class AppGraph(dataDir: Path = defaultDataDir()) {
             { cursor -> QueryResult.Value(if (cursor.next().value) cursor.getLong(0) else null) },
             0,
         ).value ?: 0L
+
+        private fun stamp(driver: JdbcSqliteDriver, version: Long) {
+            driver.execute(null, "PRAGMA user_version = $version", 0)
+        }
     }
 }

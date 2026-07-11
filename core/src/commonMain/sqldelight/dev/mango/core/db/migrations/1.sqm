@@ -1,0 +1,6 @@
+-- v1 -> v2: the downloads screen needs a display title and chapter number without joining back
+-- to the catalog (a source may be uninstalled by the time a download finishes). Defaults match
+-- the CREATE TABLE in downloads.sq so existing rows read as "" / 0 until re-enqueued.
+
+ALTER TABLE download ADD COLUMN manga_title TEXT NOT NULL DEFAULT '';
+ALTER TABLE download ADD COLUMN chapter_number REAL NOT NULL DEFAULT 0;

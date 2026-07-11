@@ -49,14 +49,14 @@ fun DownloadsScreenContent(items: List<Download>) {
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "${download.sourceId} · ${download.mangaId}",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Text(
-                                text = "Chapter ${download.chapterId}",
+                                text = download.mangaTitle,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Text(
+                                text = "${download.sourceId} · Ch. ${formatChapterNumber(download.chapterNumber)}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                         when (download.status) {

@@ -5,11 +5,18 @@ import kotlinx.coroutines.flow.Flow
 /** Where a queued chapter download currently stands. */
 enum class DownloadStatus { QUEUED, RUNNING, DONE, FAILED }
 
-/** One chapter's download record: queue state plus page-count progress. No infrastructure here. */
+/**
+ * One chapter's download record: queue state plus page-count progress, plus the display fields
+ * (mangaTitle, chapterNumber) the downloads screen needs — carried on the row itself so the UI
+ * never has to join back to the catalog for a manga that may no longer be reachable. No
+ * infrastructure here.
+ */
 data class Download(
     val sourceId: String,
     val mangaId: String,
     val chapterId: String,
+    val mangaTitle: String,
+    val chapterNumber: Double,
     val status: DownloadStatus,
     val pagesTotal: Int,
     val pagesDone: Int,
@@ -26,6 +33,6 @@ data class Download(
  */
 interface DownloadManager {
     fun observeDownloads(): Flow<List<Download>>
-    suspend fun enqueue(sourceId: String, mangaId: String, chapterId: String)
+    suspend fun enqueue(entry: MangaEntry, chapter: Chapter)
     suspend fun processQueue()
 }

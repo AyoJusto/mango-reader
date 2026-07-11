@@ -1,10 +1,14 @@
 -- Chapter download queue/status. Timestamps are epoch millis; status is one of
--- QUEUED, RUNNING, DONE, FAILED (see DownloadStatus).
+-- QUEUED, RUNNING, DONE, FAILED (see DownloadStatus). manga_title/chapter_number are display
+-- fields carried on the row so the downloads screen can show a real title and chapter number
+-- without joining back to the catalog (see migrations/1.sqm for the v1 -> v2 upgrade).
 
 CREATE TABLE download (
   source_id TEXT NOT NULL,
   manga_id TEXT NOT NULL,
   chapter_id TEXT NOT NULL,
+  manga_title TEXT NOT NULL DEFAULT '',
+  chapter_number REAL NOT NULL DEFAULT 0,
   status TEXT NOT NULL,
   pages_total INTEGER NOT NULL,
   pages_done INTEGER NOT NULL,
@@ -19,8 +23,8 @@ selectQueuedDownloads:
 SELECT * FROM download WHERE status = 'QUEUED' ORDER BY updated_at ASC;
 
 upsertDownload:
-INSERT OR REPLACE INTO download(source_id, manga_id, chapter_id, status, pages_total, pages_done, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?);
+INSERT OR REPLACE INTO download(source_id, manga_id, chapter_id, manga_title, chapter_number, status, pages_total, pages_done, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 updateDownloadProgress:
 UPDATE download SET status = ?, pages_total = ?, pages_done = ?, updated_at = ?

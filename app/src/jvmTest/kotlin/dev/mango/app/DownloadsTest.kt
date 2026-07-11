@@ -15,6 +15,8 @@ import dev.mango.core.domain.SourceInfo
 import java.nio.file.Files
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 
@@ -32,18 +34,22 @@ class DownloadsTest {
         val items = listOf(
             Download(
                 sourceId = "FlameComics", mangaId = "manga-1", chapterId = "ch-1",
+                mangaTitle = "Solo Leveling", chapterNumber = 1.0,
                 status = DownloadStatus.QUEUED, pagesTotal = 0, pagesDone = 0,
             ),
             Download(
                 sourceId = "FlameComics", mangaId = "manga-1", chapterId = "ch-2",
+                mangaTitle = "Solo Leveling", chapterNumber = 2.0,
                 status = DownloadStatus.RUNNING, pagesTotal = 10, pagesDone = 3,
             ),
             Download(
                 sourceId = "FlameComics", mangaId = "manga-1", chapterId = "ch-3",
+                mangaTitle = "Solo Leveling", chapterNumber = 3.0,
                 status = DownloadStatus.DONE, pagesTotal = 12, pagesDone = 12,
             ),
             Download(
-                sourceId = "FlameComics", mangaId = "manga-1", chapterId = "ch-4",
+                sourceId = "FlameComics", mangaId = "manga-2", chapterId = "ch-4",
+                mangaTitle = "Omniscient Reader", chapterNumber = 4.5,
                 status = DownloadStatus.FAILED, pagesTotal = 8, pagesDone = 2,
             ),
         )
@@ -84,6 +90,10 @@ class DownloadsTest {
         assertEquals(1, downloads.downloads.size)
         assertEquals("ch-1", downloads.downloads.single().chapterId)
         assertEquals(DownloadStatus.QUEUED, downloads.downloads.single().status)
+        assertEquals("Solo Leveling", downloads.downloads.single().mangaTitle)
+        assertEquals(1.0, downloads.downloads.single().chapterNumber)
+        // Downloading a chapter implies the user cares about the series — it lands in the library.
+        assertTrue(runBlocking { library.observeLibrary().first() }.any { it.entry.mangaId == "manga-1" })
         // Clicking the download affordance must not navigate to the reader — still on Details.
         rule.onNodeWithText("Chapters").assertExists()
     }
@@ -94,10 +104,12 @@ class DownloadsTest {
             initial = listOf(
                 Download(
                     sourceId = "FlameComics", mangaId = "manga-1", chapterId = "ch-1",
+                    mangaTitle = "Solo Leveling", chapterNumber = 1.0,
                     status = DownloadStatus.DONE, pagesTotal = 5, pagesDone = 5,
                 ),
                 Download(
                     sourceId = "FlameComics", mangaId = "manga-1", chapterId = "ch-2",
+                    mangaTitle = "Solo Leveling", chapterNumber = 2.0,
                     status = DownloadStatus.QUEUED, pagesTotal = 0, pagesDone = 0,
                 ),
             ),

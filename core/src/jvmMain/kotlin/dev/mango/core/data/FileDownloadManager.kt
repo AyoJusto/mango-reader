@@ -4,9 +4,11 @@ import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
 import dev.mango.core.db.MangoDatabase
 import dev.mango.core.domain.CatalogRepository
+import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.Download
 import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.DownloadStatus
+import dev.mango.core.domain.MangaEntry
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
@@ -60,6 +62,8 @@ class FileDownloadManager(
                     sourceId = row.source_id,
                     mangaId = row.manga_id,
                     chapterId = row.chapter_id,
+                    mangaTitle = row.manga_title,
+                    chapterNumber = row.chapter_number,
                     status = DownloadStatus.valueOf(row.status),
                     pagesTotal = row.pages_total.toInt(),
                     pagesDone = row.pages_done.toInt(),
@@ -67,13 +71,15 @@ class FileDownloadManager(
             }
         }
 
-    override suspend fun enqueue(sourceId: String, mangaId: String, chapterId: String) = withContext(context) {
+    override suspend fun enqueue(entry: MangaEntry, chapter: Chapter) = withContext(context) {
         // re-enqueueing an existing (e.g. FAILED) row resets it to a fresh QUEUED/0/0 —
         // resuming from the last completed page instead is a known upgrade path, not this one
         db.downloadsQueries.upsertDownload(
-            source_id = sourceId,
-            manga_id = mangaId,
-            chapter_id = chapterId,
+            source_id = entry.sourceId,
+            manga_id = entry.mangaId,
+            chapter_id = chapter.chapterId,
+            manga_title = entry.title,
+            chapter_number = chapter.number,
             status = DownloadStatus.QUEUED.name,
             pages_total = 0,
             pages_done = 0,

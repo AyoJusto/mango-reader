@@ -59,6 +59,12 @@ class DownloadManagerTest {
         }
     })
 
+    private fun entry(sourceId: String, mangaId: String, title: String = "Title") =
+        MangaEntry(sourceId = sourceId, mangaId = mangaId, title = title)
+
+    private fun chapter(chapterId: String, number: Double = 1.0) =
+        Chapter(chapterId = chapterId, number = number)
+
     private fun newManager(catalog: CatalogRepository, http: HttpClient, root: Path): DownloadManager {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())
         MangoDatabase.Schema.create(driver)
@@ -86,7 +92,7 @@ class DownloadManagerTest {
             root,
         )
 
-        manager.enqueue("src", "m1", "c1")
+        manager.enqueue(entry("src", "m1", title = "Solo Leveling"), chapter("c1", number = 3.5))
         manager.processQueue()
 
         val file0 = root.resolve("src/m1/c1/0000.jpg")
@@ -100,6 +106,9 @@ class DownloadManagerTest {
         assertEquals(DownloadStatus.DONE, row.status)
         assertEquals(2, row.pagesTotal)
         assertEquals(2, row.pagesDone)
+        // title/number round-trip through the DB row, not just the in-memory Download passed in
+        assertEquals("Solo Leveling", row.mangaTitle)
+        assertEquals(3.5, row.chapterNumber)
 
         assertTrue(recorded.isNotEmpty())
         assertTrue(recorded.all { it.headers[HttpHeaders.Referrer] == "https://example/m1" })
@@ -115,7 +124,7 @@ class DownloadManagerTest {
             root,
         )
 
-        manager.enqueue("src", "m1", "c1")
+        manager.enqueue(entry("src", "m1"), chapter("c1"))
         manager.processQueue()
 
         assertTrue(Files.exists(root.resolve("src/m1/c1/0000.img")))
@@ -140,8 +149,8 @@ class DownloadManagerTest {
             root,
         )
 
-        manager.enqueue("src", "bad", "c1")
-        manager.enqueue("src", "good", "c1")
+        manager.enqueue(entry("src", "bad"), chapter("c1"))
+        manager.enqueue(entry("src", "good"), chapter("c1"))
         manager.processQueue()
 
         assertTrue(Files.exists(root.resolve("src/bad/c1/0000.jpg")))
@@ -163,13 +172,13 @@ class DownloadManagerTest {
         })
         val manager = newManager(FakeCatalogRepository(mapOf("src/m1/c1" to listOf(page))), http, root)
 
-        manager.enqueue("src", "m1", "c1")
+        manager.enqueue(entry("src", "m1"), chapter("c1"))
         manager.processQueue()
         assertEquals(DownloadStatus.FAILED, manager.observeDownloads().first().single().status)
         assertFalse(Files.exists(root.resolve("src/m1/c1/0000.jpg")))
 
         shouldFail = false
-        manager.enqueue("src", "m1", "c1")
+        manager.enqueue(entry("src", "m1"), chapter("c1"))
         manager.processQueue()
 
         val row = manager.observeDownloads().first().single()
@@ -190,7 +199,7 @@ class DownloadManagerTest {
             root,
         )
 
-        manager.enqueue("src", relativeEscape, absoluteEscape)
+        manager.enqueue(entry("src", relativeEscape), chapter(absoluteEscape))
         manager.processQueue()
 
         assertEquals(DownloadStatus.DONE, manager.observeDownloads().first().single().status)
@@ -205,11 +214,13 @@ class DownloadManagerTest {
         val root = Files.createTempDirectory("downloads-test")
         val manager = newManager(FakeCatalogRepository(emptyMap()), mockClient(emptyMap()), root)
 
-        manager.enqueue("src", "m1", "c1")
+        manager.enqueue(entry("src", "m1", title = "Nano Machine"), chapter("c1", number = 12.0))
 
         val row = manager.observeDownloads().first().single()
         assertEquals(DownloadStatus.QUEUED, row.status)
         assertEquals(0, row.pagesTotal)
         assertEquals(0, row.pagesDone)
+        assertEquals("Nano Machine", row.mangaTitle)
+        assertEquals(12.0, row.chapterNumber)
     }
 }
