@@ -20,6 +20,13 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 
 /**
+ * Every user-facing settings entry — the single source of truth the search-everywhere palette
+ * derives its Settings hits from. CLAUDE.md invariant: a new setting is not done until it is
+ * registered here; the completeness tests in PaletteFlowTest/SettingsScreenTest fail otherwise.
+ */
+val SETTINGS_ENTRIES = listOf("Theme", "Auto-scroll speed")
+
+/**
  * Pure, data-driven content — the screenshot harness renders this directly. No stateful loader
  * needed: the current theme and the change callback are hoisted all the way up to Main.kt (M4.4a)
  * so the switch applies live without a restart. Same pattern for the M6(b) auto-scroll speed.

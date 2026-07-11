@@ -9,6 +9,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.pressKey
 import dev.mango.core.domain.LibraryItem
@@ -153,6 +154,50 @@ class PaletteFlowTest {
 
         rule.onAllNodes(hasText("Screens") and inPalette).assertCountEquals(0)
         rule.onNode(hasText("Solo Leveling") and inPalette).assertExists()
+    }
+
+    // Completeness test for the R3 registry: every SETTINGS_ENTRIES title must surface a hit in
+    // the palette, so a future registry entry with no matching provider output fails loudly here.
+    // Also covers the end-to-end behavior: selecting the "Setting: Auto-scroll speed" hit
+    // navigates to the Settings screen.
+    @Test
+    fun everyRegisteredSettingsEntrySurfacesAPaletteHitAndSelectingOneNavigatesToSettings() {
+        val library = FakeLibraryRepository(libraryItems())
+        val palette = PaletteState()
+
+        rule.setContent { MangoTheme { AppShell(library, FakeCatalogRepository(), FakeDownloadManager(), palette = palette) } }
+        rule.waitForIdle()
+
+        palette.visible = true
+        rule.waitForIdle()
+
+        // Narrow to the "Setting" prefix first: with the unfiltered "All" list, the LazyColumn
+        // only composes what's within the viewport, and library + screen hits sort ahead of
+        // "Settings" alphabetically, so an unnarrowed entry can be off-screen and absent from
+        // the semantics tree despite being a real candidate. The narrowed query text ("Setting")
+        // never equals a full hit title ("Setting: Theme"), so it can't collide with the
+        // per-entry exact-text lookups below.
+        rule.onNodeWithText("Search everywhere…").performTextInput("Setting")
+        rule.waitForIdle()
+
+        SETTINGS_ENTRIES.forEach { title ->
+            rule.onNode(hasText("Setting: $title") and inPalette).assertExists()
+        }
+
+        // Narrow further to the single "Setting: Auto-scroll speed" hit and run it.
+        rule.onNodeWithText("Setting").performTextClearance()
+        rule.waitForIdle()
+        rule.onNodeWithText("Search everywhere…").performTextInput("Setting: Auto-scroll speed")
+        rule.waitForIdle()
+
+        rule.onRoot().performKeyInput { pressKey(Key.Enter) }
+        rule.waitForIdle()
+
+        // Palette closes on run, and "Theme" is the Settings screen's own heading text — no
+        // other screen or palette hit renders that exact string — so its presence alone proves
+        // the hit navigated to Settings.
+        assertFalse(palette.visible)
+        rule.onNodeWithText("Theme").assertExists()
     }
 
     @Test

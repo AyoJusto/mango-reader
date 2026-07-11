@@ -397,6 +397,13 @@ private fun themeProvider(onThemeChange: (String) -> Unit): PaletteProvider = Pa
     }
 }
 
+/** Every registered settings entry as a palette hit; run opens the Settings screen. */
+private fun settingsProvider(navigate: (Screen) -> Unit): PaletteProvider = PaletteProvider { _ ->
+    SETTINGS_ENTRIES.map { title ->
+        PaletteHit(category = "Settings", title = "Setting: $title", run = { navigate(Screen.Settings) })
+    }
+}
+
 /** Every library entry as a palette hit; run opens its Details screen. */
 private fun libraryProvider(library: LibraryRepository, navigate: (Screen) -> Unit): PaletteProvider =
     PaletteProvider { _ ->
@@ -412,8 +419,8 @@ private fun libraryProvider(library: LibraryRepository, navigate: (Screen) -> Un
 
 /**
  * The v1 tab set (M6a): "All" fans out to every provider, "Manhwa" is just the library
- * provider, "Actions" is screens + themes. A tab-bar from day one so the online-search tab
- * (PLANNING §12 backlog) slots in later without rework.
+ * provider, "Actions" is screens + themes + settings. A tab-bar from day one so the
+ * online-search tab (PLANNING §12 backlog) slots in later without rework.
  */
 fun paletteTabs(
     library: LibraryRepository,
@@ -423,9 +430,10 @@ fun paletteTabs(
     val screens = screenProvider(navigate)
     val themes = themeProvider(onThemeChange)
     val manhwa = libraryProvider(library, navigate)
+    val settings = settingsProvider(navigate)
     return listOf(
-        PaletteTab("All", listOf(screens, themes, manhwa)),
+        PaletteTab("All", listOf(screens, themes, manhwa, settings)),
         PaletteTab("Manhwa", listOf(manhwa)),
-        PaletteTab("Actions", listOf(screens, themes)),
+        PaletteTab("Actions", listOf(screens, themes, settings)),
     )
 }

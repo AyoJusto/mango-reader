@@ -1,8 +1,21 @@
 # Handoff — 2026-07-11 (night)
 
-Session summary for the next pickup. Both owner-reported reader bugs are fixed and M6(b)
-is DONE — M6 is complete. Both suites green after every commit; core 101 tests + app 79
-tests, all verified via forced rerun + JUnit XML.
+Session summary for the next pickup. Both owner-reported reader bugs are fixed, M6(b) is
+DONE (M6 complete), and the palette-completeness invariant landed. Both suites green after
+every commit; core 101 tests + app 81 tests, all verified via forced rerun + JUnit XML.
+
+## New owner invariant (2026-07-11): search-everywhere completeness
+
+Owner asked why the new auto-scroll setting wasn't in the palette and set the rule: ALL
+user-facing actions and settings must be reachable from double-Shift. Now enforced three
+ways (recorded in CLAUDE.md invariants): (1) `SETTINGS_ENTRIES` in SettingsScreen.kt is
+the single settings registry — a `settingsProvider` in Palette.kt derives "Setting: X →
+open Settings" hits from it; (2) completeness tests in PaletteFlowTest/SettingsScreenTest
+iterate the registry, so an unregistered setting fails the build; (3) one-off actions
+(which have no registry) are covered by the CLAUDE.md invariant in every brief/review:
+"a feature that can't be found from double-Shift is not done." Palette hits navigate to
+Settings — inline value editing in the palette was deliberately NOT built (text-only
+palette invariant); owner was offered it as a future chunk.
 
 ## What shipped (all on master)
 
