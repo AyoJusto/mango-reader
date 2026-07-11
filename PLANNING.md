@@ -359,6 +359,16 @@ owner approval. Sequential feature-building never qualifies.
 
 ## 12. Later roadmap (design for it, do not build it yet)
 
+**Dogfood backlog (triaged 2026-07-10, M3.5).** Functionality shipped in M3.5a–c: full-res
+pages, downloads metadata + library-on-download + download-all, configurable theme
+(`settings.properties`), browse state retention. Still open, in rough priority order:
+- reader serves downloaded pages when present (offline reading — downloads are write-only today)
+- download selection: range / unread-only (unread = no read_progress row)
+- cross-extension search: query all installed sources, results grouped per source
+- settings page (theme picker first — the registry and persistence already exist)
+- proper UI design pass (icon strategy, spacing/type rhythm, window-resize behavior)
+
+
 Add an **enrichment** service behind its own interface. The reader asks "is there an audio/animation
 track for this chapter?" and plays it if present. Fully decoupled from the reader core.
 

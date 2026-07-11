@@ -53,6 +53,9 @@ fun AppShell(
     // Reader has no fromBrowse of its own; remember which Details screen led to it so its
     // back button can return there.
     var lastDetails by remember { mutableStateOf<Screen.Details?>(null) }
+    // Hoisted here (not inside BrowseScreen) so it survives tab switches: Library -> Browse ->
+    // Library -> Browse must show the previous query/results instead of resetting.
+    val browseState = remember { BrowseState() }
     val scope = rememberCoroutineScope()
 
     when (val current = screen) {
@@ -97,7 +100,7 @@ fun AppShell(
                         Screen.Library -> LibraryScreen(library) { entry ->
                             screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = false)
                         }
-                        Screen.Browse -> BrowseScreen(catalog) { entry ->
+                        Screen.Browse -> BrowseScreen(catalog, browseState) { entry ->
                             screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = true)
                         }
                         Screen.Downloads -> DownloadsScreen(downloads)

@@ -25,7 +25,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -107,49 +106,61 @@ fun BrowseScreenContent(
     }
 }
 
+/**
+ * Browse's screen state, hoisted out of [BrowseScreen] so the caller can [remember] it at the
+ * shell level (see [AppShell]): switching tabs away from and back to Browse must not lose the
+ * query, results, or re-trigger the one-shot sources load.
+ */
+class BrowseState {
+    var sources by mutableStateOf<List<SourceInfo>>(emptyList())
+    var sourcesLoaded by mutableStateOf(false)
+    var selectedSourceId by mutableStateOf<String?>(null)
+    var query by mutableStateOf("")
+    var isLoading by mutableStateOf(false)
+    var error by mutableStateOf<String?>(null)
+    var results by mutableStateOf<List<MangaEntry>>(emptyList())
+}
+
 /** Stateful loader: one-shot source list, then search-on-submit against [CatalogRepository]. */
 @Composable
-fun BrowseScreen(catalog: CatalogRepository, onOpenDetails: (MangaEntry) -> Unit) {
-    var sources by remember { mutableStateOf<List<SourceInfo>>(emptyList()) }
-    var selectedSourceId by remember { mutableStateOf<String?>(null) }
-    var query by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var results by remember { mutableStateOf<List<MangaEntry>>(emptyList()) }
+fun BrowseScreen(catalog: CatalogRepository, state: BrowseState, onOpenDetails: (MangaEntry) -> Unit) {
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
-        sources = catalog.installedSources()
-        selectedSourceId = sources.firstOrNull()?.sourceId
+        if (!state.sourcesLoaded) {
+            state.sources = catalog.installedSources()
+            state.selectedSourceId = state.sources.firstOrNull()?.sourceId
+            state.sourcesLoaded = true
+        }
     }
 
     fun search() {
-        val sourceId = selectedSourceId ?: return
+        val sourceId = state.selectedSourceId ?: return
         scope.launch {
-            isLoading = true
-            error = null
+            state.isLoading = true
+            state.error = null
             try {
-                results = catalog.search(sourceId, query)
+                state.results = catalog.search(sourceId, state.query)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                error = e.message ?: "Search failed"
+                state.error = e.message ?: "Search failed"
             } finally {
-                isLoading = false
+                state.isLoading = false
             }
         }
     }
 
     BrowseScreenContent(
-        sources = sources,
-        selectedSourceId = selectedSourceId,
-        onSelectSource = { selectedSourceId = it },
-        query = query,
-        onQueryChange = { query = it },
+        sources = state.sources,
+        selectedSourceId = state.selectedSourceId,
+        onSelectSource = { state.selectedSourceId = it },
+        query = state.query,
+        onQueryChange = { state.query = it },
         onSearch = { search() },
-        isLoading = isLoading,
-        error = error,
-        results = results,
+        isLoading = state.isLoading,
+        error = state.error,
+        results = state.results,
         onOpenDetails = onOpenDetails,
     )
 }

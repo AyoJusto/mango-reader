@@ -1,5 +1,6 @@
 package dev.mango.app
 
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
@@ -24,10 +25,45 @@ private val DragonColors = darkColorScheme(
     outline = Color(0xFF393836),        // dragonBlack5
 )
 
-/** Pure near-black behind reader pages; darker than surface on purpose. */
+// Second built-in scheme, proving the theme is actually configurable and not just DragonColors
+// with an extra layer of indirection.
+private val MidnightColors = darkColorScheme(
+    primary = Color(0xFF7FB4D9),
+    onPrimary = Color(0xFF0B0E11),
+    secondary = Color(0xFF9DA7C4),
+    onSecondary = Color(0xFF0B0E11),
+    tertiary = Color(0xFFC9A87C),
+    onTertiary = Color(0xFF0B0E11),
+    error = Color(0xFFCC7A7A),
+    onError = Color(0xFF0B0E11),
+    background = Color(0xFF101418),
+    onBackground = Color(0xFFD6DEE7),
+    surface = Color(0xFF101418),
+    onSurface = Color(0xFFD6DEE7),
+    surfaceVariant = Color(0xFF1B2026),
+    onSurfaceVariant = Color(0xFF9AA5B1),
+    outline = Color(0xFF2A3138),
+)
+
+/**
+ * Pure near-black behind reader pages; darker than surface on purpose. Deliberately NOT part
+ * of the [Themes] registry: the reader canvas stays theme-independent for now regardless of
+ * which color scheme the user picks.
+ */
 val ReaderBlack = Color(0xFF0D0C0C)
 
+/** Named color-scheme registry. Nothing outside this file may reference a palette color directly. */
+object Themes {
+    const val DEFAULT = "kanagawa-dragon"
+    val schemes: Map<String, ColorScheme> = mapOf(
+        "kanagawa-dragon" to DragonColors,
+        "midnight" to MidnightColors,
+    )
+
+    fun scheme(name: String): ColorScheme = schemes[name] ?: schemes.getValue(DEFAULT)
+}
+
 @Composable
-fun MangoTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = DragonColors, content = content)
+fun MangoTheme(themeName: String = Themes.DEFAULT, content: @Composable () -> Unit) {
+    MaterialTheme(colorScheme = Themes.scheme(themeName), content = content)
 }
