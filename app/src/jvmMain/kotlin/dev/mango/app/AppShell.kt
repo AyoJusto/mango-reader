@@ -20,10 +20,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import dev.mango.core.domain.AvailableSource
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.DownloadManager
+import dev.mango.core.domain.ExtensionRepo
 import dev.mango.core.domain.LibraryRepository
 import kotlinx.coroutines.launch
+
+/** Used only when a caller doesn't wire a real registry (e.g. tests exercising other tabs). */
+private object NoOpExtensionRepo : ExtensionRepo {
+    override suspend fun available(): List<AvailableSource> = emptyList()
+    override suspend fun install(source: AvailableSource) = Unit
+}
 
 /**
  * Navigation state for the app shell. Hand-rolled — no nav library (M3.2, PLANNING §13
@@ -33,6 +41,7 @@ sealed interface Screen {
     data object Library : Screen
     data object Browse : Screen
     data object Downloads : Screen
+    data object Extensions : Screen
     data class Details(val sourceId: String, val mangaId: String, val fromBrowse: Boolean) : Screen
     data class Reader(
         val sourceId: String,
@@ -55,6 +64,7 @@ fun AppShell(
     library: LibraryRepository,
     catalog: CatalogRepository,
     downloads: DownloadManager,
+    extensions: ExtensionRepo = NoOpExtensionRepo,
     onToggleFullscreen: () -> Unit = {},
 ) {
     var screen by remember { mutableStateOf<Screen>(Screen.Library) }
@@ -105,6 +115,12 @@ fun AppShell(
                         icon = { Text("D") },
                         label = { Text("Downloads") },
                     )
+                    NavigationRailItem(
+                        selected = current is Screen.Extensions,
+                        onClick = { screen = Screen.Extensions },
+                        icon = { Text("E") },
+                        label = { Text("Extensions") },
+                    )
                 }
                 Surface(
                     modifier = Modifier.weight(1f).fillMaxHeight(),
@@ -118,6 +134,7 @@ fun AppShell(
                             screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = true)
                         }
                         Screen.Downloads -> DownloadsScreen(downloads)
+                        Screen.Extensions -> ExtensionsScreen(extensions, catalog)
                         is Screen.Details -> {
                             LaunchedEffect(current) { lastDetails = current }
                             Box(modifier = Modifier.fillMaxSize()) {

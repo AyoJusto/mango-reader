@@ -3,12 +3,14 @@ package dev.mango.app
 import app.cash.sqldelight.db.QueryResult
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import dev.mango.core.data.FileDownloadManager
+import dev.mango.core.data.InkdexRepo
 import dev.mango.core.data.PaperbackCatalogRepository
 import dev.mango.core.data.SqlCookieStore
 import dev.mango.core.data.SqlLibraryRepository
 import dev.mango.core.db.MangoDatabase
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.DownloadManager
+import dev.mango.core.domain.ExtensionRepo
 import dev.mango.core.domain.LibraryRepository
 import dev.mango.core.engine.ApplicationHost
 import dev.mango.core.engine.PaperbackExtension
@@ -31,6 +33,7 @@ class AppGraph(dataDir: Path = defaultDataDir()) {
     val library: LibraryRepository
     val catalog: CatalogRepository
     val downloads: DownloadManager
+    val extensions: ExtensionRepo
 
     init {
         Files.createDirectories(dataDir)
@@ -83,6 +86,7 @@ class AppGraph(dataDir: Path = defaultDataDir()) {
             },
         )
         downloads = FileDownloadManager(db = db, catalog = catalog, http = http, root = downloadsDir)
+        extensions = InkdexRepo(http = http, bundleDir = bundleDir, catalog = catalog)
     }
 
     companion object {

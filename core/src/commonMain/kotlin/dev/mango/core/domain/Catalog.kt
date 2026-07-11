@@ -1,7 +1,11 @@
 package dev.mango.core.domain
 
-/** An installed source's identity, as tracked by the catalog (not the source's own JS state). */
-data class SourceInfo(val sourceId: String, val name: String)
+/**
+ * An installed source's identity, as tracked by the catalog (not the source's own JS state).
+ * [version] is the registry version pinned at install time (M4.2); "" for sources installed
+ * before that (manual bundle seeding, or a row untouched by a migration default).
+ */
+data class SourceInfo(val sourceId: String, val name: String, val version: String = "")
 
 /**
  * Installed-source registry plus the read path, fanned out to whichever [MangaSource] backs

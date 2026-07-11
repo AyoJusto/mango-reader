@@ -1,10 +1,19 @@
 -- Installed Paperback source bundles. Timestamps are epoch millis.
+--
+-- version: the registry version pinned at install time (M4.2), so the Extensions screen can
+-- tell "up to date" from "update available" without a network round trip.
+-- user_agent: per-source UA override (written by M4.3's challenge flow). upsertInstalledSource
+-- is ON CONFLICT DO UPDATE with user_agent absent from the SET list precisely so a
+-- reinstall/update never wipes a pinned UA (INSERT OR REPLACE would delete+reinsert the row
+-- and reset unlisted columns to their defaults).
 
 CREATE TABLE installed_source (
   source_id TEXT NOT NULL PRIMARY KEY,
   name TEXT NOT NULL,
   bundle_sha256 TEXT NOT NULL,
-  installed_at INTEGER NOT NULL
+  installed_at INTEGER NOT NULL,
+  version TEXT NOT NULL DEFAULT '',
+  user_agent TEXT
 );
 
 selectAllInstalledSources:
@@ -14,5 +23,13 @@ selectInstalledSource:
 SELECT * FROM installed_source WHERE source_id = ?;
 
 upsertInstalledSource:
-INSERT OR REPLACE INTO installed_source(source_id, name, bundle_sha256, installed_at)
-VALUES (?, ?, ?, ?);
+INSERT INTO installed_source(source_id, name, bundle_sha256, installed_at, version)
+VALUES (?, ?, ?, ?, ?)
+ON CONFLICT(source_id) DO UPDATE SET
+  name = excluded.name,
+  bundle_sha256 = excluded.bundle_sha256,
+  installed_at = excluded.installed_at,
+  version = excluded.version;
+
+updateUserAgent:
+UPDATE installed_source SET user_agent = ? WHERE source_id = ?;

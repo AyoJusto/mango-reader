@@ -28,6 +28,19 @@ class UnknownSourceException(sourceId: String) : Exception("unknown source: $sou
 class MissingBundleException(sourceId: String, cause: Throwable) :
     Exception("no bundle file for installed source: $sourceId", cause)
 
+// sourceId becomes extension-influenced once M4 installs from bundle metadata; it must
+// never be able to name a path outside bundleDir (no separators, no drive letters). Hoisted
+// to file scope (M4.2) so InkdexRepo's installer can enforce the exact same rule before it
+// ever touches the network, not just before this repository writes/reads the bundle file.
+internal val SAFE_SOURCE_ID = Regex("[A-Za-z0-9_.-]+")
+
+internal fun requireSafeSourceId(sourceId: String) {
+    // all-dots ids ("..") pass the charset but become URL dot-segments in the installer
+    require(sourceId.matches(SAFE_SOURCE_ID) && sourceId.any { it != '.' }) {
+        "unsafe sourceId: $sourceId"
+    }
+}
+
 /**
  * SQLDelight- and filesystem-backed [CatalogRepository]. Resolving a sourceId means: look up
  * its DB row, read `<bundleDir>/<sourceId>.index.js`, run it through [BundleLoader.verify]
@@ -46,7 +59,7 @@ class PaperbackCatalogRepository(
 
     override suspend fun installedSources(): List<SourceInfo> = withContext(context) {
         db.sourcesQueries.selectAllInstalledSources().executeAsList().map { row ->
-            SourceInfo(sourceId = row.source_id, name = row.name)
+            SourceInfo(sourceId = row.source_id, name = row.name, version = row.version)
         }
     }
 
@@ -57,7 +70,10 @@ class PaperbackCatalogRepository(
             name = info.name,
             bundle_sha256 = bundleSha256,
             installed_at = clock.now().toEpochMilliseconds(),
+            version = info.version,
         )
+        // user_agent survives reinstall: the upsert is ON CONFLICT DO UPDATE with user_agent
+        // deliberately absent from the SET list (see sources.sq) — M4.3 pins a UA there.
         // re-pinning a hash must not keep serving a source built from the old bundle
         resolved.remove(info.sourceId)
         Unit
@@ -93,15 +109,5 @@ class PaperbackCatalogRepository(
             // putIfAbsent so a race lands on the same instance rather than duplicating work.
             resolved.putIfAbsent(sourceId, source) ?: source
         }
-    }
-
-    // sourceId becomes extension-influenced once M4 installs from bundle metadata; it must
-    // never be able to name a path outside bundleDir (no separators, no drive letters).
-    private fun requireSafeSourceId(sourceId: String) {
-        require(sourceId.matches(SAFE_SOURCE_ID)) { "unsafe sourceId: $sourceId" }
-    }
-
-    private companion object {
-        val SAFE_SOURCE_ID = Regex("[A-Za-z0-9_.-]+")
     }
 }

@@ -7,6 +7,9 @@ sqldelight {
     databases {
         create("MangoDatabase") {
             packageName.set("dev.mango.core.db")
+            // default dialect is sqlite 3.18, which predates upsert (ON CONFLICT DO UPDATE,
+            // sqlite 3.24); the bundled xerial driver is a modern 3.4x
+            dialect("app.cash.sqldelight:sqlite-3-38-dialect:2.3.2")
         }
     }
 }

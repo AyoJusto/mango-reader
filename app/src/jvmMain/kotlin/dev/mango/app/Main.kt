@@ -22,6 +22,7 @@ fun main() {
                     graph.library,
                     graph.catalog,
                     graph.downloads,
+                    graph.extensions,
                     onToggleFullscreen = {
                         windowState.placement = if (windowState.placement == WindowPlacement.Fullscreen) {
                             WindowPlacement.Floating

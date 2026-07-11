@@ -1,10 +1,12 @@
 package dev.mango.app
 
+import dev.mango.core.domain.AvailableSource
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.Download
 import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.DownloadStatus
+import dev.mango.core.domain.ExtensionRepo
 import dev.mango.core.domain.LibraryItem
 import dev.mango.core.domain.LibraryRepository
 import dev.mango.core.domain.MangaDetails
@@ -57,10 +59,15 @@ class FakeCatalogRepository(
     var pagesCallCount: Int = 0
         private set
 
-    override suspend fun installedSources(): List<SourceInfo> = sources
+    // mutable so install() can behave like the real contract (round-trips into
+    // installedSources()) for ExtensionsScreen's flow test; every other caller only ever reads
+    // the fixed constructor list, so this changes nothing for them
+    private val sourcesState = MutableStateFlow(sources)
+
+    override suspend fun installedSources(): List<SourceInfo> = sourcesState.value
 
     override suspend fun install(info: SourceInfo, bundleSha256: String) {
-        error("FakeCatalogRepository.install is not stubbed")
+        sourcesState.value = sourcesState.value.filterNot { it.sourceId == info.sourceId } + info
     }
 
     override suspend fun search(sourceId: String, query: String, page: Int): List<MangaEntry> =
@@ -116,4 +123,27 @@ class FakeDownloadManager(
 
     override suspend fun localPages(sourceId: String, mangaId: String, chapterId: String): List<String>? =
         localPagesByKey["$sourceId/$mangaId/$chapterId"]
+}
+
+/**
+ * Canned [ExtensionRepo] for tests. [install] calls through to [catalog] exactly like the real
+ * InkdexRepo does, so a screen that refreshes [CatalogRepository.installedSources] after an
+ * install sees the change reflected.
+ */
+class FakeExtensionRepo(
+    private val available: List<AvailableSource> = emptyList(),
+    private val catalog: CatalogRepository,
+) : ExtensionRepo {
+    var installCallCount: Int = 0
+        private set
+
+    override suspend fun available(): List<AvailableSource> = available
+
+    override suspend fun install(source: AvailableSource) {
+        installCallCount++
+        catalog.install(
+            SourceInfo(sourceId = source.sourceId, name = source.name, version = source.version),
+            bundleSha256 = "fake-sha-${source.sourceId}",
+        )
+    }
 }

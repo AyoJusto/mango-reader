@@ -58,10 +58,13 @@ class AppGraphTest {
         val entry = MangaEntry(sourceId = "Test", mangaId = "manga-1", title = "Test Manga")
         first.library.addToLibrary(entry)
 
-        // rewind the db to the v1 shape: drop the v2 columns, stamp user_version = 1
+        // rewind the db to the v1 shape: drop every column added after v1 (v2: download
+        // metadata; v3: installed_source version/user_agent), stamp user_version = 1
         val driver = JdbcSqliteDriver("jdbc:sqlite:${dataDir.resolve("mango.db")}", Properties())
         driver.execute(null, "ALTER TABLE download DROP COLUMN manga_title", 0)
         driver.execute(null, "ALTER TABLE download DROP COLUMN chapter_number", 0)
+        driver.execute(null, "ALTER TABLE installed_source DROP COLUMN version", 0)
+        driver.execute(null, "ALTER TABLE installed_source DROP COLUMN user_agent", 0)
         driver.execute(null, "PRAGMA user_version = 1", 0)
         driver.close()
 
