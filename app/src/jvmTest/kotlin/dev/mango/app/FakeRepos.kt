@@ -8,6 +8,7 @@ import dev.mango.core.domain.Download
 import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.DownloadStatus
 import dev.mango.core.domain.ExtensionRepo
+import dev.mango.core.domain.HomeSection
 import dev.mango.core.domain.LibraryItem
 import dev.mango.core.domain.LibraryRepository
 import dev.mango.core.domain.MangaDetails
@@ -91,6 +92,8 @@ class FakeCatalogRepository(
 
     override suspend fun search(sourceId: String, query: String, page: Int): List<MangaEntry> =
         results[query] ?: error("FakeCatalogRepository.search has no canned results for \"$query\"")
+
+    override suspend fun homeSections(sourceId: String): List<HomeSection> = emptyList()
 
     override suspend fun details(sourceId: String, mangaId: String): MangaDetails =
         details[sourceId to mangaId]

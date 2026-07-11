@@ -6,6 +6,7 @@ import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.DownloadStatus
+import dev.mango.core.domain.HomeSection
 import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
 import dev.mango.core.domain.Page
@@ -35,6 +36,8 @@ class DownloadManagerTest {
         override suspend fun installedSources(): List<SourceInfo> = throw UnsupportedOperationException()
         override suspend fun install(info: SourceInfo, bundleSha256: String): Unit = throw UnsupportedOperationException()
         override suspend fun search(sourceId: String, query: String, page: Int): List<MangaEntry> =
+            throw UnsupportedOperationException()
+        override suspend fun homeSections(sourceId: String): List<HomeSection> =
             throw UnsupportedOperationException()
         override suspend fun details(sourceId: String, mangaId: String): MangaDetails =
             throw UnsupportedOperationException()

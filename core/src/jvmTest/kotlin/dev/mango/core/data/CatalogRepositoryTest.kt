@@ -88,6 +88,15 @@ class CatalogRepositoryTest {
     }
 
     @Test
+    fun homeSectionsThroughTheRepository() = runTest {
+        val repo = newRepository(bundleDirWithFlameComics())
+        repo.install(SourceInfo(sourceId = "FlameComics", name = "Flame Comics"), FLAME_COMICS_SHA256)
+
+        val sections = repo.homeSections("FlameComics")
+        assertTrue(sections.isNotEmpty(), "expected home sections from recorded fixtures")
+    }
+
+    @Test
     fun sourceIsVerifiedAndConstructedOnlyOnceAcrossCalls() = runTest {
         val calls = AtomicInteger(0)
         val repo = newRepository(

@@ -1,6 +1,7 @@
 package dev.mango.core.engine
 
 import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
@@ -10,6 +11,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import org.graalvm.polyglot.proxy.ProxyObject
+import java.nio.file.Files
+import java.nio.file.Paths
 import java.security.MessageDigest
 
 object RecordedHttp {
@@ -31,6 +34,21 @@ object RecordedHttp {
             )
         respond(bytes, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
     })
+
+    /** CIO client + fixture-writing onResponse, shared by the LiveRecord* tests. Any non-200 fails the run. */
+    fun recordingHost(): ApplicationHost {
+        val fixturesDir = Paths.get("src", "jvmTest", "resources", "fixtures")
+        return ApplicationHost(
+            http = HttpClient(CIO),
+            onResponse = { url, status, body ->
+                check(status == 200) { "live request to $url returned $status" }
+                val file = fixturesDir.resolve(fixtureName(url))
+                Files.createDirectories(file.parent)
+                Files.write(file, body)
+                println("recorded $url -> ${file.fileName} (${body.size} bytes)")
+            },
+        )
+    }
 }
 
 internal const val MANGABAT_FIXTURE = "MangaBat.index.js"

@@ -9,6 +9,7 @@ import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextInput
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.Chapter
+import dev.mango.core.domain.HomeSection
 import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
 import dev.mango.core.domain.Page
@@ -38,6 +39,8 @@ private class PerSourceCatalogRepository(
         failuresBySource[sourceId]?.let { throw it }
         return resultsBySource[sourceId] ?: emptyList()
     }
+
+    override suspend fun homeSections(sourceId: String): List<HomeSection> = emptyList()
 
     override suspend fun details(sourceId: String, mangaId: String): MangaDetails =
         error("PerSourceCatalogRepository.details is not stubbed")

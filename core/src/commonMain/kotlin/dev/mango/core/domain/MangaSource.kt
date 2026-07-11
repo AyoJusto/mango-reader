@@ -13,4 +13,8 @@ interface MangaSource {
     suspend fun getDetails(mangaId: String): MangaDetails
     suspend fun getChapters(mangaId: String): List<Chapter>
     suspend fun getPages(mangaId: String, chapterId: String): List<Page>
+
+    /** Home/discover shelves (e.g. "Popular", "Latest Updates"). Default: none, so existing
+     * implementers don't break. */
+    suspend fun getHomeSections(): List<HomeSection> = emptyList()
 }

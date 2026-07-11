@@ -21,6 +21,7 @@ interface CatalogRepository {
     suspend fun installedSources(): List<SourceInfo>
     suspend fun install(info: SourceInfo, bundleSha256: String)
     suspend fun search(sourceId: String, query: String, page: Int = 1): List<MangaEntry>
+    suspend fun homeSections(sourceId: String): List<HomeSection>
     suspend fun details(sourceId: String, mangaId: String): MangaDetails
     suspend fun chapters(sourceId: String, mangaId: String): List<Chapter>
     suspend fun pages(sourceId: String, mangaId: String, chapterId: String): List<Page>

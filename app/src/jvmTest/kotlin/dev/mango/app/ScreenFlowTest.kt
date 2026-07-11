@@ -7,6 +7,7 @@ import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextInput
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.Chapter
+import dev.mango.core.domain.HomeSection
 import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
 import dev.mango.core.domain.MangaStatus
@@ -34,6 +35,9 @@ private class CountingCatalogRepository(private val delegate: CatalogRepository)
         searchCallCount++
         return delegate.search(sourceId, query, page)
     }
+
+    override suspend fun homeSections(sourceId: String): List<HomeSection> =
+        delegate.homeSections(sourceId)
 
     override suspend fun details(sourceId: String, mangaId: String): MangaDetails =
         delegate.details(sourceId, mangaId)

@@ -323,6 +323,18 @@ De-risk the unknown before building around it.
   section rows; sources without the method fall back to the plain search view. Full
   research + draft engine brief: HANDOFF.md (2026-07-11). Sequenced before the
   design-refinement pass so that pass styles the real Browse, not a throwaway.
+  **Chunk (a) DONE (2026-07-11).** Domain `HomeSection`; `MangaSource.getHomeSections`
+  (default empty) + `CatalogRepository.homeSections` (abstract — deliberate, a repo default
+  would mask a forgotten override); `PaperbackExtension` invokes the pull API duck-typed,
+  first page only, original stub Value passed back. Chunk-boundary review confirmed 10
+  findings, 9 accepted + fixed: stub loop capped at 32 (hostile-bundle DoS), three
+  unwrapped crash paths on malformed stubs/types/results now named ExtensionDataException,
+  genres-skip moved before dedupe so a genres stub can't swallow a real section's id, plus
+  test-oracle and duplication cleanups; rejected: repo-interface default. Replay fixtures
+  recorded for FlameComics/MangaBat/Toonily; WebtoonXYZ excluded (Cloudflare-walled, has no
+  recorded fixtures anywhere — challenge coverage stays in LiveDetectWebtoonXyzTest). Note:
+  the FlameComics homepage fixture is shared across LiveRecord suites; on buildId rotation
+  re-record them together (documented in LiveRecordDiscoverTest).
 - **M6 — Quick nav and reader QoL (planned 2026-07-11).** (a) Search-everywhere palette,
   IntelliJ double-Shift style, **local only**: a modal that fuzzy-matches app screens,
   settings entries, and library/downloaded manhwa; Enter navigates straight to the hit.

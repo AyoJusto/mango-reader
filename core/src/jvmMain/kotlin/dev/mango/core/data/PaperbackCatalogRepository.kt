@@ -3,6 +3,7 @@ package dev.mango.core.data
 import dev.mango.core.db.MangoDatabase
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.Chapter
+import dev.mango.core.domain.HomeSection
 import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
 import dev.mango.core.domain.MangaSource
@@ -81,6 +82,9 @@ class PaperbackCatalogRepository(
 
     override suspend fun search(sourceId: String, query: String, page: Int): List<MangaEntry> =
         resolveSource(sourceId).search(query, page)
+
+    override suspend fun homeSections(sourceId: String): List<HomeSection> =
+        resolveSource(sourceId).getHomeSections()
 
     override suspend fun details(sourceId: String, mangaId: String): MangaDetails =
         resolveSource(sourceId).getDetails(mangaId)

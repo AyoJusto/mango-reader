@@ -1,11 +1,7 @@
 package dev.mango.core.engine
 
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.cio.CIO
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Tag
-import java.nio.file.Files
-import java.nio.file.Paths
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
@@ -18,18 +14,7 @@ import kotlin.test.assertTrue
 class LiveRecordMangaBatTest {
     @Test
     fun recordReadPathFixtures() = runBlocking {
-        val fixturesDir = Paths.get("src", "jvmTest", "resources", "fixtures")
-        val host = ApplicationHost(
-            http = HttpClient(CIO),
-            onResponse = { url, status, body ->
-                check(status == 200) { "live request to $url returned $status" }
-                val file = fixturesDir.resolve(RecordedHttp.fixtureName(url))
-                Files.createDirectories(file.parent)
-                Files.write(file, body)
-                println("recorded $url -> ${file.fileName} (${body.size} bytes)")
-            },
-        )
-        val extension = PaperbackExtension("MangaBat", mangaBatBundle, host)
+        val extension = PaperbackExtension("MangaBat", mangaBatBundle, RecordedHttp.recordingHost())
 
         val results = extension.search("solo")
         println("live search returned ${results.size} items; first: ${results.firstOrNull()}")

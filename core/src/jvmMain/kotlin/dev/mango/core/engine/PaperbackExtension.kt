@@ -1,6 +1,7 @@
 package dev.mango.core.engine
 
 import dev.mango.core.domain.Chapter
+import dev.mango.core.domain.HomeSection
 import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
 import dev.mango.core.domain.MangaSource
@@ -44,15 +45,7 @@ class PaperbackExtension(
                 ?: throw ExtensionDataException(
                     "[$sourceId] search result has no items array: ${result.keys}"
                 )
-            items.map { item ->
-                val o = item.jsonObject
-                MangaEntry(
-                    sourceId = sourceId,
-                    mangaId = o.requiredString("mangaId", sourceId),
-                    title = o.requiredString("title", sourceId),
-                    cover = (o["imageUrl"] as? JsonPrimitive)?.contentOrNull,
-                )
-            }
+            mangaEntriesOf(items)
         }
 
     override suspend fun getDetails(mangaId: String): MangaDetails =
@@ -144,9 +137,80 @@ class PaperbackExtension(
             }
         }
 
+    override suspend fun getHomeSections(): List<HomeSection> =
+        ExtensionRuntime(bundleJs, host).withExtension { handle ->
+            val extension = handle.extension(sourceId)
+            // duck-type: capability flags are known-unreliable, so probe the method itself
+            if (!extension.canInvokeMember("getDiscoverSections")) {
+                return@withExtension emptyList()
+            }
+            handle.invokeAwait(extension, "initialise")
+            val stubs = handle.invokeAwait(extension, "getDiscoverSections")
+            if (!stubs.hasArrayElements()) {
+                throw ExtensionDataException(
+                    "[$sourceId] getDiscoverSections did not return an array: $stubs"
+                )
+            }
+            val seenIds = mutableSetOf<String>()
+            val sections = mutableListOf<HomeSection>()
+            // policy: a hostile bundle can return unbounded stubs, each costing a
+            // getDiscoverSectionItems round-trip; real sources have <10. Truncate silently.
+            for (i in 0 until minOf(stubs.arraySize, MAX_SECTION_STUBS)) {
+                val stub = stubs.getArrayElement(i)
+                if (!stub.hasMembers()) {
+                    throw ExtensionDataException(
+                        "[$sourceId] discover section stub $i is not an object: $stub"
+                    )
+                }
+                val id = stub.getMember("id")?.takeIf { it.isString }?.asString()
+                    ?: throw ExtensionDataException(
+                        "[$sourceId] discover section stub $i has no string 'id': $stub"
+                    )
+                val title = stub.getMember("title")?.takeIf { it.isString }?.asString()
+                    ?: throw ExtensionDataException(
+                        "[$sourceId] discover section stub '$id' has no string 'title': $stub"
+                    )
+                // genres sections (type 4) carry no mangaId per item; skip before dedupe so
+                // a genres stub never claims an id that a later real section reuses.
+                // fitsInInt guards Graal's asInt, which throws on 4.5 or out-of-range numbers
+                val type = stub.getMember("type")?.takeIf { it.isNumber && it.fitsInInt() }?.asInt()
+                if (type == 4) continue
+                if (!seenIds.add(id)) continue // dedupe by id, first wins
+                // pass the ORIGINAL stub Value back (bundles read section.type and possibly
+                // private fields off it); null metadata = first page only, no pagination
+                val raw = handle.invokeAwaitJson(extension, "getDiscoverSectionItems", stub, null)
+                val result = Json.parseToJsonElement(raw) as? JsonObject
+                    ?: throw ExtensionDataException(
+                        "[$sourceId] getDiscoverSectionItems for '$id' did not return an object: ${raw.take(200)}"
+                    )
+                val items = result["items"] as? JsonArray
+                    ?: throw ExtensionDataException(
+                        "[$sourceId] discover section '$id' result has no items array: ${result.keys}"
+                    )
+                val entries = mangaEntriesOf(items)
+                if (entries.isEmpty()) continue
+                sections += HomeSection(id = id, title = title, items = entries)
+            }
+            sections
+        }
+
+    /** The shared search/discover item shape: mangaId + title required, imageUrl optional. */
+    private fun mangaEntriesOf(items: JsonArray): List<MangaEntry> = items.map { item ->
+        val o = item.jsonObject
+        MangaEntry(
+            sourceId = sourceId,
+            mangaId = o.requiredString("mangaId", sourceId),
+            title = o.requiredString("title", sourceId),
+            cover = (o["imageUrl"] as? JsonPrimitive)?.contentOrNull,
+        )
+    }
+
     private fun statusOf(raw: String?): MangaStatus =
         MangaStatus.entries.firstOrNull { it.name == raw?.uppercase() } ?: MangaStatus.UNKNOWN
 }
+
+// policy: caps how many discover stubs getHomeSections will process (see the loop comment)
+private const val MAX_SECTION_STUBS = 32L
 
 class ExtensionDataException(message: String) : Exception(message)
 
