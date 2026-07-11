@@ -76,6 +76,8 @@ fun AppShell(
     challengeSolver: ChallengeSolver = NoOpChallengeSolver,
     currentTheme: String = Themes.DEFAULT,
     onThemeChange: (String) -> Unit = {},
+    autoScrollSpeed: Float = 120f,
+    onAutoScrollSpeedChange: (Float) -> Unit = {},
     onToggleFullscreen: () -> Unit = {},
     palette: PaletteState = remember { PaletteState() },
 ) {
@@ -107,6 +109,7 @@ fun AppShell(
                     challengeSolver = challengeSolver,
                     onBack = { lastDetails?.let { screen = it } ?: run { screen = Screen.Library } },
                     onToggleFullscreen = onToggleFullscreen,
+                    autoScrollSpeedDpPerSec = autoScrollSpeed,
                     paletteVisible = palette.visible,
                 )
             }
@@ -173,6 +176,8 @@ fun AppShell(
                                 themeNames = Themes.schemes.keys.toList(),
                                 currentTheme = currentTheme,
                                 onSelectTheme = onThemeChange,
+                                autoScrollSpeed = autoScrollSpeed,
+                                onAutoScrollSpeedChange = onAutoScrollSpeedChange,
                             )
                             is Screen.Details -> {
                                 LaunchedEffect(current) { lastDetails = current }

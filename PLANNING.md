@@ -380,6 +380,19 @@ De-risk the unknown before building around it.
   causes a possible one-frame jump on P since listState isn't keyed on the anchor);
   the progress snapshotFlow rebuilds the flattened row list every scroll frame (O(loaded
   pages) — emit the raw index and compute after the debounce if huge strips ever appear).
+  **Chunk (b) DONE (2026-07-11) + owner-reported controls bug.** A key toggles auto-scroll
+  (frame-clock loop, dt × speed, suspend scrollBy); speed is Settings.autoScrollSpeed
+  (Float dp/s, default 120, slider 30–600 on the Settings screen, persisted only on
+  drag-finish), hoisted Main → AppShell like the theme. Manual paging/N/P/Escape stop it.
+  At the hard end of loaded content it keeps waiting while the next chapter is loading
+  (resumes when it appends — infinite reading), stops for real at the last chapter or a
+  failed append. Controls overlay now reveals only on hover within 80dp of the top edge
+  (CONTROLS_REVEAL_BAND) or on click, then auto-hides as before. Opus-reviewed (guided
+  single reviewer): 0 blockers; wait-while-loading stop condition and named band constant
+  applied from findings. Ceilings: auto-scroll keeps running (hidden) while the palette
+  overlay is open since the reader loses keyboard focus — pause-on-palette if it ever
+  matters; a cursor parked in the top band re-reveals controls on each auto-hide
+  (emergent from synthetic hover moves, reads as intended hover-to-pin behavior).
 - ~~M5+ — Apple targets~~ moved to §12 backlog (2026-07-11): not needed now or anytime soon.
 
 ---

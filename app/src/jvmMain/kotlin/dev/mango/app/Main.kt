@@ -21,6 +21,9 @@ fun main() {
         // Hoisted into Compose state so picking a theme on the Settings screen applies live,
         // without restarting the app.
         var themeName by remember { mutableStateOf(settings.theme) }
+        // Same hoist pattern as themeName: the Settings screen's slider applies live, without
+        // restarting the app.
+        var autoScrollSpeed by remember { mutableStateOf(settings.autoScrollSpeed) }
         // default window size: 1440p (owner call, 2026-07-11) — a floating window this
         // size fills a 2560x1440 monitor; the OS clamps it on smaller screens
         val windowState = rememberWindowState(size = DpSize(2560.dp, 1440.dp))
@@ -53,6 +56,8 @@ fun main() {
                     graph.challengeSolver,
                     currentTheme = themeName,
                     onThemeChange = { themeName = it; settings.theme = it },
+                    autoScrollSpeed = autoScrollSpeed,
+                    onAutoScrollSpeedChange = { autoScrollSpeed = it; settings.autoScrollSpeed = it },
                     onToggleFullscreen = {
                         windowState.placement = if (windowState.placement == WindowPlacement.Fullscreen) {
                             WindowPlacement.Floating

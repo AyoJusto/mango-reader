@@ -36,6 +36,15 @@ class Settings(dataDir: Path) {
             save()
         }
 
+    // M6(b): dp/sec for the reader's A-key auto-scroll. A malformed value falls back to the
+    // default, same stance as the file-load fallback above.
+    var autoScrollSpeed: Float
+        get() = props.getProperty("autoScrollSpeed")?.toFloatOrNull() ?: 120f
+        set(value) {
+            props.setProperty("autoScrollSpeed", value.toString())
+            save()
+        }
+
     private fun save() {
         try {
             Files.createDirectories(file.parent)

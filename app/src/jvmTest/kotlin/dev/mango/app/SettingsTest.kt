@@ -42,4 +42,16 @@ class SettingsTest {
 
         assertEquals(Themes.schemes.getValue(Themes.DEFAULT), scheme)
     }
+
+    @Test
+    fun autoScrollSpeedDefaultsTo120AndPersistsAcrossInstances() {
+        val dataDir = Files.createTempDirectory("settings-test")
+        val settings = Settings(dataDir)
+        assertEquals(120f, settings.autoScrollSpeed)
+
+        settings.autoScrollSpeed = 250f
+
+        val reloaded = Settings(dataDir)
+        assertEquals(250f, reloaded.autoScrollSpeed)
+    }
 }

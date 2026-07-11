@@ -9,13 +9,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.unit.dp
 import dev.mango.core.domain.CatalogRepository
@@ -99,6 +102,10 @@ class ReaderFlowTest {
         catalog: CatalogRepository,
         downloads: FakeDownloadManager = FakeDownloadManager(),
         progressDebounceMillis: Long = 500,
+        // Matches ReaderScreen's own production default (CONTROLS_AUTO_HIDE_MS) — tests that
+        // exercise the threshold/hide behavior override it explicitly.
+        controlsAutoHideMillis: Long = 2000,
+        autoScrollSpeedDpPerSec: Float = 120f,
         chapterId: String = CHAPTER_ID,
         chapters: List<Chapter> = listOf(Chapter(CHAPTER_ID, number = 1.0)),
     ) {
@@ -116,11 +123,16 @@ class ReaderFlowTest {
                     onBack = {},
                     onToggleFullscreen = {},
                     progressDebounceMillis = progressDebounceMillis,
+                    controlsAutoHideMillis = controlsAutoHideMillis,
+                    autoScrollSpeedDpPerSec = autoScrollSpeedDpPerSec,
                     pageContent = { page -> FakePageContent(page) },
                 )
             }
         }
     }
+
+    /** The currently visible "N / 5" page counter (chapter 1's page count), or null if none is. */
+    private fun currentPageCounter(): String? = (1..5).map { "$it / 5" }.firstOrNull { textVisible(it) }
 
     /** Repeated PageDown+waitForIdle until [predicate] is true, or gives up after a generous cap. */
     private fun scrollUntil(predicate: () -> Boolean) {
@@ -306,5 +318,102 @@ class ReaderFlowTest {
         assertTrue(textVisible("Retry"), "expected a Retry row once the next chapter's load fails")
         // "/ 5" is ch-1's counter denominator (ch-2's is "/ 3") — proves ch-1 is still current.
         assertTrue(textVisible("/ 5"), "expected ch-1 to still be the current chapter after the failed append")
+    }
+
+    // R2 part 1: the controls overlay only reveals on a near-top hover or a click, not any move.
+    @Test
+    fun controlsAppearOnlyNearTheTopEdgeOrOnClick() {
+        // HARNESS TRAP, same family as the auto-scroll one below: with autoAdvance=true, a
+        // cursor parked in the top band makes waitForIdle diverge — every completed hide
+        // changes the hit-tree under the stationary cursor, Compose synthesizes a hover Move,
+        // the controls re-show, and the show/hide cycle spins forever. So: autoAdvance=false,
+        // explicit advanceTimeBy only, and every hide is advanced-past while the cursor is
+        // parked mid-screen (a below-threshold spot where no synthetic Move can re-reveal).
+        // The hide window is deliberately huge (10s) so reveal-asserts can advance generously
+        // (event delivery + recomposition) without racing the hide.
+        val library = FakeLibraryRepository()
+        setReaderContent(library, catalogWithPages(), controlsAutoHideMillis = 10_000)
+        rule.waitForIdle()
+
+        // Initial controls start visible; let the auto-hide fire before any pointer exists.
+        rule.mainClock.autoAdvance = false
+        rule.mainClock.advanceTimeBy(11_000)
+        rule.onNodeWithText("Ch. 1").assertDoesNotExist()
+
+        // Mid-screen move: below the 80.dp threshold, must NOT reveal.
+        rule.onRoot().performMouseInput { moveTo(Offset(400f, 400f)) }
+        rule.mainClock.advanceTimeBy(500)
+        rule.onNodeWithText("Ch. 1").assertDoesNotExist()
+
+        // Near-top move: reveals (500ms advanced is far inside the 10s window).
+        rule.onRoot().performMouseInput { moveTo(Offset(400f, 10f)) }
+        rule.mainClock.advanceTimeBy(500)
+        rule.onNodeWithText("Ch. 1").assertExists()
+
+        // Park the cursor mid-screen, then let the pending hide fire.
+        rule.onRoot().performMouseInput { moveTo(Offset(400f, 400f)) }
+        rule.mainClock.advanceTimeBy(11_000)
+        rule.onNodeWithText("Ch. 1").assertDoesNotExist()
+
+        // A click anywhere reveals.
+        rule.onRoot().performMouseInput { click(Offset(400f, 400f)) }
+        rule.mainClock.advanceTimeBy(500)
+        rule.onNodeWithText("Ch. 1").assertExists()
+
+        rule.mainClock.autoAdvance = true
+    }
+
+    // R2 part 2 (M6b): the A key toggles auto-scroll on and off.
+    @Test
+    fun aKeyTogglesAutoScroll() {
+        val library = FakeLibraryRepository()
+        setReaderContent(library, catalogWithPages(), autoScrollSpeedDpPerSec = 2000f)
+        rule.waitForIdle()
+        rule.onNodeWithText("1 / 5").assertExists()
+
+        // CRITICAL: while autoScrolling's withFrameNanos loop runs, waitForIdle() never goes
+        // idle — the loop is always pending a frame. Drive time only through the main clock.
+        rule.mainClock.autoAdvance = false
+        rule.onRoot().performKeyInput { pressKey(Key.A) }
+        rule.mainClock.advanceTimeBy(500)
+        rule.onNodeWithText("1 / 5").assertDoesNotExist()
+
+        rule.onRoot().performKeyInput { pressKey(Key.A) } // stop
+        rule.mainClock.autoAdvance = true
+        rule.waitForIdle()
+
+        val stopped = currentPageCounter()
+        assertNotNull(stopped, "expected a page counter to still be showing once auto-scroll stopped")
+        rule.waitForIdle()
+        rule.waitForIdle()
+        assertEquals(stopped, currentPageCounter(), "expected the position to stay put once auto-scroll stopped")
+    }
+
+    // R2 part 2 (M6b): a paging key interrupts auto-scroll.
+    @Test
+    fun pageDownStopsAutoScroll() {
+        val library = FakeLibraryRepository()
+        setReaderContent(library, catalogWithPages(), autoScrollSpeedDpPerSec = 2000f)
+        rule.waitForIdle()
+
+        rule.mainClock.autoAdvance = false
+        rule.onRoot().performKeyInput { pressKey(Key.A) }
+        rule.mainClock.advanceTimeBy(300)
+
+        rule.onRoot().performKeyInput { pressKey(Key.PageDown) }
+        rule.mainClock.autoAdvance = true
+        rule.waitForIdle()
+
+        // PageDown's animateScrollBy has settled and auto-scroll is stopped: the position must
+        // not keep drifting.
+        val settled = currentPageCounter()
+        assertNotNull(settled, "expected a page counter to be showing after PageDown settled")
+        rule.waitForIdle()
+        rule.waitForIdle()
+        assertEquals(settled, currentPageCounter(), "expected no further scroll after auto-scroll was stopped by PageDown")
+
+        // and the reader must still respond normally to further input, with no hang.
+        rule.onRoot().performKeyInput { pressKey(Key.PageUp) }
+        rule.waitForIdle()
     }
 }

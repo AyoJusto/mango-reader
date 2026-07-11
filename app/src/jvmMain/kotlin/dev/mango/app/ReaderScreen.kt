@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -36,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -50,6 +52,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import coil3.compose.LocalPlatformContext
 import coil3.compose.SubcomposeAsyncImage
@@ -80,6 +83,9 @@ private const val CONTROLS_AUTO_HIDE_MS = 2000L
 
 /** How close (in flattened rows) the last visible item must be to the strip's end before the next chapter auto-loads. */
 private const val AUTO_LOAD_THRESHOLD = 4
+
+/** Pointer moves within this distance of the reader's top edge reveal the controls overlay. */
+private val CONTROLS_REVEAL_BAND = 80.dp
 
 /**
  * One chapter's worth of pages in the flattened strip, plus display labels — the public,
@@ -392,6 +398,12 @@ fun ReaderScreen(
     onBack: () -> Unit,
     onToggleFullscreen: () -> Unit,
     progressDebounceMillis: Long = 500,
+    // R2: injectable so tests can make the overlay's auto-hide deterministic, same precedent
+    // as progressDebounceMillis above. Production (AppShell) doesn't pass it.
+    controlsAutoHideMillis: Long = CONTROLS_AUTO_HIDE_MS,
+    // M6(b): dp/sec driving the A-key auto-scroll loop; persisted via Settings, plumbed down
+    // as a plain composable param (not part of Screen.Reader nav state).
+    autoScrollSpeedDpPerSec: Float = 120f,
     pageContent: (@Composable (Page) -> Unit)? = null,
     // M6a: while the palette overlay is up it owns the keyboard; when it closes, the reader
     // must re-request focus or its shortcuts stay dead (focus went to the palette's field)
@@ -414,6 +426,13 @@ fun ReaderScreen(
     val focusRequester = remember { FocusRequester() }
     var visibilityTick by remember { mutableStateOf(0) }
     var controlsVisible by remember { mutableStateOf(true) }
+    // Deliberately unkeyed on any per-chapter identity: auto-appending the next chapter (the
+    // infinite-scroll effect above) must not stop the scroll mid-flight.
+    var autoScrolling by remember { mutableStateOf(false) }
+    val density = LocalDensity.current
+    // Controls only reveal on a near-top hover, not any pointer move anywhere in the reader —
+    // computed once in composition, never re-derived per pointer event.
+    val topHoverPx = with(density) { CONTROLS_REVEAL_BAND.toPx() }
 
     // Local helpers, all reading the vars above fresh at call time — reused by effects and key
     // handlers so the flatten/attribute math lives in exactly one place.
@@ -539,8 +558,30 @@ fun ReaderScreen(
 
     LaunchedEffect(visibilityTick) {
         controlsVisible = true
-        delay(CONTROLS_AUTO_HIDE_MS)
+        delay(controlsAutoHideMillis)
         controlsVisible = false
+    }
+
+    // M6(b) auto-scroll drive loop: dt from the frame clock, suspend scrollBy between frames.
+    LaunchedEffect(autoScrolling, autoScrollSpeedDpPerSec) {
+        if (!autoScrolling) return@LaunchedEffect
+        val speedPx = with(density) { autoScrollSpeedDpPerSec.dp.toPx() }
+        var lastFrameNanos = -1L
+        while (autoScrolling) {
+            val frameNanos = withFrameNanos { it }
+            if (lastFrameNanos >= 0) {
+                val delta = speedPx * (frameNanos - lastFrameNanos) / 1_000_000_000f
+                if (delta > 0f && listState.scrollBy(delta) == 0f) {
+                    // Hard end of the LOADED strip. If the next chapter is merely still
+                    // loading, keep the loop alive so reading resumes when it appends; stop
+                    // for real at the last chapter or on a failed append (Retry is manual).
+                    if (isLastLoadedChapter() || nextLoad is NextLoadState.Failed) {
+                        autoScrolling = false
+                    }
+                }
+            }
+            lastFrameNanos = frameNanos
+        }
     }
 
     val currentError = error
@@ -598,11 +639,19 @@ fun ReaderScreen(
                     .fillMaxSize()
                     .focusRequester(focusRequester)
                     .focusable()
-                    .onPointerEvent(PointerEventType.Move) { visibilityTick++ }
+                    .onPointerEvent(PointerEventType.Move) { event ->
+                        // Only near the top edge — anywhere else in the strip a move must not
+                        // yank the controls back up over the page the reader is trying to read.
+                        if (event.changes.firstOrNull()?.position?.y?.let { it <= topHoverPx } == true) {
+                            visibilityTick++
+                        }
+                    }
+                    .onPointerEvent(PointerEventType.Press) { visibilityTick++ }
                     .onPreviewKeyEvent { keyEvent ->
                         if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                         when (keyEvent.key) {
                             Key.Spacebar, Key.PageDown, Key.DirectionDown -> {
+                                autoScrolling = false
                                 scope.launch {
                                     listState.animateScrollBy(
                                         listState.layoutInfo.viewportSize.height * PAGE_SCROLL_FRACTION,
@@ -611,6 +660,7 @@ fun ReaderScreen(
                                 true
                             }
                             Key.PageUp, Key.DirectionUp -> {
+                                autoScrolling = false
                                 scope.launch {
                                     listState.animateScrollBy(
                                         -listState.layoutInfo.viewportSize.height * PAGE_SCROLL_FRACTION,
@@ -619,11 +669,17 @@ fun ReaderScreen(
                                 true
                             }
                             Key.N -> {
+                                autoScrolling = false
                                 goToNextChapter()
                                 true
                             }
                             Key.P -> {
+                                autoScrolling = false
                                 reanchorToPreviousChapter()
+                                true
+                            }
+                            Key.A -> {
+                                autoScrolling = !autoScrolling
                                 true
                             }
                             Key.F -> {
@@ -631,6 +687,7 @@ fun ReaderScreen(
                                 true
                             }
                             Key.Escape -> {
+                                autoScrolling = false
                                 onBack()
                                 true
                             }
