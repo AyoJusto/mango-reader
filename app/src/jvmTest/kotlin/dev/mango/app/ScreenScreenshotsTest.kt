@@ -90,7 +90,7 @@ class ScreenScreenshotsTest {
                     query = "solo",
                     onQueryChange = {},
                     onSearch = {},
-                    isLoading = false,
+                    pendingSourceIds = emptySet(),
                     resultsBySource = mapOf("FlameComics" to results),
                     errorsBySource = mapOf("MangaBat" to "This source is protected by Cloudflare"),
                     challengeUrlsBySource = mapOf("MangaBat" to "https://mangabat.example/challenge"),

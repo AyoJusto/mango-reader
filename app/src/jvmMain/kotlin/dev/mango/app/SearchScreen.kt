@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -51,6 +52,8 @@ private fun SearchSourceSection(
     results: List<MangaEntry>,
     error: String?,
     challengeUrl: String?,
+    // pending = this source's search is still in flight (others render without waiting)
+    pending: Boolean,
     // solving = THIS source's solve is running; solveEnabled = no solve is running anywhere
     // (one embedded browser at a time, but only the solving source shows the progress hint)
     solving: Boolean,
@@ -61,7 +64,9 @@ private fun SearchSourceSection(
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(text = source.name, style = MaterialTheme.typography.titleMedium)
-            if (error != null) {
+            if (pending) {
+                CircularProgressIndicator(modifier = Modifier.height(16.dp).width(16.dp), strokeWidth = 2.dp)
+            } else if (error != null) {
                 Text(text = error, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
                 if (challengeUrl != null) {
                     Button(onClick = onSolveChallenge, enabled = solveEnabled) { Text("Solve challenge") }
@@ -83,6 +88,7 @@ private fun SearchSourceSection(
         }
         Spacer(modifier = Modifier.height(8.dp))
         when {
+            pending -> Unit // spinner already shown in the header row above
             error != null -> Unit // error already surfaced in the header row above
             results.isEmpty() -> Text(
                 text = "No results",
@@ -112,7 +118,7 @@ fun SearchScreenContent(
     query: String,
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
-    isLoading: Boolean,
+    pendingSourceIds: Set<String>,
     resultsBySource: Map<String, List<MangaEntry>>,
     errorsBySource: Map<String, String>,
     challengeUrlsBySource: Map<String, String>,
@@ -143,14 +149,13 @@ fun SearchScreenContent(
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
-            // no per-source data at all means no search has run yet: show an idle hint
-            // instead of a "No results" section per source
-            val hasSearched = resultsBySource.isNotEmpty() || errorsBySource.isNotEmpty()
-            if (isLoading) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            } else if (!hasSearched) {
+            // no per-source data and nothing in flight means no search has run yet: show an
+            // idle hint instead of a "No results" section per source. There is deliberately
+            // no whole-screen spinner: each source's section appears the moment that source
+            // answers, so one slow extension never blocks the others' results.
+            val hasSearched =
+                resultsBySource.isNotEmpty() || errorsBySource.isNotEmpty() || pendingSourceIds.isNotEmpty()
+            if (!hasSearched) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         text = if (sources.isNotEmpty() && enabledSourceIds.isEmpty()) {
@@ -167,7 +172,8 @@ fun SearchScreenContent(
                 // live chip state: toggling a chip after a search must neither fabricate a
                 // false "No results" section nor hide results already fetched
                 val searchedSources = sources.filter {
-                    it.sourceId in resultsBySource || it.sourceId in errorsBySource
+                    it.sourceId in resultsBySource || it.sourceId in errorsBySource ||
+                        it.sourceId in pendingSourceIds
                 }
                 LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     items(searchedSources, key = { it.sourceId }) { source ->
@@ -176,6 +182,7 @@ fun SearchScreenContent(
                             results = resultsBySource[source.sourceId] ?: emptyList(),
                             error = errorsBySource[source.sourceId],
                             challengeUrl = challengeUrlsBySource[source.sourceId],
+                            pending = source.sourceId in pendingSourceIds,
                             solving = solvingSourceId == source.sourceId,
                             solveEnabled = solvingSourceId == null,
                             onOpenDetails = onOpenDetails,
@@ -198,7 +205,7 @@ class SearchState {
     var sources by mutableStateOf<List<SourceInfo>>(emptyList())
     var enabledSourceIds by mutableStateOf<Set<String>>(emptySet())
     var query by mutableStateOf("")
-    var isLoading by mutableStateOf(false)
+    var pendingSourceIds by mutableStateOf<Set<String>>(emptySet())
     var results by mutableStateOf<Map<String, List<MangaEntry>>>(emptyMap())
     var errors by mutableStateOf<Map<String, String>>(emptyMap())
     var challengeUrls by mutableStateOf<Map<String, String>>(emptyMap())
@@ -245,6 +252,8 @@ fun SearchScreen(
 
     // One source's search, isolated so its failure never affects the others; on success any
     // stale error/challenge for that source is cleared (the solve flow re-runs just this).
+    // Marks itself no-longer-pending when it settles, so its section renders immediately
+    // instead of waiting for the slowest source in the fan-out.
     suspend fun searchOne(sourceId: String, query: String) {
         try {
             val found = catalog.search(sourceId, query)
@@ -258,6 +267,8 @@ fun SearchScreen(
             e.url?.let { url -> state.challengeUrls = state.challengeUrls + (sourceId to url) }
         } catch (e: Exception) {
             state.errors = state.errors + (sourceId to (e.message ?: "Search failed"))
+        } finally {
+            state.pendingSourceIds = state.pendingSourceIds - sourceId
         }
     }
 
@@ -268,7 +279,7 @@ fun SearchScreen(
         if (enabled.isEmpty()) return
         state.searchJob?.cancel()
         state.searchJob = scope.launch {
-            state.isLoading = true
+            state.pendingSourceIds = enabled
             state.results = emptyMap()
             state.errors = emptyMap()
             state.challengeUrls = emptyMap()
@@ -278,8 +289,8 @@ fun SearchScreen(
                 }
             } finally {
                 // finally also runs on cancellation (tab switch mid-search), so the
-                // shell-hoisted state can never get stuck showing the spinner
-                state.isLoading = false
+                // shell-hoisted state can never get stuck showing per-source spinners
+                state.pendingSourceIds = emptySet()
             }
         }
     }
@@ -312,7 +323,7 @@ fun SearchScreen(
         query = state.query,
         onQueryChange = { state.query = it },
         onSearch = { search() },
-        isLoading = state.isLoading,
+        pendingSourceIds = state.pendingSourceIds,
         resultsBySource = state.results,
         errorsBySource = state.errors,
         challengeUrlsBySource = state.challengeUrls,

@@ -26,12 +26,15 @@ private class PerSourceCatalogRepository(
     private val sources: List<SourceInfo>,
     private val resultsBySource: Map<String, List<MangaEntry>> = emptyMap(),
     private val failuresBySource: Map<String, Throwable> = emptyMap(),
+    // a source listed here suspends until the gate completes — simulates a slow extension
+    private val gatesBySource: Map<String, kotlinx.coroutines.CompletableDeferred<Unit>> = emptyMap(),
 ) : CatalogRepository {
     override suspend fun installedSources(): List<SourceInfo> = sources
 
     override suspend fun install(info: SourceInfo, bundleSha256: String) = Unit
 
     override suspend fun search(sourceId: String, query: String, page: Int): List<MangaEntry> {
+        gatesBySource[sourceId]?.await()
         failuresBySource[sourceId]?.let { throw it }
         return resultsBySource[sourceId] ?: emptyList()
     }
@@ -97,5 +100,33 @@ class SearchFlowTest {
         rule.onAllNodesWithText("FlameComics").assertCountEquals(1)
         rule.onAllNodesWithText("MangaBat").assertCountEquals(1)
         rule.onNodeWithText("Search across all installed sources").assertExists()
+    }
+
+    @Test
+    fun aSlowSourceDoesNotBlockAFastSourcesResults() {
+        val library = FakeLibraryRepository()
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val catalog = PerSourceCatalogRepository(
+            sources = listOf(SourceInfo("FlameComics", "FlameComics"), SourceInfo("MangaBat", "MangaBat")),
+            resultsBySource = mapOf("FlameComics" to listOf(entry), "MangaBat" to emptyList()),
+            gatesBySource = mapOf("MangaBat" to gate),
+        )
+
+        rule.setContent { MangoTheme { AppShell(library, catalog, FakeDownloadManager()) } }
+
+        rule.onNodeWithText("Search").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("Search all sources…").performTextInput("solo")
+        rule.waitForIdle()
+        rule.onNodeWithText("solo").performImeAction()
+        rule.waitForIdle()
+
+        // the fast source's results render while the gated source is still in flight
+        rule.onNodeWithText("Solo Leveling").assertExists()
+
+        gate.complete(Unit)
+        rule.waitForIdle()
+        rule.onNodeWithText("No results").assertExists()
     }
 }
