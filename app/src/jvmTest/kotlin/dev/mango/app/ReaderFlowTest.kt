@@ -66,6 +66,7 @@ class ReaderFlowTest {
                     sourceId = SOURCE_ID,
                     mangaId = MANGA_ID,
                     chapterId = CHAPTER_ID,
+                    chapterLabel = "Ch. 1",
                     catalog = catalog,
                     library = library,
                     onBack = {},

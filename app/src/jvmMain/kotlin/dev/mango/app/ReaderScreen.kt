@@ -140,6 +140,7 @@ fun ReaderScreen(
     sourceId: String,
     mangaId: String,
     chapterId: String,
+    chapterLabel: String,
     catalog: CatalogRepository,
     library: LibraryRepository,
     onBack: () -> Unit,
@@ -250,7 +251,7 @@ fun ReaderScreen(
                     },
             ) {
                 ReaderContent(
-                    title = "Chapter $chapterId",
+                    title = chapterLabel,
                     pages = currentPages,
                     listState = listState,
                     controlsVisible = controlsVisible,

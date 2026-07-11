@@ -34,7 +34,15 @@ sealed interface Screen {
     data object Browse : Screen
     data object Downloads : Screen
     data class Details(val sourceId: String, val mangaId: String, val fromBrowse: Boolean) : Screen
-    data class Reader(val sourceId: String, val mangaId: String, val chapterId: String) : Screen
+    data class Reader(
+        val sourceId: String,
+        val mangaId: String,
+        val chapterId: String,
+        // display metadata rides along: chapterId is an opaque source token
+        // (e.g. "143:55fa2d51e489132b"), never something a reader should see
+        val chapterNumber: Double,
+        val chapterTitle: String?,
+    ) : Screen
 }
 
 /**
@@ -64,6 +72,11 @@ fun AppShell(
                 sourceId = current.sourceId,
                 mangaId = current.mangaId,
                 chapterId = current.chapterId,
+                chapterLabel = buildString {
+                    append("Ch. ")
+                    append(formatChapterNumber(current.chapterNumber))
+                    current.chapterTitle?.let { append(" — "); append(it) }
+                },
                 catalog = catalog,
                 library = library,
                 onBack = { lastDetails?.let { screen = it } ?: run { screen = Screen.Library } },
@@ -113,7 +126,13 @@ fun AppShell(
                                     catalog = catalog,
                                     library = library,
                                     onOpenChapter = { chapter ->
-                                        screen = Screen.Reader(current.sourceId, current.mangaId, chapter.chapterId)
+                                        screen = Screen.Reader(
+                                            sourceId = current.sourceId,
+                                            mangaId = current.mangaId,
+                                            chapterId = chapter.chapterId,
+                                            chapterNumber = chapter.number,
+                                            chapterTitle = chapter.title,
+                                        )
                                     },
                                     // Downloading a chapter (or the whole series) implies the user
                                     // cares about it: it lands in the library too, same as a manual
