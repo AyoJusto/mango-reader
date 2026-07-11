@@ -4,20 +4,20 @@ import dev.mango.core.domain.SourceInfo
 import kotlin.test.Test
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
-import org.junit.Assume.assumeTrue
+import org.junit.jupiter.api.Tag
 
 /**
  * Milestone-exit smoke (M3.4): the PRODUCTION composition — AppGraph on the real
  * %APPDATA%/mango, real bundle file, live network — drives the full read path and leaves
  * one real series in the library so the launched app has something to show.
  *
- * Deliberately mutates real app data; guarded so it never runs in a normal test pass.
- * Run: $env:MANGO_SMOKE="1"; .\gradlew.bat :app:jvmTest --tests *LiveSmokeTest*
+ * Deliberately mutates real app data; tagged "live" so it never runs in a normal test pass.
+ * Run: .\gradlew.bat :app:jvmTest -Plive --tests *LiveSmokeTest*
  */
+@Tag("live")
 class LiveSmokeTest {
     @Test
     fun liveReadPathThroughProductionComposition() {
-        assumeTrue(System.getenv("MANGO_SMOKE") == "1")
         runBlocking {
             val graph = AppGraph()
             graph.catalog.install(

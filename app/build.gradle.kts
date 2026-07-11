@@ -48,3 +48,13 @@ compose.desktop {
     }
 }
 
+tasks.withType<Test> {
+    useJUnitPlatform {
+        // live tests open a real browser / hit the network (and download CEF once); run them
+        // on demand with -Plive, never on a normal test run
+        if (!project.hasProperty("live")) excludeTags("live")
+    }
+    // JCEF needs the same AWT opens in the test JVM when a live test drives it
+    jvmArgs(jcefJvmArgs)
+}
+

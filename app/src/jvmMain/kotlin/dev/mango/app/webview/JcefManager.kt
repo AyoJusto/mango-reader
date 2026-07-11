@@ -98,28 +98,32 @@ class JcefManager(private val installDir: Path) {
                 override fun windowClosed(e: java.awt.event.WindowEvent?) = finish(null)
             })
 
-            // poll the cookie jar until Cloudflare has issued clearance for this host
-            Timer(2000, null).apply {
-                addActionListener {
-                    val harvested = mutableListOf<StoredCookie>()
-                    var cleared = false
-                    CefCookieManager.getGlobalManager().visitAllCookies(object : CefCookieVisitor {
-                        override fun visit(cookie: CefCookie, count: Int, total: Int, delete: BoolRef): Boolean {
-                            if (isChallengeCookie(cookie.name) && hostMatches(host, cookie.domain)) {
-                                harvested += cookie.toStored()
-                                if (cookie.name == "cf_clearance") cleared = true
-                            }
-                            return true
+            // poll the cookie jar until Cloudflare has issued clearance for this host.
+            // visitAllCookies runs the visitor ASYNCHRONOUSLY on the CEF thread — it returns
+            // before any visit() fires — so completion must be driven from inside the visitor
+            // (on the last cookie), never checked synchronously after the call.
+            val pollTimer = Timer(2000, null)
+            pollTimer.addActionListener {
+                val harvested = mutableListOf<StoredCookie>()
+                CefCookieManager.getGlobalManager().visitAllCookies(object : CefCookieVisitor {
+                    override fun visit(cookie: CefCookie, count: Int, total: Int, delete: BoolRef): Boolean {
+                        if (isChallengeCookie(cookie.name) && hostMatches(host, cookie.domain)) {
+                            harvested += cookie.toStored()
                         }
-                    })
-                    if (cleared) {
-                        stop()
-                        finish(harvested)
+                        // last cookie of this sweep: decide with the fully-collected list
+                        if (count == total - 1 && harvested.any { it.name == "cf_clearance" }) {
+                            val done = harvested.toList()
+                            SwingUtilities.invokeLater {
+                                pollTimer.stop()
+                                finish(done)
+                            }
+                        }
+                        return true
                     }
-                }
-                isRepeats = true
-                start()
+                })
             }
+            pollTimer.isRepeats = true
+            pollTimer.start()
             frame.isVisible = true
         }
 
