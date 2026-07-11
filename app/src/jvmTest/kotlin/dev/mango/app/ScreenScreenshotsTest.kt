@@ -75,6 +75,33 @@ class ScreenScreenshotsTest {
     }
 
     @Test
+    fun searchResults() {
+        val sources = listOf(SourceInfo("FlameComics", "FlameComics"), SourceInfo("MangaBat", "MangaBat"))
+        val results = listOf(
+            MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling"),
+            MangaEntry(sourceId = "FlameComics", mangaId = "manga-2", title = "Omniscient Reader"),
+        )
+        val file = Screenshots.render("search-results") {
+            MangoTheme {
+                SearchScreenContent(
+                    sources = sources,
+                    enabledSourceIds = setOf("FlameComics", "MangaBat"),
+                    onToggleSource = {},
+                    query = "solo",
+                    onQueryChange = {},
+                    onSearch = {},
+                    isLoading = false,
+                    resultsBySource = mapOf("FlameComics" to results),
+                    errorsBySource = mapOf("MangaBat" to "This source is protected by Cloudflare"),
+                    challengeUrlsBySource = mapOf("MangaBat" to "https://mangabat.example/challenge"),
+                    onOpenDetails = {},
+                )
+            }
+        }
+        assertTrue(Files.size(file) > 0, "expected a non-empty PNG at $file")
+    }
+
+    @Test
     fun details() {
         val details = MangaDetails(
             entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling"),

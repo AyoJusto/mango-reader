@@ -45,6 +45,7 @@ private object NoOpChallengeSolver : ChallengeSolver {
  */
 sealed interface Screen {
     data object Library : Screen
+    data object Search : Screen
     data object Browse : Screen
     data object Downloads : Screen
     data object Extensions : Screen
@@ -84,6 +85,9 @@ fun AppShell(
     // Hoisted here (not inside BrowseScreen) so it survives tab switches: Library -> Browse ->
     // Library -> Browse must show the previous query/results instead of resetting.
     val browseState = remember { BrowseState() }
+    // Same rationale as browseState: Search's query/results/enabled-sources must survive
+    // switching to another tab and back.
+    val searchState = remember { SearchState() }
     val scope = rememberCoroutineScope()
 
     when (val current = screen) {
@@ -113,6 +117,12 @@ fun AppShell(
                         onClick = { screen = Screen.Library },
                         icon = { Text("L") },
                         label = { Text("Library") },
+                    )
+                    NavigationRailItem(
+                        selected = current is Screen.Search,
+                        onClick = { screen = Screen.Search },
+                        icon = { Text("⌕") },
+                        label = { Text("Search") },
                     )
                     NavigationRailItem(
                         selected = current is Screen.Browse,
@@ -145,6 +155,12 @@ fun AppShell(
                 ) {
                     when (current) {
                         Screen.Library -> LibraryScreen(library) { entry ->
+                            screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = false)
+                        }
+                        Screen.Search -> SearchScreen(catalog, challengeSolver, searchState) { entry ->
+                            // Details has no fromSearch case yet (owner accepted for M4.4b):
+                            // back from a Search-opened Details returns to Library, same as
+                            // fromBrowse = false everywhere else that isn't Browse itself.
                             screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = false)
                         }
                         Screen.Browse -> BrowseScreen(catalog, challengeSolver, browseState) { entry ->
