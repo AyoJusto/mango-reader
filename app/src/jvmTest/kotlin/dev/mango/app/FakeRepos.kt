@@ -17,6 +17,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 class FakeLibraryRepository(initial: List<LibraryItem> = emptyList()) : LibraryRepository {
     private val state = MutableStateFlow(initial)
 
+    // Keyed by (sourceId, mangaId, chapterId) — a real in-memory stand-in for persistence,
+    // not canned responses, since M3.3's reader reads its own writes (progress round-trips).
+    private val progressByChapter = mutableMapOf<Triple<String, String, String>, ReadProgress>()
+
     override fun observeLibrary(): Flow<List<LibraryItem>> = state
 
     override suspend fun addToLibrary(entry: MangaEntry) {
@@ -30,10 +34,11 @@ class FakeLibraryRepository(initial: List<LibraryItem> = emptyList()) : LibraryR
     }
 
     override suspend fun progress(sourceId: String, mangaId: String, chapterId: String): ReadProgress? =
-        error("FakeLibraryRepository.progress is not stubbed")
+        progressByChapter[Triple(sourceId, mangaId, chapterId)]
 
     override suspend fun setProgress(sourceId: String, mangaId: String, chapterId: String, page: Int) {
-        error("FakeLibraryRepository.setProgress is not stubbed")
+        progressByChapter[Triple(sourceId, mangaId, chapterId)] =
+            ReadProgress(chapterId = chapterId, page = page, updatedAt = Clock.System.now())
     }
 }
 
@@ -43,6 +48,7 @@ class FakeCatalogRepository(
     private val results: Map<String, List<MangaEntry>> = emptyMap(),
     private val details: Map<Pair<String, String>, MangaDetails> = emptyMap(),
     private val chapters: Map<Pair<String, String>, List<Chapter>> = emptyMap(),
+    private val pages: Map<Triple<String, String, String>, List<Page>> = emptyMap(),
 ) : CatalogRepository {
     override suspend fun installedSources(): List<SourceInfo> = sources
 
@@ -62,5 +68,6 @@ class FakeCatalogRepository(
             ?: error("FakeCatalogRepository.chapters has no canned entry for $sourceId/$mangaId")
 
     override suspend fun pages(sourceId: String, mangaId: String, chapterId: String): List<Page> =
-        error("FakeCatalogRepository.pages is not stubbed")
+        pages[Triple(sourceId, mangaId, chapterId)]
+            ?: error("FakeCatalogRepository.pages has no canned entry for $sourceId/$mangaId/$chapterId")
 }
