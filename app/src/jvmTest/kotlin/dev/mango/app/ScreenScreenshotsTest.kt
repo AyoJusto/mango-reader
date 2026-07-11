@@ -201,4 +201,32 @@ class ScreenScreenshotsTest {
         }
         assertTrue(Files.size(file) > 0, "expected a non-empty PNG at $file")
     }
+
+    @Test
+    fun paletteOpen() {
+        val hits = listOf(
+            PaletteHit(category = "Screens", title = "Library", run = {}),
+            PaletteHit(category = "Screens", title = "Browse", run = {}),
+            PaletteHit(category = "Themes", title = "Theme: midnight", run = {}),
+            PaletteHit(category = "Manhwa", title = "Solo Leveling", subtitle = "FlameComics", run = {}),
+            PaletteHit(category = "Manhwa", title = "Tower of God", subtitle = "FlameComics", run = {}),
+        )
+        val file = Screenshots.render("palette-open") {
+            MangoTheme {
+                PaletteContent(
+                    tabNames = listOf("All", "Manhwa", "Actions"),
+                    activeTabIndex = 0,
+                    onTabIndexChange = {},
+                    query = "o",
+                    onQueryChange = {},
+                    hits = hits,
+                    selectedIndex = 2,
+                    onSelectedIndexChange = {},
+                    onRunHit = {},
+                    onDismiss = {},
+                )
+            }
+        }
+        assertTrue(Files.size(file) > 0, "expected a non-empty PNG at $file")
+    }
 }

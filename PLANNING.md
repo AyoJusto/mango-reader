@@ -354,6 +354,19 @@ De-risk the unknown before building around it.
   Built with a tab bar from day one so the online tab (§12 backlog) slots in later without
   rework. (b) Configurable auto-scroll in the reader: hotkey-bound toggle, scroll speed
   configurable in settings. After M6: UI/functionality refinement phase (owner call).
+  **Chunk (a) DONE (2026-07-11).** Double-Shift palette (Window-level detector requiring a
+  Shift release between taps — held-Shift auto-repeat can never trigger), text-only rows
+  (owner requirement, no images/Coil in the palette), all colors from the theme (owner
+  requirement, scrim uses colorScheme.scrim). Extension contract: PaletteHit/PaletteProvider/
+  PaletteTab + one registration point (paletteTabs) — new searchable feature = one provider
+  + one line; new mode = a new tab (v1: All/Manhwa/Actions). Candidates fetched once per
+  open/tab-switch, ranked per keystroke in memory by central fuzzyScore (multi-start greedy
+  anchoring; full-DP alignment is the recorded escape hatch if ranking complaints appear).
+  Review confirmed 10 findings, all fixed (auto-repeat chord, overlay-level key handling,
+  reader focus restore on close, stale-hit flash, scroll-into-view, greedy anchoring,
+  test honesty, fetch-per-keystroke). Ceilings: later query chars still match greedily;
+  online tab will need a per-tab fetch policy (query passed live); palette-opened Details
+  goes back to Library (nav-origin refactor still pending).
 - ~~M5+ — Apple targets~~ moved to §12 backlog (2026-07-11): not needed now or anytime soon.
 
 ---

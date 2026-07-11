@@ -161,6 +161,9 @@ fun ReaderScreen(
     onToggleFullscreen: () -> Unit,
     progressDebounceMillis: Long = 500,
     pageContent: (@Composable (Page) -> Unit)? = null,
+    // M6a: while the palette overlay is up it owns the keyboard; when it closes, the reader
+    // must re-request focus or its shortcuts stay dead (focus went to the palette's field)
+    paletteVisible: Boolean = false,
 ) {
     var pages by remember(sourceId, mangaId, chapterId) { mutableStateOf<List<Page>?>(null) }
     var savedPage by remember(sourceId, mangaId, chapterId) { mutableStateOf<Int?>(null) }
@@ -267,8 +270,11 @@ fun ReaderScreen(
             // Requesting focus here — not in a top-level LaunchedEffect(Unit) — matters: this
             // branch is the first point in composition where Modifier.focusRequester below is
             // actually attached to a node. Requesting focus before that (e.g. while the loading
-            // spinner above is still showing) targets nothing and silently no-ops.
-            LaunchedEffect(Unit) { focusRequester.requestFocus() }
+            // spinner above is still showing) targets nothing and silently no-ops. Keyed on
+            // paletteVisible (M6a): the initial composition still requests (the flag starts
+            // false), and closing the palette re-requests — otherwise the palette's text field
+            // keeps focus and the reader's keyboard is dead after the overlay closes.
+            LaunchedEffect(paletteVisible) { if (!paletteVisible) focusRequester.requestFocus() }
             Box(
                 modifier = Modifier
                     .fillMaxSize()

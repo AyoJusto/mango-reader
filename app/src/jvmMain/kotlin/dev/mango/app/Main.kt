@@ -4,6 +4,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -22,10 +24,25 @@ fun main() {
         // default window size: 1440p (owner call, 2026-07-11) — a floating window this
         // size fills a 2560x1440 monitor; the OS clamps it on smaller screens
         val windowState = rememberWindowState(size = DpSize(2560.dp, 1440.dp))
+        val palette = remember { PaletteState() }
+        // Own file/class (M6a): a hand-rolled IntelliJ-style double-Shift chord detector —
+        // this is Window-level, not a focusable Box inside AppShell, so it fires no matter
+        // which screen or field currently has focus.
+        val detector = remember { DoubleShiftDetector() }
         Window(
             onCloseRequest = { graph.dispose(); exitApplication() },
             title = "mango",
             state = windowState,
+            onPreviewKeyEvent = { keyEvent ->
+                // ALL key events go in, downs AND ups: the detector needs Shift releases to
+                // tell a real double-tap from one held Shift auto-repeating keydowns
+                if (detector.onKeyEvent(keyEvent.key, keyEvent.type, System.currentTimeMillis())) {
+                    palette.visible = !palette.visible
+                    true
+                } else {
+                    false
+                }
+            },
         ) {
             MangoTheme(themeName = themeName) {
                 AppShell(
@@ -43,6 +60,7 @@ fun main() {
                             WindowPlacement.Fullscreen
                         }
                     },
+                    palette = palette,
                 )
             }
         }

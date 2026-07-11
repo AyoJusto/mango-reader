@@ -77,6 +77,7 @@ fun AppShell(
     currentTheme: String = Themes.DEFAULT,
     onThemeChange: (String) -> Unit = {},
     onToggleFullscreen: () -> Unit = {},
+    palette: PaletteState = remember { PaletteState() },
 ) {
     var screen by remember { mutableStateOf<Screen>(Screen.Library) }
     // Reader has no fromBrowse of its own; remember which Details screen led to it so its
@@ -90,143 +91,158 @@ fun AppShell(
     val searchState = remember { SearchState() }
     val scope = rememberCoroutineScope()
 
-    when (val current = screen) {
-        is Screen.Reader -> {
-            ReaderScreen(
-                sourceId = current.sourceId,
-                mangaId = current.mangaId,
-                chapterId = current.chapterId,
-                chapterLabel = buildString {
-                    append("Ch. ")
-                    append(formatChapterNumber(current.chapterNumber))
-                    current.chapterTitle?.let { append(" — "); append(it) }
-                },
-                catalog = catalog,
-                downloads = downloads,
-                library = library,
-                challengeSolver = challengeSolver,
-                onBack = { lastDetails?.let { screen = it } ?: run { screen = Screen.Library } },
-                onToggleFullscreen = onToggleFullscreen,
-            )
-        }
-        else -> {
-            Row(modifier = Modifier.fillMaxSize()) {
-                NavigationRail {
-                    NavigationRailItem(
-                        selected = current is Screen.Library,
-                        onClick = { screen = Screen.Library },
-                        icon = { Text("L") },
-                        label = { Text("Library") },
-                    )
-                    NavigationRailItem(
-                        selected = current is Screen.Search,
-                        onClick = { screen = Screen.Search },
-                        icon = { Text("⌕") },
-                        label = { Text("Search") },
-                    )
-                    NavigationRailItem(
-                        selected = current is Screen.Browse,
-                        onClick = { screen = Screen.Browse },
-                        icon = { Text("B") },
-                        label = { Text("Browse") },
-                    )
-                    NavigationRailItem(
-                        selected = current is Screen.Downloads,
-                        onClick = { screen = Screen.Downloads },
-                        icon = { Text("D") },
-                        label = { Text("Downloads") },
-                    )
-                    NavigationRailItem(
-                        selected = current is Screen.Extensions,
-                        onClick = { screen = Screen.Extensions },
-                        icon = { Text("E") },
-                        label = { Text("Extensions") },
-                    )
-                    NavigationRailItem(
-                        selected = current is Screen.Settings,
-                        onClick = { screen = Screen.Settings },
-                        icon = { Text("S") },
-                        label = { Text("Settings") },
-                    )
-                }
-                Surface(
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    color = MaterialTheme.colorScheme.background,
-                ) {
-                    when (current) {
-                        Screen.Library -> LibraryScreen(library) { entry ->
-                            screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = false)
-                        }
-                        Screen.Search -> SearchScreen(catalog, challengeSolver, searchState) { entry ->
-                            // Details has no fromSearch case yet (owner accepted for M4.4b):
-                            // back from a Search-opened Details returns to Library, same as
-                            // fromBrowse = false everywhere else that isn't Browse itself.
-                            screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = false)
-                        }
-                        Screen.Browse -> BrowseScreen(catalog, challengeSolver, browseState) { entry ->
-                            screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = true)
-                        }
-                        Screen.Downloads -> DownloadsScreen(downloads)
-                        Screen.Extensions -> ExtensionsScreen(extensions, catalog)
-                        Screen.Settings -> SettingsScreenContent(
-                            themeNames = Themes.schemes.keys.toList(),
-                            currentTheme = currentTheme,
-                            onSelectTheme = onThemeChange,
+    // Both branches below live in a Box so PaletteOverlay can render on top of either one as a
+    // full-screen layer, regardless of which screen is currently showing.
+    Box(modifier = Modifier.fillMaxSize()) {
+        when (val current = screen) {
+            is Screen.Reader -> {
+                ReaderScreen(
+                    sourceId = current.sourceId,
+                    mangaId = current.mangaId,
+                    chapterId = current.chapterId,
+                    chapterLabel = buildString {
+                        append("Ch. ")
+                        append(formatChapterNumber(current.chapterNumber))
+                        current.chapterTitle?.let { append(" — "); append(it) }
+                    },
+                    catalog = catalog,
+                    downloads = downloads,
+                    library = library,
+                    challengeSolver = challengeSolver,
+                    onBack = { lastDetails?.let { screen = it } ?: run { screen = Screen.Library } },
+                    onToggleFullscreen = onToggleFullscreen,
+                    paletteVisible = palette.visible,
+                )
+            }
+            else -> {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    NavigationRail {
+                        NavigationRailItem(
+                            selected = current is Screen.Library,
+                            onClick = { screen = Screen.Library },
+                            icon = { Text("L") },
+                            label = { Text("Library") },
                         )
-                        is Screen.Details -> {
-                            LaunchedEffect(current) { lastDetails = current }
-                            Box(modifier = Modifier.fillMaxSize()) {
-                                DetailsScreen(
-                                    sourceId = current.sourceId,
-                                    mangaId = current.mangaId,
-                                    catalog = catalog,
-                                    library = library,
-                                    challengeSolver = challengeSolver,
-                                    onOpenChapter = { chapter ->
-                                        screen = Screen.Reader(
-                                            sourceId = current.sourceId,
-                                            mangaId = current.mangaId,
-                                            chapterId = chapter.chapterId,
-                                            chapterNumber = chapter.number,
-                                            chapterTitle = chapter.title,
-                                        )
-                                    },
-                                    // Downloading a chapter (or the whole series) implies the user
-                                    // cares about it: it lands in the library too, same as a manual
-                                    // "Add to library" tap.
-                                    onDownloadChapter = { entry, chapter ->
-                                        scope.launch {
-                                            library.addToLibrary(entry)
-                                            downloads.enqueue(entry, chapter)
-                                            downloads.processQueue()
-                                        }
-                                    },
-                                    onDownloadAll = { entry, chapters ->
-                                        // empty selection ("unread" with everything read) must
-                                        // not side-effect the library or spin the queue
-                                        if (chapters.isNotEmpty()) {
+                        NavigationRailItem(
+                            selected = current is Screen.Search,
+                            onClick = { screen = Screen.Search },
+                            icon = { Text("⌕") },
+                            label = { Text("Search") },
+                        )
+                        NavigationRailItem(
+                            selected = current is Screen.Browse,
+                            onClick = { screen = Screen.Browse },
+                            icon = { Text("B") },
+                            label = { Text("Browse") },
+                        )
+                        NavigationRailItem(
+                            selected = current is Screen.Downloads,
+                            onClick = { screen = Screen.Downloads },
+                            icon = { Text("D") },
+                            label = { Text("Downloads") },
+                        )
+                        NavigationRailItem(
+                            selected = current is Screen.Extensions,
+                            onClick = { screen = Screen.Extensions },
+                            icon = { Text("E") },
+                            label = { Text("Extensions") },
+                        )
+                        NavigationRailItem(
+                            selected = current is Screen.Settings,
+                            onClick = { screen = Screen.Settings },
+                            icon = { Text("S") },
+                            label = { Text("Settings") },
+                        )
+                    }
+                    Surface(
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                        color = MaterialTheme.colorScheme.background,
+                    ) {
+                        when (current) {
+                            Screen.Library -> LibraryScreen(library) { entry ->
+                                screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = false)
+                            }
+                            Screen.Search -> SearchScreen(catalog, challengeSolver, searchState) { entry ->
+                                // Details has no fromSearch case yet (owner accepted for M4.4b):
+                                // back from a Search-opened Details returns to Library, same as
+                                // fromBrowse = false everywhere else that isn't Browse itself.
+                                screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = false)
+                            }
+                            Screen.Browse -> BrowseScreen(catalog, challengeSolver, browseState) { entry ->
+                                screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = true)
+                            }
+                            Screen.Downloads -> DownloadsScreen(downloads)
+                            Screen.Extensions -> ExtensionsScreen(extensions, catalog)
+                            Screen.Settings -> SettingsScreenContent(
+                                themeNames = Themes.schemes.keys.toList(),
+                                currentTheme = currentTheme,
+                                onSelectTheme = onThemeChange,
+                            )
+                            is Screen.Details -> {
+                                LaunchedEffect(current) { lastDetails = current }
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    DetailsScreen(
+                                        sourceId = current.sourceId,
+                                        mangaId = current.mangaId,
+                                        catalog = catalog,
+                                        library = library,
+                                        challengeSolver = challengeSolver,
+                                        onOpenChapter = { chapter ->
+                                            screen = Screen.Reader(
+                                                sourceId = current.sourceId,
+                                                mangaId = current.mangaId,
+                                                chapterId = chapter.chapterId,
+                                                chapterNumber = chapter.number,
+                                                chapterTitle = chapter.title,
+                                            )
+                                        },
+                                        // Downloading a chapter (or the whole series) implies the user
+                                        // cares about it: it lands in the library too, same as a manual
+                                        // "Add to library" tap.
+                                        onDownloadChapter = { entry, chapter ->
                                             scope.launch {
                                                 library.addToLibrary(entry)
-                                                chapters.forEach { downloads.enqueue(entry, it) }
+                                                downloads.enqueue(entry, chapter)
                                                 downloads.processQueue()
                                             }
-                                        }
-                                    },
-                                )
-                                IconButton(
-                                    onClick = {
-                                        screen = if (current.fromBrowse) Screen.Browse else Screen.Library
-                                    },
-                                    modifier = Modifier.padding(8.dp),
-                                ) {
-                                    Text("←", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        },
+                                        onDownloadAll = { entry, chapters ->
+                                            // empty selection ("unread" with everything read) must
+                                            // not side-effect the library or spin the queue
+                                            if (chapters.isNotEmpty()) {
+                                                scope.launch {
+                                                    library.addToLibrary(entry)
+                                                    chapters.forEach { downloads.enqueue(entry, it) }
+                                                    downloads.processQueue()
+                                                }
+                                            }
+                                        },
+                                    )
+                                    IconButton(
+                                        onClick = {
+                                            screen = if (current.fromBrowse) Screen.Browse else Screen.Library
+                                        },
+                                        modifier = Modifier.padding(8.dp),
+                                    ) {
+                                        Text("←", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
                                 }
                             }
+                            is Screen.Reader -> Unit // unreachable: handled in the branch above
                         }
-                        is Screen.Reader -> Unit // unreachable: handled in the branch above
                     }
                 }
             }
         }
+        // remembered: providers capture stable references, so rebuilding the tab list on
+        // every shell recomposition would be pure allocation churn
+        val tabs = remember {
+            paletteTabs(
+                library = library,
+                navigate = { screen = it },
+                onThemeChange = onThemeChange,
+            )
+        }
+        PaletteOverlay(state = palette, tabs = tabs)
     }
 }
