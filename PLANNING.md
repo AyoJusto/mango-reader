@@ -304,17 +304,25 @@ De-risk the unknown before building around it.
   junit-vintage-engine — now catalog-pinned; 39 tests execute). Ceilings: Details opened
   from Search returns to Library (no fromSearch case); Browse's own source-list load is
   still unguarded against a registry read failure (Browse is replaced wholesale in M5).
-- **M5 — Discovery: extension home pages (planned 2026-07-11).** Browse becomes one tab per
-  installed extension rendering that source's own homepage sections ("Most Recent",
-  "Popular" — whatever the extension publishes). Paperback bundles declare the
-  `HOMEPAGE_SECTIONS` intent and expose `getHomePageSections()` (callback-based, sections
-  stream in). Two chunks: (a) engine — shim `getHomePageSections` in the SDK layer, add a
-  home-sections method to `MangaSource` plus a domain `HomeSection` type, verify against
-  all bundle fixtures; shim work, mandatory review. (b) UI — tabbed Browse, one tab per
-  installed source, horizontal section rows of covers; sources without the capability fall
-  back to a plain search-results view. New installs appear without restart (Browse reloads
-  its source list on entry, fixed 2026-07-11). Sequenced before the design-refinement pass
-  so that pass styles the real Browse, not a throwaway.
+- **M5 — Discovery: extension home pages (planned 2026-07-11; researched same day).**
+  Browse becomes one tab per installed extension rendering that source's own homepage
+  sections ("Most Recent", "Popular" — whatever the extension publishes). Research
+  (2026-07-11, fixtures + @paperback/types source) corrected the contract: all four fixture
+  bundles use the 0.9/1.0-alpha **pull API** — `getDiscoverSections()` returns stub
+  descriptors `{id, title, type}` (numeric DiscoverSectionType), then
+  `getDiscoverSectionItems(section, metadata)` per section returns `{items, metadata}` —
+  NOT 0.8's `getHomePageSections(sectionCallback)`. No new host bindings needed (discover
+  paths use scheduleRequest like search). Capability flags are unreliable (FlameComics
+  implements the API but declares none): duck-type on the method, don't gate on intents.
+  Pass the whole section descriptor back into getDiscoverSectionItems (parsers read
+  section.type). Per-section paging termination diverges per bundle (undefined-metadata vs
+  never-signals vs never-paginates) — v1 fetches first page only. Two chunks: (a) engine —
+  invoke the pull API through the existing invokeAwaitJson shape, `MangaSource` gains a
+  home-sections method + domain `HomeSection` type, verify against all four fixtures; shim
+  work, mandatory review. (b) UI — tabbed Browse, one tab per installed source, horizontal
+  section rows; sources without the method fall back to the plain search view. Full
+  research + draft engine brief: HANDOFF.md (2026-07-11). Sequenced before the
+  design-refinement pass so that pass styles the real Browse, not a throwaway.
 - **M6 — Quick nav and reader QoL (planned 2026-07-11).** (a) Search-everywhere palette,
   IntelliJ double-Shift style, **local only**: a modal that fuzzy-matches app screens,
   settings entries, and library/downloaded manhwa; Enter navigates straight to the hit.
