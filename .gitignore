@@ -3,3 +3,6 @@ build/
 .idea/
 .kotlin/
 local.properties
+*.debug.log
+debug.log
+app/debug.log
