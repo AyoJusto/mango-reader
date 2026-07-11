@@ -1,144 +1,93 @@
-# Handoff — 2026-07-11
+# Handoff — 2026-07-11 (evening)
 
-Session summary for tomorrow's pickup. M4 is DONE and committed; M5 (Discovery) is fully
-researched with a draft engine brief below, zero implementation started.
+Session summary for the next pickup. M5 (Discovery) and M6 chunk (a) are DONE and
+committed; next up is M6 chunk (b), reader auto-scroll. Both suites green after every
+commit; core suite 30 tests + app suite 69 tests, all genuinely executing.
 
-## What shipped today (all on master, both suites green after every commit)
+## What shipped (all on master)
 
-- `2b7a37a` — Browse reloads installed sources on entry (fixes "installed an extension,
-  Browse shows nothing"); roadmap gained M5 Discovery + M6 quick nav, online palette tab
-  moved to §12 backlog.
-- `f8773a6` — M4.4a: Settings screen (theme picker, applies live, persists via
-  `Settings.theme`); download selection All/Unread/Range in DetailsScreen backed by new
-  `LibraryRepository.readChapterIds`. **Plus a milestone discovery:** `:app:jvmTest` had
-  silently run zero JUnit4-style Compose tests since M3 — the JUnit5 platform discovers
-  nothing in `uiTestJUnit4` classes without `junit-vintage-engine`. Now catalog-pinned;
-  39 app tests actually execute (previously ~15 across 5 kotlin-test classes).
-- `2ec7f65` — M4.4b: cross-extension Search tab. Parallel fan-out over enabled sources,
-  per-source error isolation (Cloudflare-gated source shows Solve while others render),
-  source filter chips, shell-hoisted state.
-- `e0b8cf7` — M4 exit. Opus `/code-review` over the M4.4 diff confirmed 13 defects; all
-  fixed: untrusted-data lazy keys removed (duplicate mangaId from a hostile bundle crashed
-  composition — fixed in Search AND Browse), guarded Search source load, search cancels
-  the prior fan-out + try/finally on the spinner + skips empty source set, sections render
-  what was searched rather than live chip state, solving flag is per-source (one solve at
-  a time stays deliberate — one embedded browser), post-solve refetch hits only the solved
-  source (polite-scraper rule), range downloads normalize reversed bounds (+ regression
-  test), empty download selections no longer side-effect the library. PLANNING.md M4 →
-  DONE. Live smoke green: full read path against FlameComics (100 results, 79 chapters,
-  11 pages), library seeded.
+- `280621b` — M5(a): engine discover sections via the pull API. Domain `HomeSection`;
+  `MangaSource.getHomeSections` (default empty) + `CatalogRepository.homeSections`
+  (abstract — deliberate; a repo default would mask a forgotten override);
+  `PaperbackExtension` duck-types `getDiscoverSections`, passes the ORIGINAL stub Value
+  back to `getDiscoverSectionItems`, first page only, null metadata. Trust-boundary
+  hardening from review: stub loop capped at 32, non-object stubs / non-integral types /
+  non-object results all become named `ExtensionDataException`s, genres-skip (type 4)
+  runs BEFORE dedupe. HTTP fixtures recorded live for FlameComics/MangaBat/Toonily;
+  WebtoonXYZ stays fixture-less (Cloudflare 403s even the recorder — same as search;
+  challenge coverage lives in `LiveDetectWebtoonXyzTest`).
+- `d977e06` — M5(b): Browse renders per-source discover sections. Source chips are the
+  tabs; sections load lazily per selected tab into a session cache (errors retried on
+  revisit, never prefetched — polite-scraper); titled cover shelves; search-on-submit
+  overlays a per-source-tagged results grid (fixes old stale-results-across-chips); blank
+  submit returns to sections. Review fixes: search job cancellation, challenge state split
+  per mode + click-time solve dispatch, query captured at submit, pending-guard race
+  removed (fetch in screen scope, composition-captured effect key), honest empty/error
+  states for the source list.
+- `a4de7a6` — M6(a): search-everywhere palette. Double-Shift from anywhere (Window-level
+  `onPreviewKeyEvent` in Main.kt → `DoubleShiftDetector`, which requires a Shift RELEASE
+  between taps so held-Shift OS auto-repeat can never trigger). Text-only rows — owner
+  requirement, no images/Coil in the palette. All colors from the theme — owner
+  requirement; scrim uses `colorScheme.scrim`, zero color literals in Palette.kt.
+  Extensibility contract (the design center): `PaletteHit` (action = plain lambda) /
+  `PaletteProvider` (`fun interface`) / `PaletteTab`, one registration point
+  `paletteTabs()` — a new searchable feature is one provider + one line; a new mode
+  (backlog online tab) is a new tab. Candidates fetched once per open/tab-switch; every
+  keystroke ranks cached candidates in memory via central `fuzzyScore` (multi-start greedy
+  anchoring so "lev" ranks "Solo Leveling" over "Television"). v1 tabs: All / Manhwa /
+  Actions (screens + themes). Review fixes: overlay-level key handling (survives chip
+  clicks), Reader focus restore on palette close, stale-hit flash cleared, selection
+  scrolls into view (bottom-edge pinning), honest Down/Enter + repeated-char tests.
+
+## Process correction (owner-flagged, applies to every future chunk)
+
+All three chunk reviews this session silently ran on the SESSION model, not Opus: the
+"pin to Opus" text passed in the code-review workflow args is prose to the finder agents,
+not a model parameter. CLAUDE.md says reviews are pinned to Opus — that is a decision
+(cost + reviewer-independence from the arbitrating session model), not an intent.
+**From the next chunk boundary on: copy/edit the code-review workflow script setting
+`model: 'opus'` on the finder/verify `agent()` calls (or use direct Agent dispatches with
+model opus), then VERIFY in the run metadata that agents actually ran on Opus.** Recorded
+in auto-memory (`code-review-must-run-on-opus`). The shipped reviews were still real
+(30 confirmed defects found and fixed across the three chunks) — no re-review needed.
 
 ## Decisions taken (owner-visible)
 
-- Search results grouped per source in LazyRows; details opened from Search go back to
-  Library (no `fromSearch` nav case yet — recorded as an M4 ceiling in PLANNING.md §9).
-- One Cloudflare solve at a time is deliberate (single embedded browser); only the
-  labeling is per-source.
-- Browse's own unguarded source-list load is left as-is: Browse is replaced wholesale in
-  M5 (ceiling noted in PLANNING.md).
+- Palette is text-only (no cover images) and fully theme-driven — both explicit owner
+  requirements; treat as invariants for any palette follow-up work.
+- `CatalogRepository.homeSections` stays abstract (no default) — rejected a review
+  suggestion; production safety over test-fake convenience.
+- One solve at a time is still screen-local; the app-wide gate belongs in
+  ChallengeSolver/AppShell (recorded ceiling, deferred to refinement).
+- CLAUDE.md corrected: engine is GraalJS (was QuickJS), binding-reachability invariant
+  restated. NOTE: CLAUDE.md is in .gitignore, so this fix is local-only and its header's
+  "checked into the codebase" claim is stale — owner was told; decide whether to track it.
 
-## Post-exit bug: Cloudflare re-challenged after a successful solve (FIXED)
+## Ceilings recorded in PLANNING (for the refinement phase)
 
-Owner report: Toonily solve window opened and closed in seconds (that part is normal —
-toonily's managed challenge auto-passes), but re-search still failed. Diagnosis chain:
-solve/harvest/persist verified working (cf_clearance + pinned Chrome UA present in the
-real DB, valid to 2027); a raw Ktor replay with the same cookie+UA returned 200; the
-engine's byte-equivalent request 403'd. Bisected live: **header-name casing was the
-fingerprint** — bundles send h2/iOS-style lowercase names (`user-agent`, `referer`),
-ApplicationHost copied them verbatim onto HTTP/1.1, and Cloudflare challenges lowercase
-h1 headers presented with a Chrome UA. Fix: `ApplicationHost.canonicalHeaderName`
-title-cases outgoing header names at the wire boundary (JS-facing side stays lowercase).
-Regression test `bundleHeaderNamesAreCanonicalizedOnTheWire`; `LiveChallengeSmokeTest`
-extended with the previously-missing post-solve replay assertion; verified live —
-production Toonily search returns results. Recorded in PLANNING §10.
+- fuzzyScore matches later query chars greedily; full-DP alignment is the escape hatch if
+  ranking complaints appear.
+- Online palette tab will need a per-tab fetch policy (live query, per-keystroke refetch).
+- Palette-opened Details goes back to Library (nav-origin refactor still pending; same for
+  Search-opened Details since M4).
+- Browse: blank-query submit is the only way back from results to sections (no clear
+  button); a solve is cancelled if the user leaves the screen mid-solve.
+- FlameComics homepage fixture is shared across LiveRecord suites — on buildId rotation
+  re-record ALL FlameComics live tests together (documented in LiveRecordDiscoverTest).
 
-## Nothing was blocked
+## Next steps
 
-Screen lock never interfered: the screenshot harness renders offscreen, so settings and
-search screenshots were captured and visually reviewed (`app/build/screenshots/`).
+1. M6(b): reader auto-scroll — hotkey-bound toggle, speed configurable in Settings
+   (PLANNING §9 M6). Small chunk: ReaderScreen + Settings + tests. Palette gives the
+   precedent for hotkey handling; keep it inside ReaderScreen's existing key handler.
+2. Chunk review pinned to Opus per the process correction above.
+3. After M6: UI/functionality refinement phase (owner call on scope) — the ceilings list
+   above is the natural backlog for it.
 
-## M5 Discovery — research findings (the epic research)
+## The working loop (unchanged, for a fresh session)
 
-Two research passes: R1 read the four pretty-printed fixture bundles
-(`tools/bundle-pretty/`), R2 read `@paperback/types` npm tarballs (0.8.7 and
-1.0.0-alpha.92) plus the `paperback-toolchain` repo. They converge; every claim below is
-evidence-backed in those sources.
-
-**The contract is the 0.9/1.0-alpha pull API, not the 0.8 callback API.** All four fixture
-bundles (FlameComics, MangaBat, Toonily, WebtoonXYZ) implement:
-
-- `async getDiscoverSections()` → array of stub descriptors `{id, title, type}` where
-  `type` is numeric `DiscoverSectionType` (featured=0, simpleCarousel=1,
-  prominentCarousel=2, chapterUpdates=3, genres=4). No items in the stubs.
-- `async getDiscoverSectionItems(section, metadata)` → `{items, metadata}` for that one
-  section. Paging = call again with the returned metadata. **Must pass the whole section
-  descriptor back, not just its id** — bundle parsers read `section.type` to pick the item
-  shape.
-
-There is no `getHomePageSections`, no `sectionCallback`, no `getViewMoreItems`, and no
-`containsMoreItems` anywhere in the four bundles. (Terminology note: "0.9" ships on npm as
-`@paperback/types@1.0.0-alpha.*`; there is no 0.9.x package version.)
-
-**Item shapes** are a discriminated union keyed by section type: `simpleCarouselItem` /
-`featuredCarouselItem` / `prominentCarouselItem` (all carry mangaId, title, imageUrl,
-optional subtitle), `chapterUpdatesCarouselItem` (adds chapterId, publishDate), and
-`genresCarouselItem` (carries a searchQuery, **no mangaId**).
-
-**Capability flags are unreliable.** The `capabilities` metadata object isn't reachable
-from the executed bundle's export (it's a local variable), and FlameComics implements the
-full API while declaring nothing. Duck-type on the method's presence, exactly as the shim
-already does elsewhere (`canInvokeMember`). Bit value 4 = `DISCOVER_SECTION_PROVIDING`
-(0.8 name `HOMEPAGE_SECTIONS`) confirmed but useless in practice.
-
-**No new host bindings needed.** The discover paths use `Application.scheduleRequest` +
-`arrayBufferToUTF8String` / `decodeHTMLEntities`, all already implemented. Note:
-`ApplicationHost.kt:138-152` already has `registerDiscoverSection` et al. — dead
-scaffolding, unused by every bundle; do not build on it.
-
-**Paging termination diverges per bundle** (the compat risk): MangaBat returns
-`metadata: undefined` on the last page; Toonily/WebtoonXYZ never signal exhaustion
-(always `{page: n+1}` — a metadata-only loop pages forever); FlameComics never paginates
-(single cached JSON fetch, always `metadata: undefined`). Any pagination loop must also
-stop on `items.length == 0` plus a page cap.
-
-**0.8 compat wrapper (if true 0.8 bundles ever load):** the official wrapper translates
-callback→pull for the host, so the pull API is the right host surface either way. Wrapper
-quirks: it collapses all 0.8 layout types to simpleCarousel, does NOT dedupe stub-then-fill
-callback invocations (duplicate section ids reach the host — dedupe by id host-side), and
-Paperback labels the whole compat path experimental.
-
-## Draft M5 chunk (a) engine brief (decision-maker synthesis, ready to refine + dispatch)
-
-Locked decisions:
-- Domain (`core/.../domain/`): `data class HomeSection(val id: String, val title: String,
-  val items: List<MangaEntry>)` — drop the layout `type` from the domain for v1 (UI renders
-  every section as a row today; add a layout enum when the UI differentiates). Items
-  normalize to the existing `MangaEntry` (mangaId, title, imageUrl→cover). Skip
-  `genresCarouselItem` entries (no mangaId to open) and note the skip. `chapterUpdates`
-  items keep only the MangaEntry fields.
-- `MangaSource` gains `suspend fun getHomeSections(): List<HomeSection>` (default: empty).
-  Implementation in `PaperbackExtension`: duck-type — if the source object lacks
-  `getDiscoverSections`, return emptyList(). Else `invokeAwaitJson("getDiscoverSections")`,
-  then per stub `invokeAwaitJson("getDiscoverSectionItems", fullSectionProxy, null)` —
-  first page only, no pagination in v1 (termination divergence above). Same
-  new-context + `initialise()` + normalization-at-call-site shape as `getSearchResults`
-  (`PaperbackExtension.kt:30-56`), malformed data → `ExtensionDataException`.
-- `CatalogRepository` gains `homeSections(sourceId)` passthrough (same pattern as
-  `search`).
-- Tests: engine tests against all four fixtures with the existing mock-HTTP pattern —
-  FlameComics (JSON responses), MangaBat/Toonily/WebtoonXYZ (HTML). Assert: sections
-  parse with ids+titles, items normalize, genres items dropped, a source without the
-  method yields emptyList, malformed item → ExtensionDataException.
-- Mandatory Opus review (shim + `MangaSource` change).
-
-Chunk (b) UI (brief later, after (a) lands): Browse → one tab per installed source;
-sections as titled LazyRows of CoverCells; sources without sections fall back to current
-search-results view; reuse the reload-on-entry + per-source error isolation patterns from
-SearchScreen.
-
-## Next steps (tomorrow)
-
-1. Refine + dispatch M5 chunk (a) engine brief above (Sonnet).
-2. Opus review at the chunk boundary (mandatory — shim).
-3. Chunk (b) tabbed Browse UI.
-4. Then M6 (local search-everywhere palette + reader auto-scroll) per PLANNING.md §9.
+Fable/session model = decision maker (briefs, arbitration, commits); implementation goes
+to Sonnet subagents with verified-delegation briefs (locked decisions, STOP rule, pasted
+evidence); review at every chunk boundary via the code-review workflow — ON OPUS (see
+above); independent verification (forced `--rerun-tasks`, JUnit XML check, screenshot
+visual review) before every commit.
