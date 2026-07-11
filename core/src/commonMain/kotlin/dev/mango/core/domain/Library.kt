@@ -19,4 +19,6 @@ interface LibraryRepository {
     suspend fun removeFromLibrary(sourceId: String, mangaId: String)
     suspend fun progress(sourceId: String, mangaId: String, chapterId: String): ReadProgress?
     suspend fun setProgress(sourceId: String, mangaId: String, chapterId: String, page: Int)
+    /** Chapter ids with a read-progress row for this manga — i.e. chapters the user has opened. */
+    suspend fun readChapterIds(sourceId: String, mangaId: String): Set<String>
 }

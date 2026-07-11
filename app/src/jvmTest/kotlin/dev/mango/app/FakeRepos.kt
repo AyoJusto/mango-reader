@@ -55,6 +55,12 @@ class FakeLibraryRepository(initial: List<LibraryItem> = emptyList()) : LibraryR
         progressByChapter[Triple(sourceId, mangaId, chapterId)] =
             ReadProgress(chapterId = chapterId, page = page, updatedAt = Clock.System.now())
     }
+
+    override suspend fun readChapterIds(sourceId: String, mangaId: String): Set<String> =
+        progressByChapter.keys
+            .filter { it.first == sourceId && it.second == mangaId }
+            .map { it.third }
+            .toSet()
 }
 
 /** Canned [CatalogRepository] for tests. Unstubbed members throw. No DB, no network. */

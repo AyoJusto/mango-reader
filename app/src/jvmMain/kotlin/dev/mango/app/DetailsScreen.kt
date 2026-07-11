@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -21,6 +22,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -54,11 +56,16 @@ fun DetailsScreenContent(
     details: MangaDetails,
     chapters: List<Chapter>,
     inLibrary: Boolean,
+    readChapterIds: Set<String> = emptySet(),
     onToggleLibrary: () -> Unit,
     onOpenChapter: (Chapter) -> Unit,
     onDownloadChapter: (MangaEntry, Chapter) -> Unit,
     onDownloadAll: (MangaEntry, List<Chapter>) -> Unit,
 ) {
+    // Local UI state for the range dialog — presentation-only, never leaves this composable.
+    var showRangeDialog by remember { mutableStateOf(false) }
+    var fromText by remember { mutableStateOf("") }
+    var toText by remember { mutableStateOf("") }
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(modifier = Modifier.padding(24.dp)) {
@@ -119,6 +126,14 @@ fun DetailsScreenContent(
                         TextButton(onClick = { onDownloadAll(details.entry, chapters) }) {
                             Text("Download all")
                         }
+                        TextButton(onClick = {
+                            onDownloadAll(details.entry, chapters.filter { it.chapterId !in readChapterIds })
+                        }) {
+                            Text("Download unread")
+                        }
+                        TextButton(onClick = { showRangeDialog = true }) {
+                            Text("Download range…")
+                        }
                     }
                 }
             }
@@ -165,6 +180,44 @@ fun DetailsScreenContent(
             }
         }
     }
+    if (showRangeDialog) {
+        val from = fromText.toDoubleOrNull()
+        val to = toText.toDoubleOrNull()
+        AlertDialog(
+            onDismissRequest = { showRangeDialog = false },
+            title = { Text("Download range") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = fromText,
+                        onValueChange = { fromText = it },
+                        label = { Text("From") },
+                        singleLine = true,
+                    )
+                    OutlinedTextField(
+                        value = toText,
+                        onValueChange = { toText = it },
+                        label = { Text("To") },
+                        singleLine = true,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (from != null && to != null) {
+                            onDownloadAll(details.entry, chapters.filter { it.number in from..to })
+                            showRangeDialog = false
+                        }
+                    },
+                    enabled = from != null && to != null,
+                ) { Text("Download") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRangeDialog = false }) { Text("Cancel") }
+            },
+        )
+    }
 }
 
 /** Raw Instant.toString() is machine format; readers get the date only. */
@@ -185,6 +238,7 @@ fun DetailsScreen(
 ) {
     var details by remember(sourceId, mangaId) { mutableStateOf<MangaDetails?>(null) }
     var chapters by remember(sourceId, mangaId) { mutableStateOf<List<Chapter>>(emptyList()) }
+    var readChapterIds by remember(sourceId, mangaId) { mutableStateOf<Set<String>>(emptySet()) }
     var error by remember(sourceId, mangaId) { mutableStateOf<String?>(null) }
     var challengeUrl by remember(sourceId, mangaId) { mutableStateOf<String?>(null) }
     var solving by remember(sourceId, mangaId) { mutableStateOf(false) }
@@ -199,6 +253,7 @@ fun DetailsScreen(
         try {
             details = catalog.details(sourceId, mangaId)
             chapters = catalog.chapters(sourceId, mangaId)
+            readChapterIds = library.readChapterIds(sourceId, mangaId)
         } catch (e: CancellationException) {
             throw e
         } catch (e: ChallengeRequiredException) {
@@ -255,6 +310,7 @@ fun DetailsScreen(
             details = currentDetails,
             chapters = chapters,
             inLibrary = inLibrary,
+            readChapterIds = readChapterIds,
             onToggleLibrary = {
                 scope.launch {
                     if (inLibrary) {

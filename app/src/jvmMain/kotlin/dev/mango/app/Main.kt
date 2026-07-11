@@ -1,5 +1,9 @@
 package dev.mango.app
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -9,10 +13,12 @@ import androidx.compose.ui.window.rememberWindowState
 
 fun main() {
     val graph = AppGraph()
-    // No settings page yet (M3.5c): edit <dataDir>/settings.properties by hand to change the
-    // theme, e.g. `theme=midnight`. See Themes.schemes in Theme.kt for the available names.
+    // Theme is picked from the Settings screen (M4.4a); Settings.theme persists it to disk.
     val settings = Settings(AppGraph.defaultDataDir())
     application {
+        // Hoisted into Compose state so picking a theme on the Settings screen applies live,
+        // without restarting the app.
+        var themeName by remember { mutableStateOf(settings.theme) }
         // default window size: 1440p (owner call, 2026-07-11) — a floating window this
         // size fills a 2560x1440 monitor; the OS clamps it on smaller screens
         val windowState = rememberWindowState(size = DpSize(2560.dp, 1440.dp))
@@ -21,13 +27,15 @@ fun main() {
             title = "mango",
             state = windowState,
         ) {
-            MangoTheme(themeName = settings.theme) {
+            MangoTheme(themeName = themeName) {
                 AppShell(
                     graph.library,
                     graph.catalog,
                     graph.downloads,
                     graph.extensions,
                     graph.challengeSolver,
+                    currentTheme = themeName,
+                    onThemeChange = { themeName = it; settings.theme = it },
                     onToggleFullscreen = {
                         windowState.placement = if (windowState.placement == WindowPlacement.Fullscreen) {
                             WindowPlacement.Floating

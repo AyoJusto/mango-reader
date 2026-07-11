@@ -8,6 +8,7 @@ import java.util.Properties
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 
@@ -89,5 +90,16 @@ class LibraryRepositoryTest {
 
         assertEquals(3, repo.progress("MangaBat", "m1", "c1")?.page)
         assertEquals(9, repo.progress("Toonily", "m1", "c1")?.page)
+    }
+
+    @Test
+    fun readChapterIdsContainsOnlyChaptersWithProgress() = runTest {
+        val repo = newRepository()
+
+        repo.setProgress("MangaBat", "m1", "c1", page = 3)
+
+        val readIds = repo.readChapterIds("MangaBat", "m1")
+        assertTrue("c1" in readIds)
+        assertTrue("c2" !in readIds)
     }
 }

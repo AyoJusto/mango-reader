@@ -74,4 +74,8 @@ class SqlLibraryRepository(
             )
             Unit
         }
+
+    override suspend fun readChapterIds(sourceId: String, mangaId: String): Set<String> = withContext(context) {
+        db.libraryQueries.selectReadChapterIds(sourceId, mangaId).executeAsList().toSet()
+    }
 }

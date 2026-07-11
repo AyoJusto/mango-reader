@@ -13,6 +13,7 @@ import dev.mango.core.domain.MangaStatus
 import dev.mango.core.domain.Page
 import dev.mango.core.domain.SourceInfo
 import kotlin.test.assertEquals
+import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 
@@ -154,5 +155,82 @@ class ScreenFlowTest {
         rule.waitForIdle()
 
         rule.onNodeWithText("In library — remove").assertExists()
+    }
+
+    @Test
+    fun downloadUnreadEnqueuesOnlyChaptersWithoutProgress() {
+        val library = FakeLibraryRepository()
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        val chapters = listOf(
+            Chapter(chapterId = "c1", number = 1.0, title = null, publishedAt = null),
+            Chapter(chapterId = "c2", number = 2.0, title = null, publishedAt = null),
+        )
+        val catalog = FakeCatalogRepository(
+            details = mapOf(("FlameComics" to "manga-1") to details),
+            chapters = mapOf(("FlameComics" to "manga-1") to chapters),
+        )
+        runBlocking { library.setProgress("FlameComics", "manga-1", "c1", page = 3) }
+        var downloaded: List<Chapter>? = null
+
+        rule.setContent {
+            MangoTheme {
+                DetailsScreen(
+                    sourceId = "FlameComics",
+                    mangaId = "manga-1",
+                    catalog = catalog,
+                    library = library,
+                    challengeSolver = FakeChallengeSolver(),
+                    onOpenChapter = {},
+                    onDownloadAll = { _, chs -> downloaded = chs },
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Download unread").performClick()
+        rule.waitForIdle()
+
+        assertEquals(listOf("c2"), downloaded?.map { it.chapterId })
+    }
+
+    @Test
+    fun downloadRangeFiltersChaptersByNumberInclusive() {
+        val library = FakeLibraryRepository()
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        val chapters = (1..5).map { n ->
+            Chapter(chapterId = "c$n", number = n.toDouble(), title = null, publishedAt = null)
+        }
+        val catalog = FakeCatalogRepository(
+            details = mapOf(("FlameComics" to "manga-1") to details),
+            chapters = mapOf(("FlameComics" to "manga-1") to chapters),
+        )
+        var downloaded: List<Chapter>? = null
+
+        rule.setContent {
+            MangoTheme {
+                DetailsScreen(
+                    sourceId = "FlameComics",
+                    mangaId = "manga-1",
+                    catalog = catalog,
+                    library = library,
+                    challengeSolver = FakeChallengeSolver(),
+                    onOpenChapter = {},
+                    onDownloadAll = { _, chs -> downloaded = chs },
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Download range…").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("From").performTextInput("2")
+        rule.onNodeWithText("To").performTextInput("4")
+        rule.waitForIdle()
+        rule.onNodeWithText("Download").performClick()
+        rule.waitForIdle()
+
+        assertEquals(listOf("c2", "c3", "c4"), downloaded?.map { it.chapterId })
     }
 }

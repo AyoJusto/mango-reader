@@ -48,6 +48,7 @@ sealed interface Screen {
     data object Browse : Screen
     data object Downloads : Screen
     data object Extensions : Screen
+    data object Settings : Screen
     data class Details(val sourceId: String, val mangaId: String, val fromBrowse: Boolean) : Screen
     data class Reader(
         val sourceId: String,
@@ -72,6 +73,8 @@ fun AppShell(
     downloads: DownloadManager,
     extensions: ExtensionRepo = NoOpExtensionRepo,
     challengeSolver: ChallengeSolver = NoOpChallengeSolver,
+    currentTheme: String = Themes.DEFAULT,
+    onThemeChange: (String) -> Unit = {},
     onToggleFullscreen: () -> Unit = {},
 ) {
     var screen by remember { mutableStateOf<Screen>(Screen.Library) }
@@ -129,6 +132,12 @@ fun AppShell(
                         icon = { Text("E") },
                         label = { Text("Extensions") },
                     )
+                    NavigationRailItem(
+                        selected = current is Screen.Settings,
+                        onClick = { screen = Screen.Settings },
+                        icon = { Text("S") },
+                        label = { Text("Settings") },
+                    )
                 }
                 Surface(
                     modifier = Modifier.weight(1f).fillMaxHeight(),
@@ -143,6 +152,11 @@ fun AppShell(
                         }
                         Screen.Downloads -> DownloadsScreen(downloads)
                         Screen.Extensions -> ExtensionsScreen(extensions, catalog)
+                        Screen.Settings -> SettingsScreenContent(
+                            themeNames = Themes.schemes.keys.toList(),
+                            currentTheme = currentTheme,
+                            onSelectTheme = onThemeChange,
+                        )
                         is Screen.Details -> {
                             LaunchedEffect(current) { lastDetails = current }
                             Box(modifier = Modifier.fillMaxSize()) {

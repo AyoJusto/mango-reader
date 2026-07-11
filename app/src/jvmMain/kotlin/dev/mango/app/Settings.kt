@@ -9,8 +9,8 @@ import java.util.logging.Logger
 
 /**
  * Tiny persisted key-value settings over [Properties] at `<dataDir>/settings.properties`.
- * Loaded once into memory at construction; each setter persists immediately. There is no
- * settings page yet (M3.5c) — until one exists, the user edits this file by hand.
+ * Loaded once into memory at construction; each setter persists immediately. Backs the
+ * Settings screen (M4.4a) — [theme] is read on startup and written back on every pick.
  *
  * Missing or malformed files fall back to defaults rather than crashing startup: a settings
  * file is a convenience, not a trust boundary worth failing the app over.

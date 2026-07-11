@@ -34,3 +34,6 @@ SELECT * FROM read_progress WHERE source_id = ? AND manga_id = ? AND chapter_id 
 upsertProgress:
 INSERT OR REPLACE INTO read_progress(source_id, manga_id, chapter_id, page, updated_at)
 VALUES (?, ?, ?, ?, ?);
+
+selectReadChapterIds:
+SELECT chapter_id FROM read_progress WHERE source_id = ? AND manga_id = ?;

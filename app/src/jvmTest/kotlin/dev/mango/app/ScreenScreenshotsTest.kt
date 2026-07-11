@@ -110,4 +110,18 @@ class ScreenScreenshotsTest {
         }
         assertTrue(Files.size(file) > 0, "expected a non-empty PNG at $file")
     }
+
+    @Test
+    fun settings() {
+        val file = Screenshots.render("settings") {
+            MangoTheme {
+                SettingsScreenContent(
+                    themeNames = Themes.schemes.keys.toList(),
+                    currentTheme = Themes.DEFAULT,
+                    onSelectTheme = {},
+                )
+            }
+        }
+        assertTrue(Files.size(file) > 0, "expected a non-empty PNG at $file")
+    }
 }
