@@ -1,8 +1,31 @@
 # Handoff — 2026-07-11 (night)
 
 Session summary for the next pickup. Both owner-reported reader bugs are fixed, M6(b) is
-DONE (M6 complete), and the palette-completeness invariant landed. Both suites green after
-every commit; core 101 tests + app 81 tests, all verified via forced rerun + JUnit XML.
+DONE (M6 complete), the palette-completeness invariant landed, and refinement chunk R4
+(app-wide solve gate + reader polish) shipped. Both suites green after every commit;
+core 101 tests + app 87 tests, all verified via forced rerun + JUnit XML.
+
+## R4 shipped (1329972) + next up
+
+- `1329972` — SingleFlightChallengeSolver (Mutex.tryLock decorator around
+  JcefChallengeSolver in AppGraph: concurrent solve() returns false, gate releases under
+  cancellation/exceptions); reader listState keyed on the anchor (P's one-frame stale-
+  offset jump gone); auto-scroll pauses under the open palette and auto-resumes.
+  Implemented as TWO PARALLEL disjoint-file dispatches (Haiku: gate; Sonnet: reader) —
+  owner corrected the loop: implementation may fan out across Sonnet/Haiku agents when
+  file sets are disjoint (auto-memory `parallel-cheap-implementers`; CLAUDE.md updated).
+  Opus review found one real SHOULD-FIX (overlay Prev button re-anchored without stopping
+  auto-scroll → drive loop stranded on the detached listState); fixed at altitude — the
+  nav helpers stop auto-scroll themselves — with a regression test. fuzzyScore full-DP
+  DEFERRED (owner call; ceiling stays).
+- **Next (owner-triaged, not yet started): R5 — Details chapter list shows "↓" even for
+  downloaded chapters.** Root cause: DetailsScreen never receives download state (downloads
+  flow only outward via onOpenChapter/onDownloadChapter callbacks). Agreed design: pass
+  `downloads` in, derive downloadedChapterIds from observeDownloads() filtered to the manga
+  + DONE (live-updating, cheaper than per-chapter localPages file probes); rows show a
+  disabled ✓; Download all/unread/range skip already-downloaded. Ceiling to record: a DONE
+  row with deleted files still shows the badge (reader already falls back to network).
+  Owner has NOT yet said go — confirm before building.
 
 ## New owner invariant (2026-07-11): search-everywhere completeness
 
