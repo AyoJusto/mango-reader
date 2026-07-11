@@ -53,6 +53,10 @@ class FakeCatalogRepository(
     private val chapters: Map<Pair<String, String>, List<Chapter>> = emptyMap(),
     private val pages: Map<Triple<String, String, String>, List<Page>> = emptyMap(),
 ) : CatalogRepository {
+    /** How many times [pages] was called — offline-reader tests assert this stays 0. */
+    var pagesCallCount: Int = 0
+        private set
+
     override suspend fun installedSources(): List<SourceInfo> = sources
 
     override suspend fun install(info: SourceInfo, bundleSha256: String) {
@@ -70,16 +74,24 @@ class FakeCatalogRepository(
         chapters[sourceId to mangaId]
             ?: error("FakeCatalogRepository.chapters has no canned entry for $sourceId/$mangaId")
 
-    override suspend fun pages(sourceId: String, mangaId: String, chapterId: String): List<Page> =
-        pages[Triple(sourceId, mangaId, chapterId)]
+    override suspend fun pages(sourceId: String, mangaId: String, chapterId: String): List<Page> {
+        pagesCallCount++
+        return pages[Triple(sourceId, mangaId, chapterId)]
             ?: error("FakeCatalogRepository.pages has no canned entry for $sourceId/$mangaId/$chapterId")
+    }
 }
 
 /**
  * In-memory [DownloadManager] for tests. No DB, no HTTP, no disk. [processQueue] is a no-op —
  * these tests only need to observe that a chapter was queued, not that a fake drain occurred.
+ *
+ * [localPagesByKey] is keyed by "sourceId/mangaId/chapterId"; a missing key means "not
+ * downloaded" (null), matching [DownloadManager.localPages]'s contract.
  */
-class FakeDownloadManager(initial: List<Download> = emptyList()) : DownloadManager {
+class FakeDownloadManager(
+    initial: List<Download> = emptyList(),
+    var localPagesByKey: Map<String, List<String>> = emptyMap(),
+) : DownloadManager {
     private val state = MutableStateFlow(initial)
     val downloads: List<Download> get() = state.value
 
@@ -101,4 +113,7 @@ class FakeDownloadManager(initial: List<Download> = emptyList()) : DownloadManag
     override suspend fun processQueue() {
         // no-op: nothing to drain in tests
     }
+
+    override suspend fun localPages(sourceId: String, mangaId: String, chapterId: String): List<String>? =
+        localPagesByKey["$sourceId/$mangaId/$chapterId"]
 }

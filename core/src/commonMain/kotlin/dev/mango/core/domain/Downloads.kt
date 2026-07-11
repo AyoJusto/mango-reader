@@ -35,4 +35,11 @@ interface DownloadManager {
     fun observeDownloads(): Flow<List<Download>>
     suspend fun enqueue(entry: MangaEntry, chapter: Chapter)
     suspend fun processQueue()
+
+    /**
+     * Absolute file paths of a fully downloaded chapter's pages, in page order — or null when
+     * the chapter is not completely on disk (no row, not DONE, or files missing). Strings, not
+     * Path: the domain stays infrastructure-free.
+     */
+    suspend fun localPages(sourceId: String, mangaId: String, chapterId: String): List<String>?
 }

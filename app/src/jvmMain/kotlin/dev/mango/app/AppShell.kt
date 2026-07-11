@@ -78,6 +78,7 @@ fun AppShell(
                     current.chapterTitle?.let { append(" — "); append(it) }
                 },
                 catalog = catalog,
+                downloads = downloads,
                 library = library,
                 onBack = { lastDetails?.let { screen = it } ?: run { screen = Screen.Library } },
                 onToggleFullscreen = onToggleFullscreen,

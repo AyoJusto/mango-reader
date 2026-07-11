@@ -146,6 +146,32 @@ class FileDownloadManager(
         }
     }
 
+    // No dedicated "select one row by key" query exists (only selectAllDownloads and
+    // selectQueuedDownloads) and adding one is a schema change outside this chunk's scope, so
+    // this filters the small in-memory row list instead of adding SQL.
+    override suspend fun localPages(sourceId: String, mangaId: String, chapterId: String): List<String>? =
+        withContext(context) {
+            val row = db.downloadsQueries.selectAllDownloads().executeAsList().firstOrNull {
+                it.source_id == sourceId && it.manga_id == mangaId && it.chapter_id == chapterId
+            } ?: return@withContext null
+            if (DownloadStatus.valueOf(row.status) != DownloadStatus.DONE) return@withContext null
+
+            val chapterDir = root
+                .resolve(safeSegment(sourceId))
+                .resolve(safeSegment(mangaId))
+                .resolve(safeSegment(chapterId))
+            if (!Files.isDirectory(chapterDir)) return@withContext null
+
+            // the "%04d." prefix on every filename makes lexicographic filename order the same
+            // as page order
+            val files = Files.list(chapterDir).use { stream ->
+                stream.filter(Files::isRegularFile).sorted(compareBy { it.fileName.toString() }).toList()
+            }
+            if (files.size != row.pages_total.toInt()) return@withContext null
+
+            files.map { it.toAbsolutePath().toString() }
+        }
+
     private fun markProgress(
         sourceId: String,
         mangaId: String,

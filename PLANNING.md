@@ -291,8 +291,12 @@ De-risk the unknown before building around it.
   Ceilings: text glyphs on the nav rail (no material-icons artifact resolves for CMP 1.11 —
   pick an icon strategy in M4), reader title shows chapter id, next-chapter prefetch not
   built, downloads bypass host policy (§10).
-- **M4 — Extension management.** Install/update from a Paperback-style repo, per-source settings.
-- **M5+ — Apple targets.** macOS/iOS from the same `:app`; validate `quickjs-kt` on Kotlin/Native.
+- **M4 — Self-sufficient app (in progress 2026-07-11).** Offline reading from downloads;
+  extension install/update from the Inkdex 0.9 repo (schema v3: version + per-source UA);
+  Cloudflare solve via embedded Chromium (KCEF) harvesting cf_clearance into the per-source
+  cookie jar; settings page (theme picker), download selection (all/unread/range),
+  cross-extension search. After M4: UI/functionality refinement phase (owner call).
+- ~~M5+ — Apple targets~~ moved to §12 backlog (2026-07-11): not needed now or anytime soon.
 
 ---
 
@@ -367,6 +371,8 @@ pages, downloads metadata + library-on-download + download-all, configurable the
 - cross-extension search: query all installed sources, results grouped per source
 - settings page (theme picker first — the registry and persistence already exist)
 - proper UI design pass (icon strategy, spacing/type rhythm, window-resize behavior)
+- Apple targets (ex-M5, parked 2026-07-11): macOS/iOS thin client against `:core` behind a
+  future `:server`; revisit only if an Apple device actually materializes
 
 
 Add an **enrichment** service behind its own interface. The reader asks "is there an audio/animation

@@ -55,8 +55,10 @@ import coil3.network.httpHeaders
 import coil3.request.ImageRequest
 import coil3.request.maxBitmapSize
 import dev.mango.core.domain.CatalogRepository
+import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.LibraryRepository
 import dev.mango.core.domain.Page
+import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
@@ -82,6 +84,7 @@ fun ReaderContent(
     listState: LazyListState,
     controlsVisible: Boolean,
     onBack: () -> Unit,
+    offline: Boolean = false,
     pageContent: @Composable (Page) -> Unit,
 ) {
     Surface(modifier = Modifier.fillMaxSize(), color = ReaderBlack) {
@@ -117,7 +120,12 @@ fun ReaderContent(
                         )
                         Spacer(modifier = Modifier.fillMaxWidth().weight(1f))
                         Text(
-                            text = "${listState.firstVisibleItemIndex + 1} / ${pages.size}",
+                            text = buildString {
+                                append(listState.firstVisibleItemIndex + 1)
+                                append(" / ")
+                                append(pages.size)
+                                if (offline) append(" · offline")
+                            },
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(end = 16.dp),
@@ -142,15 +150,17 @@ fun ReaderScreen(
     chapterId: String,
     chapterLabel: String,
     catalog: CatalogRepository,
+    downloads: DownloadManager,
     library: LibraryRepository,
     onBack: () -> Unit,
     onToggleFullscreen: () -> Unit,
     progressDebounceMillis: Long = 500,
-    pageContent: @Composable (Page) -> Unit = { page -> DefaultReaderPage(page) },
+    pageContent: (@Composable (Page) -> Unit)? = null,
 ) {
     var pages by remember(sourceId, mangaId, chapterId) { mutableStateOf<List<Page>?>(null) }
     var savedPage by remember(sourceId, mangaId, chapterId) { mutableStateOf<Int?>(null) }
     var error by remember(sourceId, mangaId, chapterId) { mutableStateOf<String?>(null) }
+    var offline by remember(sourceId, mangaId, chapterId) { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
@@ -161,7 +171,16 @@ fun ReaderScreen(
         error = null
         try {
             savedPage = library.progress(sourceId, mangaId, chapterId)?.page
-            pages = catalog.pages(sourceId, mangaId, chapterId)
+            // A fully downloaded chapter reads from disk, no network at all; anything short of
+            // that (not downloaded, still in progress, failed) falls back to the live catalog.
+            val local = downloads.localPages(sourceId, mangaId, chapterId)
+            if (local != null) {
+                offline = true
+                pages = local.mapIndexed { index, path -> Page(index = index, url = path) }
+            } else {
+                offline = false
+                pages = catalog.pages(sourceId, mangaId, chapterId)
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -256,7 +275,10 @@ fun ReaderScreen(
                     listState = listState,
                     controlsVisible = controlsVisible,
                     onBack = onBack,
-                    pageContent = pageContent,
+                    offline = offline,
+                    // local-file loading is gated on OUR offline state, never on the shape of
+                    // page.url: an extension-returned "URL" must not be able to name a disk path
+                    pageContent = pageContent ?: { page -> DefaultReaderPage(page, local = offline) },
                 )
             }
         }
@@ -268,17 +290,26 @@ fun ReaderScreen(
  * headers (auth, referer) through [httpHeaders]. Plain `AsyncImage`'s placeholder slot only
  * takes a static Painter, so this uses SubcomposeAsyncImage to draw the composable loading
  * box the reader spec calls for (a tinted panel with a spinner) while a page is in flight.
+ *
+ * [Page] is reused for offline reading too ([ReaderScreen] fills `url` with a local absolute
+ * path when the chapter is fully downloaded). Which branch runs is decided by [local] — the
+ * reader's own offline state — NEVER by inspecting the url string: page URLs come from
+ * untrusted extension output and must not be able to point the app at a disk path.
  */
 @Composable
-private fun DefaultReaderPage(page: Page) {
+private fun DefaultReaderPage(page: Page, local: Boolean) {
     val context = LocalPlatformContext.current
-    val request = remember(page) {
-        val headers = NetworkHeaders.Builder().apply {
-            page.headers.forEach { (name, value) -> set(name, value) }
-        }.build()
-        ImageRequest.Builder(context)
-            .data(page.url)
-            .httpHeaders(headers)
+    val request = remember(page, local) {
+        val builder = ImageRequest.Builder(context)
+        if (local) {
+            builder.data(File(page.url))
+        } else {
+            val headers = NetworkHeaders.Builder().apply {
+                page.headers.forEach { (name, value) -> set(name, value) }
+            }.build()
+            builder.data(page.url).httpHeaders(headers)
+        }
+        builder
             // per-request: loader-level cap doesn't reach decode in coil 3.5.0 (ImageLoading.kt)
             .maxBitmapSize(WebtoonMaxBitmapSize)
             .build()

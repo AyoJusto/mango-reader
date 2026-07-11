@@ -23,6 +23,7 @@ import java.util.Properties
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -222,5 +223,69 @@ class DownloadManagerTest {
         assertEquals(0, row.pagesDone)
         assertEquals("Nano Machine", row.mangaTitle)
         assertEquals(12.0, row.chapterNumber)
+    }
+
+    @Test
+    fun localPagesReturnsOrderedAbsolutePathsAfterASuccessfulDownload() = runTest {
+        val root = Files.createTempDirectory("downloads-test")
+        val pages = listOf(
+            Page(index = 0, url = "https://cdn.example/c1/0.jpg"),
+            Page(index = 1, url = "https://cdn.example/c1/1.jpg"),
+        )
+        val bytesByUrl = mapOf(pages[0].url to byteArrayOf(1, 2, 3), pages[1].url to byteArrayOf(4, 5, 6, 7))
+        val manager = newManager(FakeCatalogRepository(mapOf("src/m1/c1" to pages)), mockClient(bytesByUrl), root)
+
+        manager.enqueue(entry("src", "m1"), chapter("c1"))
+        manager.processQueue()
+
+        assertEquals(
+            listOf(
+                root.resolve("src/m1/c1/0000.jpg").toAbsolutePath().toString(),
+                root.resolve("src/m1/c1/0001.jpg").toAbsolutePath().toString(),
+            ),
+            manager.localPages("src", "m1", "c1"),
+        )
+    }
+
+    @Test
+    fun localPagesIsNullWhenThereIsNoRowForTheKey() = runTest {
+        val root = Files.createTempDirectory("downloads-test")
+        val manager = newManager(FakeCatalogRepository(emptyMap()), mockClient(emptyMap()), root)
+
+        assertNull(manager.localPages("src", "m1", "c1"))
+    }
+
+    @Test
+    fun localPagesIsNullWhenTheChapterFailed() = runTest {
+        val root = Files.createTempDirectory("downloads-test")
+        val page = Page(index = 0, url = "https://cdn.example/c1/0.jpg")
+        val manager = newManager(
+            FakeCatalogRepository(mapOf("src/m1/c1" to listOf(page))),
+            mockClient(emptyMap(), failingUrls = setOf(page.url)),
+            root,
+        )
+
+        manager.enqueue(entry("src", "m1"), chapter("c1"))
+        manager.processQueue()
+
+        assertEquals(DownloadStatus.FAILED, manager.observeDownloads().first().single().status)
+        assertNull(manager.localPages("src", "m1", "c1"))
+    }
+
+    @Test
+    fun localPagesIsNullWhenDoneButAFileWasDeletedFromDiskAfterward() = runTest {
+        val root = Files.createTempDirectory("downloads-test")
+        val pages = listOf(
+            Page(index = 0, url = "https://cdn.example/c1/0.jpg"),
+            Page(index = 1, url = "https://cdn.example/c1/1.jpg"),
+        )
+        val bytesByUrl = mapOf(pages[0].url to byteArrayOf(1), pages[1].url to byteArrayOf(2))
+        val manager = newManager(FakeCatalogRepository(mapOf("src/m1/c1" to pages)), mockClient(bytesByUrl), root)
+
+        manager.enqueue(entry("src", "m1"), chapter("c1"))
+        manager.processQueue()
+        Files.delete(root.resolve("src/m1/c1/0001.jpg"))
+
+        assertNull(manager.localPages("src", "m1", "c1"))
     }
 }

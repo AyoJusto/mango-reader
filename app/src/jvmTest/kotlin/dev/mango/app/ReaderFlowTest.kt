@@ -19,7 +19,9 @@ import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.unit.dp
 import dev.mango.core.domain.Page
 import dev.mango.core.domain.SourceInfo
+import java.nio.file.Files
 import kotlinx.coroutines.runBlocking
+import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import org.junit.Rule
 import org.junit.Test
@@ -58,6 +60,7 @@ class ReaderFlowTest {
     private fun setReaderContent(
         library: FakeLibraryRepository,
         catalog: FakeCatalogRepository,
+        downloads: FakeDownloadManager = FakeDownloadManager(),
         progressDebounceMillis: Long = 500,
     ) {
         rule.setContent {
@@ -68,6 +71,7 @@ class ReaderFlowTest {
                     chapterId = CHAPTER_ID,
                     chapterLabel = "Ch. 1",
                     catalog = catalog,
+                    downloads = downloads,
                     library = library,
                     onBack = {},
                     onToggleFullscreen = {},
@@ -119,5 +123,37 @@ class ReaderFlowTest {
         rule.waitForIdle()
 
         rule.onNodeWithText("4 / 5").assertExists()
+    }
+
+    @Test
+    fun rendersLocalPagesWithoutHittingTheCatalogWhenTheChapterIsDownloaded() {
+        val dir = Files.createTempDirectory("reader-offline-test")
+        val file0 = dir.resolve("0000.jpg").also { Files.write(it, byteArrayOf(1)) }
+        val file1 = dir.resolve("0001.jpg").also { Files.write(it, byteArrayOf(2)) }
+        val library = FakeLibraryRepository()
+        val catalog = catalogWithPages()
+        val downloads = FakeDownloadManager(
+            localPagesByKey = mapOf("$SOURCE_ID/$MANGA_ID/$CHAPTER_ID" to listOf(file0.toString(), file1.toString())),
+        )
+
+        setReaderContent(library, catalog, downloads = downloads)
+        rule.waitForIdle()
+
+        rule.onNodeWithText("1 / 2 · offline").assertExists()
+        assertEquals(0, catalog.pagesCallCount)
+    }
+
+    @Test
+    fun fallsBackToTheCatalogWhenTheChapterIsNotDownloaded() {
+        val library = FakeLibraryRepository()
+        val catalog = catalogWithPages()
+
+        // Default FakeDownloadManager has no localPagesByKey entries, so localPages() returns
+        // null and the reader must fall back to the live catalog, same as before this chunk.
+        setReaderContent(library, catalog)
+        rule.waitForIdle()
+
+        rule.onNodeWithText("1 / 5").assertExists()
+        assertEquals(1, catalog.pagesCallCount)
     }
 }
