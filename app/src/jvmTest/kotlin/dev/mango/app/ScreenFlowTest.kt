@@ -142,6 +142,7 @@ class ScreenFlowTest {
                     mangaId = "manga-1",
                     catalog = catalog,
                     library = library,
+                    challengeSolver = FakeChallengeSolver(),
                     onOpenChapter = {},
                 )
             }

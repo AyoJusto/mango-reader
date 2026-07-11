@@ -8,7 +8,10 @@ import dev.mango.core.data.PaperbackCatalogRepository
 import dev.mango.core.data.SqlCookieStore
 import dev.mango.core.data.SqlLibraryRepository
 import dev.mango.core.db.MangoDatabase
+import dev.mango.app.webview.JcefChallengeSolver
+import dev.mango.app.webview.JcefManager
 import dev.mango.core.domain.CatalogRepository
+import dev.mango.core.domain.ChallengeSolver
 import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.ExtensionRepo
 import dev.mango.core.domain.LibraryRepository
@@ -34,6 +37,8 @@ class AppGraph(dataDir: Path = defaultDataDir()) {
     val catalog: CatalogRepository
     val downloads: DownloadManager
     val extensions: ExtensionRepo
+    val challengeSolver: ChallengeSolver
+    private val jcef: JcefManager
 
     init {
         Files.createDirectories(dataDir)
@@ -91,6 +96,20 @@ class AppGraph(dataDir: Path = defaultDataDir()) {
         )
         downloads = FileDownloadManager(db = db, catalog = catalog, http = http, root = downloadsDir)
         extensions = InkdexRepo(http = http, bundleDir = bundleDir, catalog = catalog)
+
+        // embedded browser for the Cloudflare solve; CEF downloads into <dataDir>/jcef on
+        // first use. A fresh SqlCookieStore per source is cheap (DB-backed, stateless).
+        jcef = JcefManager(dataDir.resolve("jcef"))
+        challengeSolver = JcefChallengeSolver(
+            jcef = jcef,
+            catalog = catalog,
+            cookieStoreFor = { sourceId -> SqlCookieStore(db, sourceId) },
+        )
+    }
+
+    /** Release the embedded browser on app exit. */
+    fun dispose() {
+        jcef.dispose()
     }
 
     companion object {

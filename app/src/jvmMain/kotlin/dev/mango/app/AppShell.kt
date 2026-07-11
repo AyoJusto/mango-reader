@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.mango.core.domain.AvailableSource
 import dev.mango.core.domain.CatalogRepository
+import dev.mango.core.domain.ChallengeSolver
 import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.ExtensionRepo
 import dev.mango.core.domain.LibraryRepository
@@ -31,6 +32,11 @@ import kotlinx.coroutines.launch
 private object NoOpExtensionRepo : ExtensionRepo {
     override suspend fun available(): List<AvailableSource> = emptyList()
     override suspend fun install(source: AvailableSource) = Unit
+}
+
+/** Used only when a caller doesn't wire the real solver (tests exercising non-challenge flows). */
+private object NoOpChallengeSolver : ChallengeSolver {
+    override suspend fun solve(sourceId: String, url: String): Boolean = false
 }
 
 /**
@@ -65,6 +71,7 @@ fun AppShell(
     catalog: CatalogRepository,
     downloads: DownloadManager,
     extensions: ExtensionRepo = NoOpExtensionRepo,
+    challengeSolver: ChallengeSolver = NoOpChallengeSolver,
     onToggleFullscreen: () -> Unit = {},
 ) {
     var screen by remember { mutableStateOf<Screen>(Screen.Library) }
@@ -90,6 +97,7 @@ fun AppShell(
                 catalog = catalog,
                 downloads = downloads,
                 library = library,
+                challengeSolver = challengeSolver,
                 onBack = { lastDetails?.let { screen = it } ?: run { screen = Screen.Library } },
                 onToggleFullscreen = onToggleFullscreen,
             )
@@ -130,7 +138,7 @@ fun AppShell(
                         Screen.Library -> LibraryScreen(library) { entry ->
                             screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = false)
                         }
-                        Screen.Browse -> BrowseScreen(catalog, browseState) { entry ->
+                        Screen.Browse -> BrowseScreen(catalog, challengeSolver, browseState) { entry ->
                             screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = true)
                         }
                         Screen.Downloads -> DownloadsScreen(downloads)
@@ -143,6 +151,7 @@ fun AppShell(
                                     mangaId = current.mangaId,
                                     catalog = catalog,
                                     library = library,
+                                    challengeSolver = challengeSolver,
                                     onOpenChapter = { chapter ->
                                         screen = Screen.Reader(
                                             sourceId = current.sourceId,

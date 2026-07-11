@@ -316,14 +316,20 @@ De-risk the unknown before building around it.
   will 403 (route through host interceptors when a real source needs it, M3+), and the
   download client skips `ApplicationHost`'s per-host rate limit — when the project-wide host
   allowlist lands, the download path must go through the same policy as `scheduleRequest`.
-- **Cloudflare (decided 2026-07-10, mirrors Paperback's manual-check flow).** Detection lives in
-  `:core`: `ApplicationHost.scheduleRequest` turns a Cloudflare-challenge response into a named
-  error carrying source + URL (M1.5 error taxonomy). Solving lives in `:app`: an embedded
-  Chromium via KCEF opens the challenge, the user clicks through, and the harvested
-  `cf_clearance` cookie goes into the per-source cookie jar (`:core`, SQLDelight, M2) — landing
-  M3/M4 when a window exists. The clearance cookie is UA-bound, so a solved source pins its UA
-  to the WebView's. `executeInWebView` stays a named unsupported error until KCEF lands, then
-  shares the machinery. Until then, tests and shake-outs use non-Cloudflare sources.
+- **Cloudflare (built M4.3, mirrors Paperback's manual-check flow).** Detection lives in
+  `:core`: `ApplicationHost` turns a Cloudflare-challenge response into a domain
+  `ChallengeRequiredException` carrying the URL (M4.3a). Solving lives in `:app`: an embedded
+  Chromium via **jcefmaven** (`me.friwi:jcefmaven` — NOT KCEF, which was archived Oct 2025 and
+  its author says don't use it; the spike proved jcefmaven renders, passes CF, and reads the
+  HttpOnly `cf_clearance` back via `CefCookieManager.visitAllCookies`, which a lightweight
+  WebView2 wrapper could not) opens the challenge, the user passes it (often invisibly), and
+  the harvested `cf_clearance` (+ `__cf*`) goes into the per-source cookie jar (M2.3). The
+  clearance cookie is UA-bound, so the solver pins a fixed desktop-Chrome UA on both the CEF
+  browser and the source (`setUserAgent`, which evicts the cached engine). CEF natives download
+  into `<dataDir>/jcef` on first solve (~100 MB, one time). Faithfulness gaps to close later:
+  the 0.9 SDK expects the host to call the extension's `cloudflareBypassCompleted(request,
+  cookies, localStorage)` callback (we use the shared jar instead), and some CF flows also
+  persist state in localStorage (we harvest cookies only).
 
 ---
 

@@ -41,6 +41,7 @@ import coil3.compose.AsyncImage
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.ChallengeRequiredException
+import dev.mango.core.domain.ChallengeSolver
 import dev.mango.core.domain.LibraryRepository
 import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
@@ -177,6 +178,7 @@ fun DetailsScreen(
     mangaId: String,
     catalog: CatalogRepository,
     library: LibraryRepository,
+    challengeSolver: ChallengeSolver,
     onOpenChapter: (Chapter) -> Unit,
     onDownloadChapter: (MangaEntry, Chapter) -> Unit = { _, _ -> },
     onDownloadAll: (MangaEntry, List<Chapter>) -> Unit = { _, _ -> },
@@ -185,11 +187,13 @@ fun DetailsScreen(
     var chapters by remember(sourceId, mangaId) { mutableStateOf<List<Chapter>>(emptyList()) }
     var error by remember(sourceId, mangaId) { mutableStateOf<String?>(null) }
     var challengeUrl by remember(sourceId, mangaId) { mutableStateOf<String?>(null) }
+    var solving by remember(sourceId, mangaId) { mutableStateOf(false) }
+    var reloadKey by remember(sourceId, mangaId) { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
     val libraryItems by library.observeLibrary().collectAsState(initial = emptyList())
     val inLibrary = libraryItems.any { it.entry.sourceId == sourceId && it.entry.mangaId == mangaId }
 
-    LaunchedEffect(sourceId, mangaId) {
+    LaunchedEffect(sourceId, mangaId, reloadKey) {
         error = null
         challengeUrl = null
         try {
@@ -216,13 +220,28 @@ fun DetailsScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.error,
                     )
-                    if (challengeUrl != null) {
-                        Button(onClick = {}, enabled = false) { Text("Solve challenge") }
-                        Text(
-                            text = "(coming in the next update)",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                    val url = challengeUrl
+                    if (url != null) {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    solving = true
+                                    try {
+                                        if (challengeSolver.solve(sourceId, url)) reloadKey++
+                                    } finally {
+                                        solving = false
+                                    }
+                                }
+                            },
+                            enabled = !solving,
+                        ) { Text("Solve challenge") }
+                        if (solving) {
+                            Text(
+                                text = "Opening browser… (first run downloads it, ~100MB)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }

@@ -2,6 +2,7 @@ package dev.mango.app
 
 import dev.mango.core.domain.AvailableSource
 import dev.mango.core.domain.CatalogRepository
+import dev.mango.core.domain.ChallengeSolver
 import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.Download
 import dev.mango.core.domain.DownloadManager
@@ -17,6 +18,15 @@ import dev.mango.core.domain.SourceInfo
 import kotlin.time.Clock
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+
+/** Records solve calls; returns [result] (default false = user didn't pass the challenge). */
+class FakeChallengeSolver(private val result: Boolean = false) : ChallengeSolver {
+    val solved = mutableListOf<Pair<String, String>>()
+    override suspend fun solve(sourceId: String, url: String): Boolean {
+        solved += sourceId to url
+        return result
+    }
+}
 
 /** In-memory [LibraryRepository] for tests. No DB, no network. */
 class FakeLibraryRepository(initial: List<LibraryItem> = emptyList()) : LibraryRepository {

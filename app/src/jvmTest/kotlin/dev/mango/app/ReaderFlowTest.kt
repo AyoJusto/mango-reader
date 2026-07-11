@@ -73,6 +73,7 @@ class ReaderFlowTest {
                     catalog = catalog,
                     downloads = downloads,
                     library = library,
+                    challengeSolver = FakeChallengeSolver(),
                     onBack = {},
                     onToggleFullscreen = {},
                     progressDebounceMillis = progressDebounceMillis,

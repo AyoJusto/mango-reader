@@ -34,6 +34,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.ChallengeRequiredException
+import dev.mango.core.domain.ChallengeSolver
 import dev.mango.core.domain.MangaEntry
 import dev.mango.core.domain.SourceInfo
 import kotlinx.coroutines.CancellationException
@@ -53,6 +54,8 @@ fun BrowseScreenContent(
     results: List<MangaEntry>,
     onOpenDetails: (MangaEntry) -> Unit,
     challengeUrl: String? = null,
+    solving: Boolean = false,
+    onSolveChallenge: () -> Unit = {},
 ) {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -89,12 +92,15 @@ fun BrowseScreenContent(
                             color = MaterialTheme.colorScheme.error,
                         )
                         if (challengeUrl != null) {
-                            Button(onClick = {}, enabled = false) { Text("Solve challenge") }
-                            Text(
-                                text = "(coming in the next update)",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(onClick = onSolveChallenge, enabled = !solving) { Text("Solve challenge") }
+                            if (solving) {
+                                Text(
+                                    text = "Opening browser… (first run downloads it, ~100MB)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
                     results.isEmpty() -> Text(
@@ -132,12 +138,18 @@ class BrowseState {
     var isLoading by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
     var challengeUrl by mutableStateOf<String?>(null)
+    var solving by mutableStateOf(false)
     var results by mutableStateOf<List<MangaEntry>>(emptyList())
 }
 
 /** Stateful loader: one-shot source list, then search-on-submit against [CatalogRepository]. */
 @Composable
-fun BrowseScreen(catalog: CatalogRepository, state: BrowseState, onOpenDetails: (MangaEntry) -> Unit) {
+fun BrowseScreen(
+    catalog: CatalogRepository,
+    challengeSolver: ChallengeSolver,
+    state: BrowseState,
+    onOpenDetails: (MangaEntry) -> Unit,
+) {
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
@@ -169,6 +181,19 @@ fun BrowseScreen(catalog: CatalogRepository, state: BrowseState, onOpenDetails: 
         }
     }
 
+    fun solveChallenge() {
+        val sourceId = state.selectedSourceId ?: return
+        val url = state.challengeUrl ?: return
+        scope.launch {
+            state.solving = true
+            try {
+                if (challengeSolver.solve(sourceId, url)) search()
+            } finally {
+                state.solving = false
+            }
+        }
+    }
+
     BrowseScreenContent(
         sources = state.sources,
         selectedSourceId = state.selectedSourceId,
@@ -179,6 +204,8 @@ fun BrowseScreen(catalog: CatalogRepository, state: BrowseState, onOpenDetails: 
         isLoading = state.isLoading,
         error = state.error,
         challengeUrl = state.challengeUrl,
+        solving = state.solving,
+        onSolveChallenge = { solveChallenge() },
         results = state.results,
         onOpenDetails = onOpenDetails,
     )
