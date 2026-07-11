@@ -128,11 +128,11 @@ fun BrowseScreenContent(
 /**
  * Browse's screen state, hoisted out of [BrowseScreen] so the caller can [remember] it at the
  * shell level (see [AppShell]): switching tabs away from and back to Browse must not lose the
- * query, results, or re-trigger the one-shot sources load.
+ * query, results, or selection. The source list itself reloads on each entry so fresh installs
+ * from the Extensions tab appear immediately.
  */
 class BrowseState {
     var sources by mutableStateOf<List<SourceInfo>>(emptyList())
-    var sourcesLoaded by mutableStateOf(false)
     var selectedSourceId by mutableStateOf<String?>(null)
     var query by mutableStateOf("")
     var isLoading by mutableStateOf(false)
@@ -153,10 +153,11 @@ fun BrowseScreen(
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
-        if (!state.sourcesLoaded) {
-            state.sources = catalog.installedSources()
+        // Reload on every entry, not one-shot: an extension installed on the Extensions tab
+        // must show up here without restarting the app. Query/results retention is untouched.
+        state.sources = catalog.installedSources()
+        if (state.sources.none { it.sourceId == state.selectedSourceId }) {
             state.selectedSourceId = state.sources.firstOrNull()?.sourceId
-            state.sourcesLoaded = true
         }
     }
 

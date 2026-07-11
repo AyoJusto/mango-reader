@@ -295,7 +295,25 @@ De-risk the unknown before building around it.
   extension install/update from the Inkdex 0.9 repo (schema v3: version + per-source UA);
   Cloudflare solve via embedded Chromium (KCEF) harvesting cf_clearance into the per-source
   cookie jar; settings page (theme picker), download selection (all/unread/range),
-  cross-extension search. After M4: UI/functionality refinement phase (owner call).
+  cross-extension search — shipped as a dedicated Search tab in the nav rail (installed
+  sources as filter chips, results grouped per source).
+- **M5 — Discovery: extension home pages (planned 2026-07-11).** Browse becomes one tab per
+  installed extension rendering that source's own homepage sections ("Most Recent",
+  "Popular" — whatever the extension publishes). Paperback bundles declare the
+  `HOMEPAGE_SECTIONS` intent and expose `getHomePageSections()` (callback-based, sections
+  stream in). Two chunks: (a) engine — shim `getHomePageSections` in the SDK layer, add a
+  home-sections method to `MangaSource` plus a domain `HomeSection` type, verify against
+  all bundle fixtures; shim work, mandatory review. (b) UI — tabbed Browse, one tab per
+  installed source, horizontal section rows of covers; sources without the capability fall
+  back to a plain search-results view. New installs appear without restart (Browse reloads
+  its source list on entry, fixed 2026-07-11). Sequenced before the design-refinement pass
+  so that pass styles the real Browse, not a throwaway.
+- **M6 — Quick nav and reader QoL (planned 2026-07-11).** (a) Search-everywhere palette,
+  IntelliJ double-Shift style, **local only**: a modal that fuzzy-matches app screens,
+  settings entries, and library/downloaded manhwa; Enter navigates straight to the hit.
+  Built with a tab bar from day one so the online tab (§12 backlog) slots in later without
+  rework. (b) Configurable auto-scroll in the reader: hotkey-bound toggle, scroll speed
+  configurable in settings. After M6: UI/functionality refinement phase (owner call).
 - ~~M5+ — Apple targets~~ moved to §12 backlog (2026-07-11): not needed now or anytime soon.
 
 ---
@@ -377,6 +395,9 @@ pages, downloads metadata + library-on-download + download-all, configurable the
 - cross-extension search: query all installed sources, results grouped per source
 - settings page (theme picker first — the registry and persistence already exist)
 - proper UI design pass (icon strategy, spacing/type rhythm, window-resize behavior)
+- search-everywhere palette, online tab: a Tab-reachable second tab in the M6 palette that
+  runs cross-extension search (reuses the M4.4 machinery, debounced); local and online
+  results never mix
 - Apple targets (ex-M5, parked 2026-07-11): macOS/iOS thin client against `:core` behind a
   future `:server`; revisit only if an Apple device actually materializes
 
