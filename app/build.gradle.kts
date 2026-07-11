@@ -31,12 +31,16 @@ kotlin {
     }
 }
 
-// JCEF needs these AWT internals opened on JDK 16+ (jcefmaven README).
-val jcefJvmArgs = listOf(
-    "--add-opens", "java.desktop/sun.awt=ALL-UNNAMED",
-    "--add-opens", "java.desktop/sun.lwawt=ALL-UNNAMED",
-    "--add-opens", "java.desktop/sun.lwawt.macosx=ALL-UNNAMED",
-)
+// JCEF needs these AWT internals opened on JDK 16+ (jcefmaven README). sun.lwawt* exist only
+// in the macOS java.desktop module; opening them on Windows/Linux is a no-op the JVM warns
+// about ("package sun.lwawt not in java.desktop"), so add them only where they exist.
+val jcefJvmArgs = buildList {
+    add("--add-opens"); add("java.desktop/sun.awt=ALL-UNNAMED")
+    if (System.getProperty("os.name").startsWith("Mac", ignoreCase = true)) {
+        add("--add-opens"); add("java.desktop/sun.lwawt=ALL-UNNAMED")
+        add("--add-opens"); add("java.desktop/sun.lwawt.macosx=ALL-UNNAMED")
+    }
+}
 
 compose.desktop {
     application {
