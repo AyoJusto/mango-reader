@@ -13,12 +13,9 @@ fun main() {
     // theme, e.g. `theme=midnight`. See Themes.schemes in Theme.kt for the available names.
     val settings = Settings(AppGraph.defaultDataDir())
     application {
-        // opens maximized (screen-sized on any monitor); the DpSize is what un-maximizing
-        // falls back to — 1440p-shaped so a floating window still reads comfortably
-        val windowState = rememberWindowState(
-            placement = WindowPlacement.Maximized,
-            size = DpSize(2560.dp, 1440.dp),
-        )
+        // default window size: 1440p (owner call, 2026-07-11) — a floating window this
+        // size fills a 2560x1440 monitor; the OS clamps it on smaller screens
+        val windowState = rememberWindowState(size = DpSize(2560.dp, 1440.dp))
         Window(onCloseRequest = ::exitApplication, title = "mango", state = windowState) {
             MangoTheme(themeName = settings.theme) {
                 AppShell(
@@ -26,10 +23,8 @@ fun main() {
                     graph.catalog,
                     graph.downloads,
                     onToggleFullscreen = {
-                        // returns to Maximized (the default), not Floating — F out of
-                        // fullscreen should not shrink the window
                         windowState.placement = if (windowState.placement == WindowPlacement.Fullscreen) {
-                            WindowPlacement.Maximized
+                            WindowPlacement.Floating
                         } else {
                             WindowPlacement.Fullscreen
                         }
