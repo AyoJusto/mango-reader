@@ -37,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -52,6 +53,7 @@ import coil3.compose.SubcomposeAsyncImage
 import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
 import coil3.request.ImageRequest
+import coil3.request.maxBitmapSize
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.LibraryRepository
 import dev.mango.core.domain.Page
@@ -276,12 +278,16 @@ private fun DefaultReaderPage(page: Page) {
         ImageRequest.Builder(context)
             .data(page.url)
             .httpHeaders(headers)
+            // per-request: loader-level cap doesn't reach decode in coil 3.5.0 (ImageLoading.kt)
+            .maxBitmapSize(WebtoonMaxBitmapSize)
             .build()
     }
     SubcomposeAsyncImage(
         model = request,
         contentDescription = null,
         contentScale = ContentScale.FillWidth,
+        // pages render 800px sources into wider viewports; low (default) filtering pixelates
+        filterQuality = FilterQuality.High,
         modifier = Modifier.fillMaxWidth(),
         loading = {
             Box(

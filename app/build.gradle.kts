@@ -18,6 +18,8 @@ kotlin {
             implementation(libs.coil.network.ktor3)
             // :app opens its own DB file (composition root); :core keeps its driver private
             implementation(libs.sqldelight.sqlite.driver)
+            // ktor logs through slf4j; without a provider every launch prints NOP warnings
+            runtimeOnly(libs.slf4j.simple)
         }
         jvmTest.dependencies {
             implementation(libs.kotlin.test)
@@ -29,5 +31,8 @@ kotlin {
 compose.desktop {
     application {
         mainClass = "dev.mango.app.MainKt"
+        // stock JDK can't load TruffleAttach (optimized Truffle unavailable — GraalJS runs
+        // interpreted; fine, extension calls are network-bound). Silence the boot warning.
+        jvmArgs("-Dpolyglotimpl.AttachLibraryFailureAction=ignore")
     }
 }
