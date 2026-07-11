@@ -37,6 +37,21 @@ researched with a draft engine brief below, zero implementation started.
 - Browse's own unguarded source-list load is left as-is: Browse is replaced wholesale in
   M5 (ceiling noted in PLANNING.md).
 
+## Post-exit bug: Cloudflare re-challenged after a successful solve (FIXED)
+
+Owner report: Toonily solve window opened and closed in seconds (that part is normal —
+toonily's managed challenge auto-passes), but re-search still failed. Diagnosis chain:
+solve/harvest/persist verified working (cf_clearance + pinned Chrome UA present in the
+real DB, valid to 2027); a raw Ktor replay with the same cookie+UA returned 200; the
+engine's byte-equivalent request 403'd. Bisected live: **header-name casing was the
+fingerprint** — bundles send h2/iOS-style lowercase names (`user-agent`, `referer`),
+ApplicationHost copied them verbatim onto HTTP/1.1, and Cloudflare challenges lowercase
+h1 headers presented with a Chrome UA. Fix: `ApplicationHost.canonicalHeaderName`
+title-cases outgoing header names at the wire boundary (JS-facing side stays lowercase).
+Regression test `bundleHeaderNamesAreCanonicalizedOnTheWire`; `LiveChallengeSmokeTest`
+extended with the previously-missing post-solve replay assertion; verified live —
+production Toonily search returns results. Recorded in PLANNING §10.
+
 ## Nothing was blocked
 
 Screen lock never interfered: the screenshot harness renders offscreen, so settings and

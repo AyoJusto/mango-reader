@@ -359,7 +359,12 @@ De-risk the unknown before building around it.
   the harvested `cf_clearance` (+ `__cf*`) goes into the per-source cookie jar (M2.3). The
   clearance cookie is UA-bound, so the solver pins a fixed desktop-Chrome UA on both the CEF
   browser and the source (`setUserAgent`, which evicts the cached engine). CEF natives download
-  into `<dataDir>/jcef` on first solve (~100 MB, one time). Faithfulness gaps to close later:
+  into `<dataDir>/jcef` on first solve (~100 MB, one time). **Header-name casing is part of
+  the fingerprint** (found live 2026-07-11): bundles write h2/iOS-style lowercase names
+  (`user-agent`), and replayed verbatim over Ktor CIO's HTTP/1.1 they get challenged even
+  with valid cf_clearance + matching UA — byte-identical request passes title-cased.
+  `ApplicationHost.canonicalHeaderName` normalizes at the wire boundary; keep it if the
+  HTTP client ever changes (and revisit if that client speaks h2, where lowercase is law). Faithfulness gaps to close later:
   the 0.9 SDK expects the host to call the extension's `cloudflareBypassCompleted(request,
   cookies, localStorage)` callback (we use the shared jar instead), and some CF flows also
   persist state in localStorage (we harvest cookies only).

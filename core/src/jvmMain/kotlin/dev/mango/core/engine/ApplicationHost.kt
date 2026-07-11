@@ -366,6 +366,24 @@ class ApplicationHost(
         if (waitMillis > 0) delay(waitMillis)
     }
 
+    /**
+     * Bundles write h2/iOS-style lowercase header names ("user-agent"); sent verbatim over
+     * this client's HTTP/1.1 connection that casing is a non-browser fingerprint Cloudflare
+     * challenges even with valid cf_clearance (verified live 2026-07-11: byte-identical
+     * request 200s title-cased, 403s lowercased). Normalize to canonical h1 casing at the
+     * wire boundary; the JS-facing side keeps lowercase (bundles do exact lowercase lookups).
+     *
+     * Only all-lowercase names are rewritten: a bundle that wrote "DNT" or "X-API-Key"
+     * chose its casing deliberately and passes through verbatim. Chrome emits sec-* client
+     * hints lowercase even over h1, so those stay lowercase too — title-casing them would
+     * reintroduce the same fingerprint bug on a different header set.
+     */
+    private fun canonicalHeaderName(name: String): String = when {
+        name.any { it.isUpperCase() } -> name
+        name.startsWith("sec-") -> name
+        else -> name.split('-').joinToString("-") { part -> part.replaceFirstChar { it.uppercaseChar() } }
+    }
+
     private suspend fun execute(
         client: HttpClient,
         request: Value,
@@ -374,7 +392,7 @@ class ApplicationHost(
         val methodName = request.getMember("method")?.takeIf { it.isString }?.asString() ?: "GET"
         method = HttpMethod.parse(methodName.uppercase())
         request.getMember("headers")?.takeIf { it.hasMembers() }?.let { h ->
-            h.memberKeys.forEach { key -> header(key, h.getMember(key).asString()) }
+            h.memberKeys.forEach { key -> header(canonicalHeaderName(key), h.getMember(key).asString()) }
         }
         if (headers[HttpHeaders.UserAgent] == null) header(HttpHeaders.UserAgent, userAgent)
         val cookiePairs = linkedMapOf<String, String>()

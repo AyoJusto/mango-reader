@@ -5,6 +5,8 @@ import dev.mango.app.webview.JcefChallengeSolver
 import dev.mango.app.webview.JcefManager
 import dev.mango.core.data.SqlCookieStore
 import dev.mango.core.db.MangoDatabase
+import io.ktor.client.request.get
+import io.ktor.client.request.header
 import java.nio.file.Paths
 import java.util.Properties
 import kotlin.test.Test
@@ -45,6 +47,28 @@ class LiveChallengeSmokeTest {
             println("SMOKE harvested cookies: ${cookies.map { it.name }}")
             assertTrue(cookies.any { it.name == "cf_clearance" }, "expected cf_clearance in the jar")
             assertTrue(catalog.userAgentsBySourceId["Toonily"] != null, "expected the UA to be pinned")
+
+            // the end-to-end proof harvesting alone doesn't give: the clearance must also
+            // satisfy Cloudflare when replayed by the JVM HTTP stack (same UA + IP; the
+            // TLS/CF-environment axis). The engine's header-casing axis is covered by the
+            // unit regression test bundleHeaderNamesAreCanonicalizedOnTheWire, not here.
+            runBlocking {
+                io.ktor.client.HttpClient(io.ktor.client.engine.cio.CIO).use { http ->
+                    val response = http.get("https://toonily.com/") {
+                        header(
+                            io.ktor.http.HttpHeaders.Cookie,
+                            cookies.joinToString("; ") { "${it.name}=${it.value}" },
+                        )
+                        header(io.ktor.http.HttpHeaders.UserAgent, dev.mango.app.webview.WebViewUserAgent)
+                    }
+                    println(
+                        "SMOKE replay: status=${response.status.value} " +
+                            "cf-mitigated=${response.headers["cf-mitigated"]}",
+                    )
+                    assertTrue(response.status.value == 200, "replay with harvested clearance expected 200, got ${response.status.value}")
+                    assertTrue(response.headers["cf-mitigated"] == null, "replay was re-challenged (cf-mitigated=${response.headers["cf-mitigated"]})")
+                }
+            }
         } finally {
             jcef.dispose()
         }

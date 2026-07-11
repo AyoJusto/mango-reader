@@ -59,6 +59,46 @@ class ApplicationHostTest {
     }
 
     @Test
+    fun bundleHeaderNamesAreCanonicalizedOnTheWire() = runBlocking {
+        // bundles send h2-style lowercase names; over HTTP/1.1 that casing is a bot
+        // fingerprint Cloudflare challenges (found live against toonily, 2026-07-11)
+        var wireNames: List<String>? = null
+        val engine = MockEngine { request ->
+            wireNames = request.headers.entries().map { it.key }
+            respond("ok".encodeToByteArray(), HttpStatusCode.OK)
+        }
+        val host = ApplicationHost(http = HttpClient(engine))
+        newContext().use { context ->
+            val app = host.applicationProxyFor(context)
+            val scheduleRequest = app.getMember("scheduleRequest") as ProxyExecutable
+            val request = ProxyObject.fromMap(
+                mapOf(
+                    "url" to "https://example.com/",
+                    "method" to "GET",
+                    "headers" to ProxyObject.fromMap(
+                        mapOf(
+                            "user-agent" to "test-ua",
+                            "referer" to "https://example.com/",
+                            // deliberate casing passes through; sec-* stays lowercase (Chrome
+                            // emits client hints lowercase even over h1)
+                            "DNT" to "1",
+                            "sec-ch-ua" to "\"Chromium\";v=\"143\"",
+                        ),
+                    ),
+                ),
+            )
+            awaitPromise(context, context.asValue(scheduleRequest.execute(context.asValue(request))), "scheduleRequest")
+
+            val names = wireNames.orEmpty()
+            assertEquals(true, "User-Agent" in names, "expected canonical User-Agent, got $names")
+            assertEquals(true, "Referer" in names, "expected canonical Referer, got $names")
+            assertEquals(false, "user-agent" in names, "lowercase name leaked to the wire: $names")
+            assertEquals(true, "DNT" in names, "deliberate all-caps casing should pass through, got $names")
+            assertEquals(true, "sec-ch-ua" in names, "sec-* must stay lowercase, got $names")
+        }
+    }
+
+    @Test
     fun requestInterceptorReachesOutgoingRequestAndResponseInterceptorSeesResponse() = runBlocking {
         var capturedHeader: String? = null
         val engine = MockEngine { request ->
