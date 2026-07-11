@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.Chapter
+import dev.mango.core.domain.ChallengeRequiredException
 import dev.mango.core.domain.LibraryRepository
 import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
@@ -183,17 +184,22 @@ fun DetailsScreen(
     var details by remember(sourceId, mangaId) { mutableStateOf<MangaDetails?>(null) }
     var chapters by remember(sourceId, mangaId) { mutableStateOf<List<Chapter>>(emptyList()) }
     var error by remember(sourceId, mangaId) { mutableStateOf<String?>(null) }
+    var challengeUrl by remember(sourceId, mangaId) { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val libraryItems by library.observeLibrary().collectAsState(initial = emptyList())
     val inLibrary = libraryItems.any { it.entry.sourceId == sourceId && it.entry.mangaId == mangaId }
 
     LaunchedEffect(sourceId, mangaId) {
         error = null
+        challengeUrl = null
         try {
             details = catalog.details(sourceId, mangaId)
             chapters = catalog.chapters(sourceId, mangaId)
         } catch (e: CancellationException) {
             throw e
+        } catch (e: ChallengeRequiredException) {
+            error = "This source is protected by Cloudflare"
+            challengeUrl = e.url
         } catch (e: Exception) {
             error = e.message ?: "Failed to load"
         }
@@ -204,11 +210,21 @@ fun DetailsScreen(
     when {
         currentError != null -> Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = currentError,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = currentError,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    if (challengeUrl != null) {
+                        Button(onClick = {}, enabled = false) { Text("Solve challenge") }
+                        Text(
+                            text = "(coming in the next update)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
         }
         currentDetails == null -> Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {

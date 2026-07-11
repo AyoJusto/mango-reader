@@ -42,6 +42,9 @@ private class CountingCatalogRepository(private val delegate: CatalogRepository)
 
     override suspend fun pages(sourceId: String, mangaId: String, chapterId: String): List<Page> =
         delegate.pages(sourceId, mangaId, chapterId)
+
+    override suspend fun setUserAgent(sourceId: String, userAgent: String) =
+        delegate.setUserAgent(sourceId, userAgent)
 }
 
 /**

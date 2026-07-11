@@ -40,7 +40,7 @@ class CatalogRepositoryTest {
     private fun newRepository(
         bundleDir: Path,
         db: MangoDatabase = newDb(),
-        sourceFactory: (String, String) -> MangaSource = { sourceId, bundleJs ->
+        sourceFactory: (String, String, String?) -> MangaSource = { sourceId, bundleJs, _ ->
             PaperbackExtension(sourceId, bundleJs, ApplicationHost(http = RecordedHttp.replayClient()))
         },
     ): CatalogRepository = PaperbackCatalogRepository(db, bundleDir, sourceFactory)
@@ -92,7 +92,7 @@ class CatalogRepositoryTest {
         val calls = AtomicInteger(0)
         val repo = newRepository(
             bundleDirWithFlameComics(),
-            sourceFactory = { sourceId, bundleJs ->
+            sourceFactory = { sourceId, bundleJs, _ ->
                 calls.incrementAndGet()
                 PaperbackExtension(sourceId, bundleJs, ApplicationHost(http = RecordedHttp.replayClient()))
             },
@@ -125,7 +125,7 @@ class CatalogRepositoryTest {
         val calls = AtomicInteger(0)
         val repo = newRepository(
             bundleDirWithFlameComics(),
-            sourceFactory = { sourceId, bundleJs ->
+            sourceFactory = { sourceId, bundleJs, _ ->
                 calls.incrementAndGet()
                 PaperbackExtension(sourceId, bundleJs, ApplicationHost(http = RecordedHttp.replayClient()))
             },
@@ -138,6 +138,69 @@ class CatalogRepositoryTest {
         repo.search("FlameComics", "")
 
         assertEquals(2, calls.get(), "expected reinstall to force re-verification and rebuild")
+    }
+
+    @Test
+    fun setUserAgentRoundTripsAndEvictsTheCachedSource() = runTest {
+        val calls = AtomicInteger(0)
+        val seenUserAgents = mutableListOf<String?>()
+        val db = newDb()
+        val repo = newRepository(
+            bundleDirWithFlameComics(),
+            db = db,
+            sourceFactory = { sourceId, bundleJs, userAgent ->
+                calls.incrementAndGet()
+                seenUserAgents += userAgent
+                PaperbackExtension(sourceId, bundleJs, ApplicationHost(http = RecordedHttp.replayClient()))
+            },
+        )
+        repo.install(SourceInfo(sourceId = "FlameComics", name = "Flame Comics"), FLAME_COMICS_SHA256)
+        repo.search("FlameComics", "")
+
+        repo.setUserAgent("FlameComics", "pinned-ua")
+        repo.search("FlameComics", "")
+
+        assertEquals(2, calls.get(), "expected setUserAgent to evict the cached source and force a rebuild")
+        assertEquals(listOf(null, "pinned-ua"), seenUserAgents)
+        assertEquals(
+            "pinned-ua",
+            db.sourcesQueries.selectInstalledSource("FlameComics").executeAsOne().user_agent,
+        )
+    }
+
+    @Test
+    fun setUserAgentWithUnsafeSourceIdIsRejected() = runTest {
+        val repo = newRepository(bundleDirWithFlameComics())
+
+        assertFailsWith<IllegalArgumentException> { repo.setUserAgent("../evil", "some-ua") }
+    }
+
+    @Test
+    fun reinstallPreservesAPinnedUserAgent() = runTest {
+        // the cf_clearance-bound UA earned by the solve flow must outlive an extension update
+        val seenUserAgents = mutableListOf<String?>()
+        val db = newDb()
+        val repo = newRepository(
+            bundleDirWithFlameComics(),
+            db = db,
+            sourceFactory = { sourceId, bundleJs, userAgent ->
+                seenUserAgents += userAgent
+                PaperbackExtension(sourceId, bundleJs, ApplicationHost(http = RecordedHttp.replayClient()))
+            },
+        )
+        val info = SourceInfo(sourceId = "FlameComics", name = "Flame Comics", version = "1.0.0")
+        repo.install(info, FLAME_COMICS_SHA256)
+        repo.setUserAgent("FlameComics", "pinned-ua")
+        repo.search("FlameComics", "")
+
+        repo.install(info.copy(version = "2.0.0"), FLAME_COMICS_SHA256) // update
+        repo.search("FlameComics", "")
+
+        assertEquals("pinned-ua", seenUserAgents.last())
+        assertEquals(
+            "pinned-ua",
+            db.sourcesQueries.selectInstalledSource("FlameComics").executeAsOne().user_agent,
+        )
     }
 
     @Test

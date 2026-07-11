@@ -1,5 +1,6 @@
 package dev.mango.core.engine
 
+import dev.mango.core.domain.ChallengeRequiredException
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -10,7 +11,7 @@ import kotlin.test.Test
 import kotlin.test.assertFailsWith
 
 /**
- * Offline proof that a Cloudflare challenge surfaces as [CloudflareChallengeException]
+ * Offline proof that a Cloudflare challenge surfaces as [ChallengeRequiredException]
  * (never a generic [ExtensionCallException], never a hang) through the REAL bundles:
  * each source's own interceptResponse throws its in-bundle `type: "cloudflareError"`
  * error, and the engine boundary names it. MockEngine plays the challenged site.
@@ -25,7 +26,7 @@ class ChallengeDetectionTest {
             )
         })
         val extension = PaperbackExtension("Toonily", toonilyBundle, ApplicationHost(http = challengedSite))
-        assertFailsWith<CloudflareChallengeException> { extension.search("solo") }
+        assertFailsWith<ChallengeRequiredException> { extension.search("solo") }
         Unit
     }
 
@@ -39,7 +40,7 @@ class ChallengeDetectionTest {
             )
         })
         val extension = PaperbackExtension("MangaBat", mangaBatBundle, ApplicationHost(http = challengedSite))
-        assertFailsWith<CloudflareChallengeException> { extension.search("solo") }
+        assertFailsWith<ChallengeRequiredException> { extension.search("solo") }
         Unit
     }
 
@@ -56,7 +57,7 @@ class ChallengeDetectionTest {
         })
         val extension =
             PaperbackExtension("WebtoonXYZ", webtoonXyzBundle, ApplicationHost(http = challengedSite))
-        assertFailsWith<CloudflareChallengeException> { extension.search("solo") }
+        assertFailsWith<ChallengeRequiredException> { extension.search("solo") }
         Unit
     }
 }

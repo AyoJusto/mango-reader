@@ -24,4 +24,7 @@ interface CatalogRepository {
     suspend fun details(sourceId: String, mangaId: String): MangaDetails
     suspend fun chapters(sourceId: String, mangaId: String): List<Chapter>
     suspend fun pages(sourceId: String, mangaId: String, chapterId: String): List<Page>
+
+    /** Pins the UA used for [sourceId]'s host requests (cf_clearance is UA-bound). Evicts the source's cached engine instance. */
+    suspend fun setUserAgent(sourceId: String, userAgent: String)
 }

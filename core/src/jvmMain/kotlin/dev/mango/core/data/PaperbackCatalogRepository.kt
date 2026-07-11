@@ -51,7 +51,7 @@ internal fun requireSafeSourceId(sourceId: String) {
 class PaperbackCatalogRepository(
     private val db: MangoDatabase,
     private val bundleDir: Path,
-    private val sourceFactory: (sourceId: String, bundleJs: String) -> MangaSource,
+    private val sourceFactory: (sourceId: String, bundleJs: String, userAgent: String?) -> MangaSource,
     private val context: CoroutineContext = Dispatchers.Default,
     private val clock: Clock = Clock.System,
 ) : CatalogRepository {
@@ -91,23 +91,39 @@ class PaperbackCatalogRepository(
     override suspend fun pages(sourceId: String, mangaId: String, chapterId: String): List<Page> =
         resolveSource(sourceId).getPages(mangaId, chapterId)
 
+    override suspend fun setUserAgent(sourceId: String, userAgent: String) = withContext(context) {
+        requireSafeSourceId(sourceId)
+        db.sourcesQueries.updateUserAgent(user_agent = userAgent, source_id = sourceId)
+        // cf_clearance is bound to the UA that earned it; a stale cached engine would keep
+        // sending requests under the old UA, silently invalidating the cookie the solve flow
+        // just won
+        resolved.remove(sourceId)
+        Unit
+    }
+
     private suspend fun resolveSource(sourceId: String): MangaSource {
         requireSafeSourceId(sourceId)
         resolved[sourceId]?.let { return it }
         // the whole chain is dispatched: blocking file read and bundle evaluation
         // (sourceFactory boots the JS engine) must never run on a UI thread
         return withContext(context) {
-            val row = db.sourcesQueries.selectInstalledSource(sourceId).executeAsOneOrNull()
-                ?: throw UnknownSourceException(sourceId)
-            val bytes = try {
-                Files.readAllBytes(bundleDir.resolve("$sourceId.index.js"))
-            } catch (e: NoSuchFileException) {
-                throw MissingBundleException(sourceId, e)
-            }
-            val bundleJs = BundleLoader.verify(bytes, row.bundle_sha256)
-            val source = sourceFactory(sourceId, bundleJs)
-            // putIfAbsent so a race lands on the same instance rather than duplicating work.
-            resolved.putIfAbsent(sourceId, source) ?: source
+            // compute holds the per-key bin lock across row-read + build + insert, so
+            // setUserAgent's remove (also bin-locked) can't interleave and let a source
+            // built from a stale UA win the cache after the evict — that would keep sending
+            // the old UA and invalidate the cf_clearance the solve flow just won
+            resolved.compute(sourceId) { _, existing ->
+                existing ?: run {
+                    val row = db.sourcesQueries.selectInstalledSource(sourceId).executeAsOneOrNull()
+                        ?: throw UnknownSourceException(sourceId)
+                    val bytes = try {
+                        Files.readAllBytes(bundleDir.resolve("$sourceId.index.js"))
+                    } catch (e: NoSuchFileException) {
+                        throw MissingBundleException(sourceId, e)
+                    }
+                    val bundleJs = BundleLoader.verify(bytes, row.bundle_sha256)
+                    sourceFactory(sourceId, bundleJs, row.user_agent)
+                }
+            }!!
         }
     }
 }

@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -32,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import dev.mango.core.domain.CatalogRepository
+import dev.mango.core.domain.ChallengeRequiredException
 import dev.mango.core.domain.MangaEntry
 import dev.mango.core.domain.SourceInfo
 import kotlinx.coroutines.CancellationException
@@ -50,6 +52,7 @@ fun BrowseScreenContent(
     error: String?,
     results: List<MangaEntry>,
     onOpenDetails: (MangaEntry) -> Unit,
+    challengeUrl: String? = null,
 ) {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -79,11 +82,21 @@ fun BrowseScreenContent(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 when {
                     isLoading -> CircularProgressIndicator()
-                    error != null -> Text(
-                        text = error,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error,
-                    )
+                    error != null -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = error,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        if (challengeUrl != null) {
+                            Button(onClick = {}, enabled = false) { Text("Solve challenge") }
+                            Text(
+                                text = "(coming in the next update)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                     results.isEmpty() -> Text(
                         text = "No results",
                         style = MaterialTheme.typography.bodyMedium,
@@ -118,6 +131,7 @@ class BrowseState {
     var query by mutableStateOf("")
     var isLoading by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
+    var challengeUrl by mutableStateOf<String?>(null)
     var results by mutableStateOf<List<MangaEntry>>(emptyList())
 }
 
@@ -139,10 +153,14 @@ fun BrowseScreen(catalog: CatalogRepository, state: BrowseState, onOpenDetails: 
         scope.launch {
             state.isLoading = true
             state.error = null
+            state.challengeUrl = null
             try {
                 state.results = catalog.search(sourceId, state.query)
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: ChallengeRequiredException) {
+                state.error = "This source is protected by Cloudflare"
+                state.challengeUrl = e.url
             } catch (e: Exception) {
                 state.error = e.message ?: "Search failed"
             } finally {
@@ -160,6 +178,7 @@ fun BrowseScreen(catalog: CatalogRepository, state: BrowseState, onOpenDetails: 
         onSearch = { search() },
         isLoading = state.isLoading,
         error = state.error,
+        challengeUrl = state.challengeUrl,
         results = state.results,
         onOpenDetails = onOpenDetails,
     )

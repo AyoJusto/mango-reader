@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -20,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -55,6 +57,7 @@ import coil3.network.httpHeaders
 import coil3.request.ImageRequest
 import coil3.request.maxBitmapSize
 import dev.mango.core.domain.CatalogRepository
+import dev.mango.core.domain.ChallengeRequiredException
 import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.LibraryRepository
 import dev.mango.core.domain.Page
@@ -160,6 +163,7 @@ fun ReaderScreen(
     var pages by remember(sourceId, mangaId, chapterId) { mutableStateOf<List<Page>?>(null) }
     var savedPage by remember(sourceId, mangaId, chapterId) { mutableStateOf<Int?>(null) }
     var error by remember(sourceId, mangaId, chapterId) { mutableStateOf<String?>(null) }
+    var challengeUrl by remember(sourceId, mangaId, chapterId) { mutableStateOf<String?>(null) }
     var offline by remember(sourceId, mangaId, chapterId) { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -169,6 +173,7 @@ fun ReaderScreen(
 
     LaunchedEffect(sourceId, mangaId, chapterId) {
         error = null
+        challengeUrl = null
         try {
             savedPage = library.progress(sourceId, mangaId, chapterId)?.page
             // A fully downloaded chapter reads from disk, no network at all; anything short of
@@ -183,6 +188,9 @@ fun ReaderScreen(
             }
         } catch (e: CancellationException) {
             throw e
+        } catch (e: ChallengeRequiredException) {
+            error = "This source is protected by Cloudflare"
+            challengeUrl = e.url
         } catch (e: Exception) {
             error = e.message ?: "Failed to load"
         }
@@ -214,11 +222,21 @@ fun ReaderScreen(
     when {
         currentError != null -> Surface(modifier = Modifier.fillMaxSize(), color = ReaderBlack) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = currentError,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = currentError,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    if (challengeUrl != null) {
+                        Button(onClick = {}, enabled = false) { Text("Solve challenge") }
+                        Text(
+                            text = "(coming in the next update)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
         }
         currentPages == null -> Surface(modifier = Modifier.fillMaxSize(), color = ReaderBlack) {

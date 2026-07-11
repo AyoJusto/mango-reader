@@ -77,11 +77,15 @@ class AppGraph(dataDir: Path = defaultDataDir()) {
         catalog = PaperbackCatalogRepository(
             db = db,
             bundleDir = bundleDir,
-            sourceFactory = { sourceId, bundleJs ->
+            sourceFactory = { sourceId, bundleJs, userAgent ->
                 PaperbackExtension(
                     sourceId,
                     bundleJs,
-                    ApplicationHost(http = http, cookieStore = SqlCookieStore(db, sourceId)),
+                    if (userAgent != null) {
+                        ApplicationHost(http = http, userAgent = userAgent, cookieStore = SqlCookieStore(db, sourceId))
+                    } else {
+                        ApplicationHost(http = http, cookieStore = SqlCookieStore(db, sourceId))
+                    },
                 )
             },
         )

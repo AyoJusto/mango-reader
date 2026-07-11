@@ -59,6 +59,9 @@ class FakeCatalogRepository(
     var pagesCallCount: Int = 0
         private set
 
+    /** Records every [setUserAgent] call, keyed by sourceId — no-op otherwise (no cache to evict). */
+    val userAgentsBySourceId = mutableMapOf<String, String>()
+
     // mutable so install() can behave like the real contract (round-trips into
     // installedSources()) for ExtensionsScreen's flow test; every other caller only ever reads
     // the fixed constructor list, so this changes nothing for them
@@ -85,6 +88,10 @@ class FakeCatalogRepository(
         pagesCallCount++
         return pages[Triple(sourceId, mangaId, chapterId)]
             ?: error("FakeCatalogRepository.pages has no canned entry for $sourceId/$mangaId/$chapterId")
+    }
+
+    override suspend fun setUserAgent(sourceId: String, userAgent: String) {
+        userAgentsBySourceId[sourceId] = userAgent
     }
 }
 

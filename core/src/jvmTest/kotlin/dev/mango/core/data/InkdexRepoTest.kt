@@ -47,7 +47,7 @@ class InkdexRepoTest {
     }
 
     private fun newCatalog(bundleDir: Path, db: MangoDatabase = newDb()): PaperbackCatalogRepository =
-        PaperbackCatalogRepository(db, bundleDir, sourceFactory = { sourceId, _ -> stubMangaSource(sourceId) })
+        PaperbackCatalogRepository(db, bundleDir, sourceFactory = { sourceId, _, _ -> stubMangaSource(sourceId) })
 
     private fun stubMangaSource(id: String): MangaSource = object : MangaSource {
         override val sourceId = id
@@ -159,7 +159,7 @@ class InkdexRepoTest {
         val bundleDir = Files.createTempDirectory("inkdex-test")
         val db = newDb()
         val servedBundles = mutableListOf<String>()
-        val catalog = PaperbackCatalogRepository(db, bundleDir, sourceFactory = { sourceId, bundleJs ->
+        val catalog = PaperbackCatalogRepository(db, bundleDir, sourceFactory = { sourceId, bundleJs, _ ->
             servedBundles += bundleJs
             stubMangaSource(sourceId)
         })

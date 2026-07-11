@@ -43,6 +43,8 @@ class DownloadManagerTest {
 
         override suspend fun pages(sourceId: String, mangaId: String, chapterId: String): List<Page> =
             pages["$sourceId/$mangaId/$chapterId"] ?: error("no fixture pages for $sourceId/$mangaId/$chapterId")
+
+        override suspend fun setUserAgent(sourceId: String, userAgent: String): Unit = throw UnsupportedOperationException()
     }
 
     private fun mockClient(

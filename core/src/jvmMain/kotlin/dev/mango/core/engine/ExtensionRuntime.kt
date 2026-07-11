@@ -1,5 +1,6 @@
 package dev.mango.core.engine
 
+import dev.mango.core.domain.ChallengeRequiredException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -13,14 +14,6 @@ import org.graalvm.polyglot.proxy.ProxyExecutable
 
 class ExtensionCallException(message: String, cause: Throwable? = null) :
     Exception(message, cause)
-
-/**
- * Raised when a guest error is the in-bundle Cloudflare-challenge protocol: an error object
- * with `type === "cloudflareError"` and a `resolutionRequest` naming the URL to solve.
- * Solving is out of scope here (M3/M4 webview work); this just names the condition so
- * callers can distinguish it from an ordinary extension failure.
- */
-class CloudflareChallengeException(val url: String?, message: String) : Exception(message)
 
 /**
  * Raised by [ApplicationHost.scheduleRequest]'s dispatch for network-layer failures: an
@@ -211,10 +204,12 @@ internal inline fun <reified T : Throwable> hostExceptionIn(value: Value): T? {
 
 /**
  * Recognizes the in-bundle Cloudflare-challenge error shape (`type === "cloudflareError"`,
- * `resolutionRequest.url`) and builds the named exception for it. Returns null for any other
- * error value so ordinary failures fall through to [ExtensionCallException] unchanged.
+ * `resolutionRequest.url`) and builds the domain-level exception for it. Returns null for any
+ * other error value so ordinary failures fall through to [ExtensionCallException] unchanged.
+ * sourceId is left null: the runtime only sees a bundle-wide context, not which named export
+ * within it made the call — PaperbackExtension/callers that know the sourceId attach it.
  */
-internal fun cloudflareChallengeIn(error: Value?): CloudflareChallengeException? {
+internal fun cloudflareChallengeIn(error: Value?): ChallengeRequiredException? {
     if (error == null || !error.hasMembers() || !error.hasMember("type")) return null
     val type = error.getMember("type")?.takeIf { it.isString }?.asString()
     if (type != "cloudflareError") return null
@@ -223,5 +218,5 @@ internal fun cloudflareChallengeIn(error: Value?): CloudflareChallengeException?
         ?.getMember("url")
         ?.takeIf { it.isString }
         ?.asString()
-    return CloudflareChallengeException(url, "Cloudflare challenge required to continue")
+    return ChallengeRequiredException(sourceId = null, url = url)
 }

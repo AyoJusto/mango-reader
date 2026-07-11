@@ -1,5 +1,6 @@
 package dev.mango.core.engine
 
+import dev.mango.core.domain.ChallengeRequiredException
 import org.graalvm.polyglot.Context
 import org.graalvm.polyglot.proxy.ProxyExecutable
 import org.graalvm.polyglot.proxy.ProxyObject
@@ -36,7 +37,7 @@ class CloudflareChallengeTest {
             )
 
             val rawResult = context.asValue(fakeExtension).invokeMember("getSearchResults")
-            val exception = assertFailsWith<CloudflareChallengeException> {
+            val exception = assertFailsWith<ChallengeRequiredException> {
                 awaitPromise(context, rawResult, "getSearchResults")
             }
             assertEquals(challengeUrl, exception.url)
