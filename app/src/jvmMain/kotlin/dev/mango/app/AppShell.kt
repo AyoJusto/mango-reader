@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import dev.mango.core.domain.AvailableSource
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.ChallengeSolver
+import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.ExtensionRepo
 import dev.mango.core.domain.LibraryRepository
@@ -55,10 +56,9 @@ sealed interface Screen {
         val sourceId: String,
         val mangaId: String,
         val chapterId: String,
-        // display metadata rides along: chapterId is an opaque source token
-        // (e.g. "143:55fa2d51e489132b"), never something a reader should see
-        val chapterNumber: Double,
-        val chapterTitle: String?,
+        // sorted ascending by number at construction (the only construction site sorts below) so
+        // the reader can walk it directly for next/prev without re-sorting on every navigation
+        val chapters: List<Chapter>,
     ) : Screen
 }
 
@@ -100,11 +100,7 @@ fun AppShell(
                     sourceId = current.sourceId,
                     mangaId = current.mangaId,
                     chapterId = current.chapterId,
-                    chapterLabel = buildString {
-                        append("Ch. ")
-                        append(formatChapterNumber(current.chapterNumber))
-                        current.chapterTitle?.let { append(" — "); append(it) }
-                    },
+                    chapters = current.chapters,
                     catalog = catalog,
                     downloads = downloads,
                     library = library,
@@ -187,13 +183,12 @@ fun AppShell(
                                         catalog = catalog,
                                         library = library,
                                         challengeSolver = challengeSolver,
-                                        onOpenChapter = { chapter ->
+                                        onOpenChapter = { chapter, chapters ->
                                             screen = Screen.Reader(
                                                 sourceId = current.sourceId,
                                                 mangaId = current.mangaId,
                                                 chapterId = chapter.chapterId,
-                                                chapterNumber = chapter.number,
-                                                chapterTitle = chapter.title,
+                                                chapters = chapters.sortedBy { it.number },
                                             )
                                         },
                                         // Downloading a chapter (or the whole series) implies the user

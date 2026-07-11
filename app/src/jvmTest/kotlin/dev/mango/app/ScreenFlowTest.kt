@@ -148,7 +148,7 @@ class ScreenFlowTest {
                     catalog = catalog,
                     library = library,
                     challengeSolver = FakeChallengeSolver(),
-                    onOpenChapter = {},
+                    onOpenChapter = { _, _ -> },
                 )
             }
         }
@@ -185,7 +185,7 @@ class ScreenFlowTest {
                     catalog = catalog,
                     library = library,
                     challengeSolver = FakeChallengeSolver(),
-                    onOpenChapter = {},
+                    onOpenChapter = { _, _ -> },
                     onDownloadAll = { _, chs -> downloaded = chs },
                 )
             }
@@ -220,7 +220,7 @@ class ScreenFlowTest {
                     catalog = catalog,
                     library = library,
                     challengeSolver = FakeChallengeSolver(),
-                    onOpenChapter = {},
+                    onOpenChapter = { _, _ -> },
                     onDownloadAll = { _, chs -> downloaded = chs },
                 )
             }
@@ -260,7 +260,7 @@ class ScreenFlowTest {
                     catalog = catalog,
                     library = library,
                     challengeSolver = FakeChallengeSolver(),
-                    onOpenChapter = {},
+                    onOpenChapter = { _, _ -> },
                     onDownloadAll = { _, chs -> downloaded = chs },
                 )
             }

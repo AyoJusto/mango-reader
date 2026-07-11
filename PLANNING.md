@@ -367,6 +367,19 @@ De-risk the unknown before building around it.
   test honesty, fetch-per-keystroke). Ceilings: later query chars still match greedily;
   online tab will need a per-tab fetch policy (query passed live); palette-opened Details
   goes back to Library (nav-origin refactor still pending).
+  **Reader infinite scroll DONE (2026-07-11, owner-reported bug: no way to reach the next
+  chapter).** The reader is now a multi-chapter strip: `Screen.Reader` carries the sorted
+  chapter list from Details, chapters load as segments (downloads-first per segment,
+  divider rows between chapters, end-of-series footer), the next chapter auto-appends when
+  the strip nears its end (single in-flight load, inline Retry/Solve row on failure —
+  initial-chapter failure keeps the full-screen flow), progress writes are per-current-
+  segment (which also marks chapters read), N/Next jump forward, P/Prev re-anchor.
+  Opus-reviewed (guided single-reviewer): 0 blockers; duplication and test-assertion NITs
+  fixed in-session. Ceilings: no upward prepend — P re-anchors instead (LazyColumn prepend
+  scroll-anchoring is the escape hatch if seamless backward reading is ever wanted; also
+  causes a possible one-frame jump on P since listState isn't keyed on the anchor);
+  the progress snapshotFlow rebuilds the flattened row list every scroll frame (O(loaded
+  pages) — emit the raw index and compute after the debounce if huge strips ever appear).
 - ~~M5+ — Apple targets~~ moved to §12 backlog (2026-07-11): not needed now or anytime soon.
 
 ---

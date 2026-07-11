@@ -40,17 +40,20 @@ class ReaderScreenshotsTest {
         }
     }
 
+    private val fakeSegments = listOf(
+        ReaderSegment(chapterId = "ch-12", shortLabel = "Ch. 12", label = "Chapter 12", pages = fakePages),
+    )
+
     @Test
     fun controlsVisible() {
         val file = Screenshots.render("reader-controls-visible") {
             MangoTheme {
                 ReaderContent(
-                    title = "Chapter 12",
-                    pages = fakePages,
+                    segments = fakeSegments,
                     listState = rememberLazyListState(),
                     controlsVisible = true,
                     onBack = {},
-                    pageContent = { page -> FakePageContent(page) },
+                    pageContent = { page, _ -> FakePageContent(page) },
                 )
             }
         }
@@ -62,12 +65,11 @@ class ReaderScreenshotsTest {
         val file = Screenshots.render("reader-immersive") {
             MangoTheme {
                 ReaderContent(
-                    title = "Chapter 12",
-                    pages = fakePages,
+                    segments = fakeSegments,
                     listState = rememberLazyListState(),
                     controlsVisible = false,
                     onBack = {},
-                    pageContent = { page -> FakePageContent(page) },
+                    pageContent = { page, _ -> FakePageContent(page) },
                 )
             }
         }

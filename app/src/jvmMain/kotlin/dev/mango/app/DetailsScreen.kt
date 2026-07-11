@@ -58,7 +58,7 @@ fun DetailsScreenContent(
     inLibrary: Boolean,
     readChapterIds: Set<String> = emptySet(),
     onToggleLibrary: () -> Unit,
-    onOpenChapter: (Chapter) -> Unit,
+    onOpenChapter: (Chapter, List<Chapter>) -> Unit,
     onDownloadChapter: (MangaEntry, Chapter) -> Unit,
     onDownloadAll: (MangaEntry, List<Chapter>) -> Unit,
 ) {
@@ -152,7 +152,7 @@ fun DetailsScreenContent(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onOpenChapter(chapter) }
+                                .clickable { onOpenChapter(chapter, chapters) }
                                 .padding(horizontal = 24.dp, vertical = 12.dp),
                         ) {
                             Text(
@@ -235,7 +235,7 @@ fun DetailsScreen(
     catalog: CatalogRepository,
     library: LibraryRepository,
     challengeSolver: ChallengeSolver,
-    onOpenChapter: (Chapter) -> Unit,
+    onOpenChapter: (Chapter, List<Chapter>) -> Unit,
     onDownloadChapter: (MangaEntry, Chapter) -> Unit = { _, _ -> },
     onDownloadAll: (MangaEntry, List<Chapter>) -> Unit = { _, _ -> },
 ) {
