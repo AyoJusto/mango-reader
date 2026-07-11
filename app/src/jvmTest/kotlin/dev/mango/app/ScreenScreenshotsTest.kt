@@ -1,6 +1,7 @@
 package dev.mango.app
 
 import dev.mango.core.domain.Chapter
+import dev.mango.core.domain.HomeSection
 import dev.mango.core.domain.LibraryItem
 import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
@@ -64,9 +65,58 @@ class ScreenScreenshotsTest {
                     query = "solo",
                     onQueryChange = {},
                     onSearch = {},
+                    searchActive = true,
                     isLoading = false,
                     error = null,
                     results = results,
+                    sections = emptyList(),
+                    sectionsLoading = false,
+                    sectionsError = null,
+                    onOpenDetails = {},
+                )
+            }
+        }
+        assertTrue(Files.size(file) > 0, "expected a non-empty PNG at $file")
+    }
+
+    @Test
+    fun browseSections() {
+        val sources = listOf(SourceInfo("FlameComics", "FlameComics"), SourceInfo("MangaBat", "MangaBat"))
+        val popular = HomeSection(
+            id = "popular",
+            title = "Popular",
+            items = listOf(
+                MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling"),
+                MangaEntry(sourceId = "FlameComics", mangaId = "manga-2", title = "Omniscient Reader"),
+                MangaEntry(sourceId = "FlameComics", mangaId = "manga-3", title = "Tower of God"),
+            ),
+        )
+        val latest = HomeSection(
+            id = "latest",
+            title = "Latest Updates",
+            items = listOf(
+                MangaEntry(sourceId = "FlameComics", mangaId = "manga-4", title = "Nano Machine"),
+                MangaEntry(sourceId = "FlameComics", mangaId = "manga-5", title = "Return of the Mount Hua Sect"),
+                MangaEntry(sourceId = "FlameComics", mangaId = "manga-6", title = "The Beginning After the End"),
+                MangaEntry(sourceId = "FlameComics", mangaId = "manga-7", title = "Overgeared"),
+            ),
+        )
+        val file = Screenshots.render("browse-sections") {
+            MangoTheme {
+                BrowseScreenContent(
+                    sources = sources,
+                    selectedSourceId = "FlameComics",
+                    onSelectSource = {},
+                    query = "",
+                    onQueryChange = {},
+                    onSearch = {},
+                    searchActive = false,
+                    isLoading = false,
+                    error = null,
+                    results = emptyList(),
+                    sections = listOf(popular, latest),
+                    sectionsLoading = false,
+                    sectionsError = null,
                     onOpenDetails = {},
                 )
             }

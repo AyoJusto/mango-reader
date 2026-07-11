@@ -303,8 +303,9 @@ De-risk the unknown before building around it.
   `:app` had silently run zero JUnit4-style Compose tests since M3 (missing
   junit-vintage-engine — now catalog-pinned; 39 tests execute). Ceilings: Details opened
   from Search returns to Library (no fromSearch case); Browse's own source-list load is
-  still unguarded against a registry read failure (Browse is replaced wholesale in M5).
-- **M5 — Discovery: extension home pages (planned 2026-07-11; researched same day).**
+  still unguarded against a registry read failure (resolved in M5(b): guarded load with a
+  user-visible error state).
+- **M5 — Discovery: extension home pages (planned 2026-07-11; researched same day; DONE 2026-07-11).**
   Browse becomes one tab per installed extension rendering that source's own homepage
   sections ("Most Recent", "Popular" — whatever the extension publishes). Research
   (2026-07-11, fixtures + @paperback/types source) corrected the contract: all four fixture
@@ -335,6 +336,18 @@ De-risk the unknown before building around it.
   recorded fixtures anywhere — challenge coverage stays in LiveDetectWebtoonXyzTest). Note:
   the FlameComics homepage fixture is shared across LiveRecord suites; on buildId rotation
   re-record them together (documented in LiveRecordDiscoverTest).
+  **Chunk (b) DONE (2026-07-11).** Browse: existing source chips act as tabs; per-source
+  discover sections load lazily on tab selection (session cache, error retried on
+  revisit), rendered as titled cover shelves; search-on-submit overlays a results grid
+  tagged by source (fixes the old stale-results-across-chips behavior), blank submit
+  returns to sections; challenge state split per mode with click-time mode capture for
+  Solve; guarded source-list load with honest empty/error states. Review confirmed 10
+  findings, 9 fixed (search job cancellation, per-mode challenge state, click-time solve
+  dispatch, captured query, pending-guard race, empty/error states, cache+solve tests).
+  Ceilings: the one-solve-at-a-time gate is screen-local (holds because single-pane nav
+  composes one screen at a time; a real gate belongs in the ChallengeSolver/AppShell —
+  deferred), a solve is cancelled if the user leaves the screen mid-solve, and blank-query
+  submit is the only way back from results to sections (no clear button).
 - **M6 — Quick nav and reader QoL (planned 2026-07-11).** (a) Search-everywhere palette,
   IntelliJ double-Shift style, **local only**: a modal that fuzzy-matches app screens,
   settings entries, and library/downloaded manhwa; Enter navigates straight to the hit.

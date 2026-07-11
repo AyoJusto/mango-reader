@@ -71,6 +71,7 @@ class FakeCatalogRepository(
     private val details: Map<Pair<String, String>, MangaDetails> = emptyMap(),
     private val chapters: Map<Pair<String, String>, List<Chapter>> = emptyMap(),
     private val pages: Map<Triple<String, String, String>, List<Page>> = emptyMap(),
+    private val sectionsBySource: Map<String, List<HomeSection>> = emptyMap(),
 ) : CatalogRepository {
     /** How many times [pages] was called — offline-reader tests assert this stays 0. */
     var pagesCallCount: Int = 0
@@ -93,7 +94,8 @@ class FakeCatalogRepository(
     override suspend fun search(sourceId: String, query: String, page: Int): List<MangaEntry> =
         results[query] ?: error("FakeCatalogRepository.search has no canned results for \"$query\"")
 
-    override suspend fun homeSections(sourceId: String): List<HomeSection> = emptyList()
+    override suspend fun homeSections(sourceId: String): List<HomeSection> =
+        sectionsBySource[sourceId] ?: emptyList()
 
     override suspend fun details(sourceId: String, mangaId: String): MangaDetails =
         details[sourceId to mangaId]
