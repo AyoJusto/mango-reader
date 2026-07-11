@@ -13,7 +13,8 @@ interface ChallengeSolver {
     /**
      * Opens the challenge [url] in a browser window for [sourceId]. Returns true once clearance
      * cookies were harvested and stored, false if the user closed the window without passing
-     * the challenge. Suspends until the window resolves either way.
+     * the challenge. Suspends until the window resolves either way. Implementations may refuse
+     * a solve that would run concurrently with another by returning false immediately.
      */
     suspend fun solve(sourceId: String, url: String): Boolean
 }

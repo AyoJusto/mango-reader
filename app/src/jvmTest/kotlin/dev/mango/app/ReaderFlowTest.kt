@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -17,6 +18,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.pressKey
@@ -415,5 +417,111 @@ class ReaderFlowTest {
         // and the reader must still respond normally to further input, with no hang.
         rule.onRoot().performKeyInput { pressKey(Key.PageUp) }
         rule.waitForIdle()
+    }
+
+    // R4-B fix 1: a fresh LazyListState per anchor means P's re-anchor never renders one frame
+    // of the OLD chapter's scroll offset before the restore effect repositions it.
+    @Test
+    fun pReanchorsAtTheTopOfThePreviousChapter() {
+        val library = FakeLibraryRepository()
+        val catalog = catalogWithPages()
+        setReaderContent(
+            library,
+            catalog,
+            chapterId = CHAPTER_2_ID,
+            chapters = twoChapters,
+        )
+        rule.waitForIdle()
+
+        rule.onRoot().performKeyInput { pressKey(Key.P) }
+        rule.waitForIdle()
+        rule.waitForIdle()
+
+        assertTrue(textVisible("1 / 5"), "expected P to re-anchor at the top of ch-1, not a stale scroll offset")
+    }
+
+    // R4-B fix 2: while the palette overlay is up the reader has no keyboard (A can't stop the
+    // strip), so the auto-scroll drive loop pauses and auto-resumes on close.
+    @Test
+    fun paletteVisibilityPausesAutoScroll() {
+        val library = FakeLibraryRepository()
+        val paletteVisibleState = mutableStateOf(false)
+        rule.setContent {
+            MangoTheme {
+                ReaderScreen(
+                    sourceId = SOURCE_ID,
+                    mangaId = MANGA_ID,
+                    chapterId = CHAPTER_ID,
+                    chapters = listOf(Chapter(CHAPTER_ID, number = 1.0)),
+                    catalog = catalogWithPages(),
+                    downloads = FakeDownloadManager(),
+                    library = library,
+                    challengeSolver = FakeChallengeSolver(),
+                    onBack = {},
+                    onToggleFullscreen = {},
+                    autoScrollSpeedDpPerSec = 2000f,
+                    pageContent = { page -> FakePageContent(page) },
+                    paletteVisible = paletteVisibleState.value,
+                )
+            }
+        }
+        rule.waitForIdle()
+        rule.onNodeWithText("1 / 5").assertExists()
+
+        // CRITICAL: while autoScrolling's withFrameNanos loop runs, waitForIdle() never goes
+        // idle — the loop is always pending a frame. Drive time only through the main clock.
+        rule.mainClock.autoAdvance = false
+        rule.onRoot().performKeyInput { pressKey(Key.A) }
+        rule.mainClock.advanceTimeBy(400)
+        rule.onNodeWithText("1 / 5").assertDoesNotExist()
+        val moving = currentPageCounter()
+        assertNotNull(moving, "expected a page counter to be showing while auto-scrolling")
+
+        // Open the palette. Advance one frame first so the LaunchedEffect(..., paletteVisible)
+        // restart is observed before we snapshot the "paused" baseline — otherwise the
+        // recomposition's own frame could be mistaken for drift.
+        paletteVisibleState.value = true
+        rule.mainClock.advanceTimeByFrame()
+        val paused = currentPageCounter()
+        assertNotNull(paused, "expected a page counter to still be showing once the palette opened")
+        rule.mainClock.advanceTimeBy(500)
+        assertEquals(paused, currentPageCounter(), "expected auto-scroll to pause while the palette is visible")
+
+        // Close the palette: the loop must auto-resume with no further key press.
+        paletteVisibleState.value = false
+        rule.mainClock.advanceTimeBy(500)
+        assertTrue(currentPageCounter() != paused, "expected auto-scroll to resume once the palette closed")
+
+        rule.mainClock.autoAdvance = true
+    }
+
+    // R4 review finding: the overlay Prev button must stop auto-scroll before re-anchoring —
+    // a drive loop left running would keep scrolling the OLD detached listState after the
+    // re-anchor mints a fresh one (visible freeze).
+    @Test
+    fun prevButtonStopsAutoScrollAndReanchors() {
+        val library = FakeLibraryRepository()
+        setReaderContent(
+            library,
+            catalogWithPages(),
+            chapterId = CHAPTER_2_ID,
+            chapters = twoChapters,
+            autoScrollSpeedDpPerSec = 2000f,
+        )
+        rule.waitForIdle()
+
+        rule.mainClock.autoAdvance = false
+        rule.onRoot().performKeyInput { pressKey(Key.A) }
+        rule.mainClock.advanceTimeBy(400)
+
+        // Controls are still up (auto-hide is 2000ms and only 400ms has elapsed).
+        rule.onNodeWithText("‹ Prev").performClick()
+        // If the drive loop survived the click still bound to the old listState, waitForIdle
+        // would hang on its always-pending frame — reaching the assertion below is itself the
+        // proof the button stopped auto-scroll.
+        rule.mainClock.autoAdvance = true
+        rule.waitForIdle()
+
+        assertTrue(textVisible("1 / 5"), "expected Prev to stop auto-scroll and re-anchor at ch-1's top")
     }
 }

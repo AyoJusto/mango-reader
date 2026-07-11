@@ -344,10 +344,11 @@ De-risk the unknown before building around it.
   Solve; guarded source-list load with honest empty/error states. Review confirmed 10
   findings, 9 fixed (search job cancellation, per-mode challenge state, click-time solve
   dispatch, captured query, pending-guard race, empty/error states, cache+solve tests).
-  Ceilings: the one-solve-at-a-time gate is screen-local (holds because single-pane nav
-  composes one screen at a time; a real gate belongs in the ChallengeSolver/AppShell —
-  deferred), a solve is cancelled if the user leaves the screen mid-solve, and blank-query
-  submit is the only way back from results to sections (no clear button).
+  Ceilings: a solve is cancelled if the user leaves the screen mid-solve, and blank-query
+  submit is the only way back from results to sections (no clear button). RESOLVED (R4,
+  2026-07-11): one-solve-at-a-time is now enforced app-wide by SingleFlightChallengeSolver
+  (Mutex.tryLock decorator over JcefChallengeSolver, wired in AppGraph; a concurrent solve
+  returns false and the second screen's button just re-enables).
 - **M6 — Quick nav and reader QoL (planned 2026-07-11).** (a) Search-everywhere palette,
   IntelliJ double-Shift style, **local only**: a modal that fuzzy-matches app screens,
   settings entries, and library/downloaded manhwa; Enter navigates straight to the hit.
@@ -376,10 +377,13 @@ De-risk the unknown before building around it.
   segment (which also marks chapters read), N/Next jump forward, P/Prev re-anchor.
   Opus-reviewed (guided single-reviewer): 0 blockers; duplication and test-assertion NITs
   fixed in-session. Ceilings: no upward prepend — P re-anchors instead (LazyColumn prepend
-  scroll-anchoring is the escape hatch if seamless backward reading is ever wanted; also
-  causes a possible one-frame jump on P since listState isn't keyed on the anchor);
+  scroll-anchoring is the escape hatch if seamless backward reading is ever wanted);
   the progress snapshotFlow rebuilds the flattened row list every scroll frame (O(loaded
   pages) — emit the raw index and compute after the debounce if huge strips ever appear).
+  RESOLVED (R4, 2026-07-11): the one-frame stale-offset jump on P — listState is now a
+  fresh LazyListState keyed on the anchor; chapter-nav helpers stop auto-scroll themselves
+  (review finding: the overlay Prev button used to strand the drive loop on the detached
+  state).
   **Chunk (b) DONE (2026-07-11) + owner-reported controls bug.** A key toggles auto-scroll
   (frame-clock loop, dt × speed, suspend scrollBy); speed is Settings.autoScrollSpeed
   (Float dp/s, default 120, slider 30–600 on the Settings screen, persisted only on
@@ -389,10 +393,10 @@ De-risk the unknown before building around it.
   failed append. Controls overlay now reveals only on hover within 80dp of the top edge
   (CONTROLS_REVEAL_BAND) or on click, then auto-hides as before. Opus-reviewed (guided
   single reviewer): 0 blockers; wait-while-loading stop condition and named band constant
-  applied from findings. Ceilings: auto-scroll keeps running (hidden) while the palette
-  overlay is open since the reader loses keyboard focus — pause-on-palette if it ever
-  matters; a cursor parked in the top band re-reveals controls on each auto-hide
-  (emergent from synthetic hover moves, reads as intended hover-to-pin behavior).
+  applied from findings. Ceilings: a cursor parked in the top band re-reveals controls on
+  each auto-hide (emergent from synthetic hover moves, reads as intended hover-to-pin
+  behavior). RESOLVED (R4, 2026-07-11): auto-scroll now pauses while the palette overlay
+  is open (paletteVisible in the drive loop's keys/guard) and auto-resumes on close.
 - ~~M5+ — Apple targets~~ moved to §12 backlog (2026-07-11): not needed now or anytime soon.
 
 ---

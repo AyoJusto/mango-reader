@@ -10,6 +10,7 @@ import dev.mango.core.data.SqlLibraryRepository
 import dev.mango.core.db.MangoDatabase
 import dev.mango.app.webview.JcefChallengeSolver
 import dev.mango.app.webview.JcefManager
+import dev.mango.app.webview.SingleFlightChallengeSolver
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.ChallengeSolver
 import dev.mango.core.domain.DownloadManager
@@ -100,11 +101,11 @@ class AppGraph(dataDir: Path = defaultDataDir()) {
         // embedded browser for the Cloudflare solve; CEF downloads into <dataDir>/jcef on
         // first use. A fresh SqlCookieStore per source is cheap (DB-backed, stateless).
         jcef = JcefManager(dataDir.resolve("jcef"))
-        challengeSolver = JcefChallengeSolver(
+        challengeSolver = SingleFlightChallengeSolver(JcefChallengeSolver(
             jcef = jcef,
             catalog = catalog,
             cookieStoreFor = { sourceId -> SqlCookieStore(db, sourceId) },
-        )
+        ))
     }
 
     /** Release the embedded browser on app exit. */

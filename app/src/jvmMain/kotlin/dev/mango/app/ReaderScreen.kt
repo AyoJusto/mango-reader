@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.IconButton
@@ -421,7 +420,10 @@ fun ReaderScreen(
     var segments by remember(sourceId, mangaId, anchorChapterId) { mutableStateOf<List<ChapterSegment>>(emptyList()) }
     var nextLoad by remember(sourceId, mangaId, anchorChapterId) { mutableStateOf<NextLoadState>(NextLoadState.Idle) }
     var solvingNext by remember(sourceId, mangaId, anchorChapterId) { mutableStateOf(false) }
-    val listState = rememberLazyListState()
+    // Keyed on the anchor: P re-anchors to the previous chapter, and a fresh scroll state per
+    // anchor means the strip never renders one frame of the OLD chapter's scroll offset before
+    // the restore effect repositions it.
+    val listState = remember(sourceId, mangaId, anchorChapterId) { LazyListState() }
     val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
     var visibilityTick by remember { mutableStateOf(0) }
@@ -466,8 +468,11 @@ fun ReaderScreen(
     }
 
     // Shared by the N/P key handlers and the overlay's Next/Prev buttons — same action, two
-    // entry points; extracted so the two can't drift.
+    // entry points; extracted so the two can't drift. Both stop auto-scroll HERE, not at the
+    // call sites: a re-anchor mints a fresh listState, and a drive loop left running would
+    // keep scrolling the old detached one (review finding, R4).
     fun goToNextChapter() {
+        autoScrolling = false
         scope.launch {
             val position = currentSegmentAndPage() ?: return@launch
             val current = segments.getOrNull(position.segmentIndex) ?: return@launch
@@ -486,6 +491,7 @@ fun ReaderScreen(
     }
 
     fun reanchorToPreviousChapter() {
+        autoScrolling = false
         val position = currentSegmentAndPage()
         val current = position?.let { segments.getOrNull(it.segmentIndex) }
         val prev = current?.let { previousChapter(chapters, it.chapterId) }
@@ -563,8 +569,10 @@ fun ReaderScreen(
     }
 
     // M6(b) auto-scroll drive loop: dt from the frame clock, suspend scrollBy between frames.
-    LaunchedEffect(autoScrolling, autoScrollSpeedDpPerSec) {
-        if (!autoScrolling) return@LaunchedEffect
+    // While the palette overlay is up the reader has no keyboard (A can't stop the strip), so
+    // the loop pauses and auto-resumes on close — autoScrolling itself stays true.
+    LaunchedEffect(autoScrolling, autoScrollSpeedDpPerSec, paletteVisible) {
+        if (!autoScrolling || paletteVisible) return@LaunchedEffect
         val speedPx = with(density) { autoScrollSpeedDpPerSec.dp.toPx() }
         var lastFrameNanos = -1L
         while (autoScrolling) {
@@ -669,12 +677,10 @@ fun ReaderScreen(
                                 true
                             }
                             Key.N -> {
-                                autoScrolling = false
                                 goToNextChapter()
                                 true
                             }
                             Key.P -> {
-                                autoScrolling = false
                                 reanchorToPreviousChapter()
                                 true
                             }
