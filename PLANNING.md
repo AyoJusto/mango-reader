@@ -281,8 +281,16 @@ De-risk the unknown before building around it.
   Headless, driven by tests. Not yet wired: production composition (a real `SqlCookieStore`
   into `ExtensionRuntime`'s host, file-backed driver) lands with `:app` in M3. Download
   ceilings recorded in §10.
-- **M3 — Reader app.** Compose Multiplatform desktop on Windows: dark library grid, source browse,
-  and a proper immersive long-strip reader with the perf recipe above.
+- **M3 — Reader app. DONE 2026-07-10.** Compose Multiplatform 1.11.0 desktop on Windows:
+  Kanagawa Dragon theme, library grid, browse/search, details, downloads screen, and the
+  immersive long-strip reader (1000dp-capped centered strip, controls auto-hide, keyboard
+  paging, fullscreen, debounced progress persistence). Production composition proven by a
+  guarded live smoke (`LiveSmokeTest`, `$env:MANGO_SMOKE="1"`) + real-window screenshot.
+  Loop gained UI verification: offscreen screenshot harness (`Screenshots.render` →
+  `app/build/screenshots/`) reviewed visually per chunk, plus uiTestJUnit4 flow tests.
+  Ceilings: text glyphs on the nav rail (no material-icons artifact resolves for CMP 1.11 —
+  pick an icon strategy in M4), reader title shows chapter id, next-chapter prefetch not
+  built, downloads bypass host policy (§10).
 - **M4 — Extension management.** Install/update from a Paperback-style repo, per-source settings.
 - **M5+ — Apple targets.** macOS/iOS from the same `:app`; validate `quickjs-kt` on Kotlin/Native.
 

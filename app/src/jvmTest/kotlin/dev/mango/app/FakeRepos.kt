@@ -2,6 +2,9 @@ package dev.mango.app
 
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.Chapter
+import dev.mango.core.domain.Download
+import dev.mango.core.domain.DownloadManager
+import dev.mango.core.domain.DownloadStatus
 import dev.mango.core.domain.LibraryItem
 import dev.mango.core.domain.LibraryRepository
 import dev.mango.core.domain.MangaDetails
@@ -70,4 +73,30 @@ class FakeCatalogRepository(
     override suspend fun pages(sourceId: String, mangaId: String, chapterId: String): List<Page> =
         pages[Triple(sourceId, mangaId, chapterId)]
             ?: error("FakeCatalogRepository.pages has no canned entry for $sourceId/$mangaId/$chapterId")
+}
+
+/**
+ * In-memory [DownloadManager] for tests. No DB, no HTTP, no disk. [processQueue] is a no-op —
+ * these tests only need to observe that a chapter was queued, not that a fake drain occurred.
+ */
+class FakeDownloadManager(initial: List<Download> = emptyList()) : DownloadManager {
+    private val state = MutableStateFlow(initial)
+    val downloads: List<Download> get() = state.value
+
+    override fun observeDownloads(): Flow<List<Download>> = state
+
+    override suspend fun enqueue(sourceId: String, mangaId: String, chapterId: String) {
+        state.value = state.value + Download(
+            sourceId = sourceId,
+            mangaId = mangaId,
+            chapterId = chapterId,
+            status = DownloadStatus.QUEUED,
+            pagesTotal = 0,
+            pagesDone = 0,
+        )
+    }
+
+    override suspend fun processQueue() {
+        // no-op: nothing to drain in tests
+    }
 }

@@ -26,7 +26,7 @@ class ScreenFlowTest {
         val library = FakeLibraryRepository()
         val catalog = FakeCatalogRepository(sources = listOf(SourceInfo("FlameComics", "FlameComics")))
 
-        rule.setContent { MangoTheme { AppShell(library, catalog) } }
+        rule.setContent { MangoTheme { AppShell(library, catalog, FakeDownloadManager()) } }
 
         rule.onNodeWithText("Library is empty — browse sources to add manhwa").assertExists()
 
@@ -45,7 +45,7 @@ class ScreenFlowTest {
             results = mapOf("solo" to listOf(entry)),
         )
 
-        rule.setContent { MangoTheme { AppShell(library, catalog) } }
+        rule.setContent { MangoTheme { AppShell(library, catalog, FakeDownloadManager()) } }
 
         rule.onNodeWithText("Browse").performClick()
         rule.waitForIdle()

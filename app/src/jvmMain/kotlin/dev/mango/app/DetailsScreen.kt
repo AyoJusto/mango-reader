@@ -23,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -52,6 +53,7 @@ fun DetailsScreenContent(
     inLibrary: Boolean,
     onToggleLibrary: () -> Unit,
     onOpenChapter: (Chapter) -> Unit,
+    onDownloadChapter: (Chapter) -> Unit,
 ) {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -144,6 +146,9 @@ fun DetailsScreenContent(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                            TextButton(onClick = { onDownloadChapter(chapter) }) {
+                                Text("↓")
+                            }
                         }
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                     }
@@ -169,6 +174,7 @@ fun DetailsScreen(
     catalog: CatalogRepository,
     library: LibraryRepository,
     onOpenChapter: (Chapter) -> Unit,
+    onDownloadChapter: (Chapter) -> Unit = {},
 ) {
     var details by remember(sourceId, mangaId) { mutableStateOf<MangaDetails?>(null) }
     var chapters by remember(sourceId, mangaId) { mutableStateOf<List<Chapter>>(emptyList()) }
@@ -220,6 +226,7 @@ fun DetailsScreen(
                 }
             },
             onOpenChapter = onOpenChapter,
+            onDownloadChapter = onDownloadChapter,
         )
     }
 }

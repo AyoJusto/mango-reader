@@ -16,11 +16,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.mango.core.domain.CatalogRepository
+import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.LibraryRepository
+import kotlinx.coroutines.launch
 
 /**
  * Navigation state for the app shell. Hand-rolled — no nav library (M3.2, PLANNING §13
@@ -29,6 +32,7 @@ import dev.mango.core.domain.LibraryRepository
 sealed interface Screen {
     data object Library : Screen
     data object Browse : Screen
+    data object Downloads : Screen
     data class Details(val sourceId: String, val mangaId: String, val fromBrowse: Boolean) : Screen
     data class Reader(val sourceId: String, val mangaId: String, val chapterId: String) : Screen
 }
@@ -39,11 +43,17 @@ sealed interface Screen {
  * the repository ports passed in here — never engine or DB types (CLAUDE.md boundary).
  */
 @Composable
-fun AppShell(library: LibraryRepository, catalog: CatalogRepository, onToggleFullscreen: () -> Unit = {}) {
+fun AppShell(
+    library: LibraryRepository,
+    catalog: CatalogRepository,
+    downloads: DownloadManager,
+    onToggleFullscreen: () -> Unit = {},
+) {
     var screen by remember { mutableStateOf<Screen>(Screen.Library) }
     // Reader has no fromBrowse of its own; remember which Details screen led to it so its
     // back button can return there.
     var lastDetails by remember { mutableStateOf<Screen.Details?>(null) }
+    val scope = rememberCoroutineScope()
 
     when (val current = screen) {
         is Screen.Reader -> {
@@ -72,6 +82,12 @@ fun AppShell(library: LibraryRepository, catalog: CatalogRepository, onToggleFul
                         icon = { Text("B") },
                         label = { Text("Browse") },
                     )
+                    NavigationRailItem(
+                        selected = current is Screen.Downloads,
+                        onClick = { screen = Screen.Downloads },
+                        icon = { Text("D") },
+                        label = { Text("Downloads") },
+                    )
                 }
                 Surface(
                     modifier = Modifier.weight(1f).fillMaxHeight(),
@@ -84,6 +100,7 @@ fun AppShell(library: LibraryRepository, catalog: CatalogRepository, onToggleFul
                         Screen.Browse -> BrowseScreen(catalog) { entry ->
                             screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = true)
                         }
+                        Screen.Downloads -> DownloadsScreen(downloads)
                         is Screen.Details -> {
                             LaunchedEffect(current) { lastDetails = current }
                             Box(modifier = Modifier.fillMaxSize()) {
@@ -94,6 +111,12 @@ fun AppShell(library: LibraryRepository, catalog: CatalogRepository, onToggleFul
                                     library = library,
                                     onOpenChapter = { chapter ->
                                         screen = Screen.Reader(current.sourceId, current.mangaId, chapter.chapterId)
+                                    },
+                                    onDownloadChapter = { chapter ->
+                                        scope.launch {
+                                            downloads.enqueue(current.sourceId, current.mangaId, chapter.chapterId)
+                                            downloads.processQueue()
+                                        }
                                     },
                                 )
                                 IconButton(
