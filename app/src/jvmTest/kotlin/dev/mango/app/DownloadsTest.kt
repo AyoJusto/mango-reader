@@ -21,9 +21,9 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * Review-artifact screenshot plus end-to-end flows for the M3.4a downloads screen and
- * per-chapter enqueue, backed by [FakeDownloadManager]/[FakeLibraryRepository]/
- * [FakeCatalogRepository]. Style mirrors ScreenScreenshotsTest and ScreenFlowTest.
+ * Screenshot plus end-to-end flows for the downloads screen and per-chapter enqueue, backed by
+ * [FakeDownloadManager]/[FakeLibraryRepository]/[FakeCatalogRepository]. Style mirrors
+ * ScreenScreenshotsTest and ScreenFlowTest.
  */
 class DownloadsTest {
     @get:Rule

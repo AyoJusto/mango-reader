@@ -30,8 +30,8 @@ class ExtensionNetworkException(message: String, cause: Throwable? = null) :
 
 /**
  * Runs a verified Paperback 0.9 bundle in a fresh GraalJS context: create, bind the
- * Application proxy, evaluate the bundle, run the block, close. One context per call
- * (see PLANNING.md section 6); durable extension state lives in [ApplicationHost].
+ * Application proxy, evaluate the bundle, run the block, close. One context per call;
+ * durable extension state lives in [ApplicationHost].
  *
  * Sandbox: no host access, no IO, no class lookup. The Application proxy is the only
  * capability in the context.
@@ -175,8 +175,8 @@ internal fun describePromiseError(error: Value): String =
 /**
  * Recovers the original host-thrown [T] from a JS rejection/error value that wraps it.
  *
- * Empirically verified (M1.5, against a live IOException/CancellationException round-trip
- * through [ApplicationHost.scheduleRequest]'s promise chain): `Value.throwException()` never
+ * Empirically verified against a live IOException/CancellationException round-trip through
+ * [ApplicationHost.scheduleRequest]'s promise chain: `Value.throwException()` never
  * rethrows a wrapped host exception bare — it always surfaces as a [PolyglotException] with
  * `isHostException() == true`, whose `asHostException()` is the original Kotlin exception.
  * The `catch (t: T)` branch below is defensive only (documented Graal behavior for

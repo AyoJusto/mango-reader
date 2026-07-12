@@ -9,9 +9,9 @@ import java.nio.file.Paths
 import org.jetbrains.skia.EncodedImageFormat
 
 /**
- * Offscreen screenshot harness (M3 loop): renders a composable deterministically to
- * build/screenshots/<name>.png for visual review. Never asserted byte-exact — these are
- * review artifacts, not golden files.
+ * Offscreen screenshot harness: renders a composable deterministically to
+ * build/screenshots/<name>.png for visual inspection. Never asserted byte-exact — these are
+ * visual aids, not golden files.
  */
 object Screenshots {
     fun render(name: String, width: Int = 1280, height: Int = 800, content: @Composable () -> Unit): Path {

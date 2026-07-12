@@ -7,8 +7,7 @@ import kotlin.test.assertTrue
 /**
  * Offline boot/surface check across the full bundle matrix (FlameComics, MangaBat,
  * Toonily, WebtoonXYZ): extends BundleBootTest's pattern, which stays FlameComics-only,
- * over every source added in M1.4. Zero network — verify + evaluate + initialise() +
- * method surface only.
+ * over every source. Zero network — verify + evaluate + initialise() + method surface only.
  */
 class BundleMatrixTest {
     private fun verifyBootSurface(sourceId: String, fixture: String, sha256: String) = runBlocking {

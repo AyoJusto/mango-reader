@@ -23,16 +23,16 @@ import kotlinx.coroutines.withContext
 class UnknownSourceException(sourceId: String) : Exception("unknown source: $sourceId")
 
 /**
- * A source row exists but its bundle file is not in bundleDir — the normal state between
- * install (DB row only) and whatever places the file (M4's installer, or the caller in M2).
+ * A source row exists but its bundle file is not in bundleDir — the state between writing
+ * the row and placing the file.
  */
 class MissingBundleException(sourceId: String, cause: Throwable) :
     Exception("no bundle file for installed source: $sourceId", cause)
 
-// sourceId becomes extension-influenced once M4 installs from bundle metadata; it must
-// never be able to name a path outside bundleDir (no separators, no drive letters). Hoisted
-// to file scope (M4.2) so InkdexRepo's installer can enforce the exact same rule before it
-// ever touches the network, not just before this repository writes/reads the bundle file.
+// sourceId is extension-influenced (installs read it from bundle metadata); it must never
+// be able to name a path outside bundleDir (no separators, no drive letters). File-scoped so
+// InkdexRepo's installer can enforce the exact same rule before it ever touches the network,
+// not just before this repository writes/reads the bundle file.
 internal val SAFE_SOURCE_ID = Regex("[A-Za-z0-9_.-]+")
 
 internal fun requireSafeSourceId(sourceId: String) {
@@ -74,7 +74,7 @@ class PaperbackCatalogRepository(
             version = info.version,
         )
         // user_agent survives reinstall: the upsert is ON CONFLICT DO UPDATE with user_agent
-        // deliberately absent from the SET list (see sources.sq) — M4.3 pins a UA there.
+        // deliberately absent from the SET list (see sources.sq).
         // re-pinning a hash must not keep serving a source built from the old bundle
         resolved.remove(info.sourceId)
         Unit
@@ -113,7 +113,7 @@ class PaperbackCatalogRepository(
         // now-deleted row and throws UnknownSourceException; nothing can repopulate the cache.
         // The file delete comes LAST because it can throw (Windows lock from a racing bundle
         // read): a removed source must stop executing even when the file sweep fails — the
-        // orphaned bundle is inert without its row, and a retry click deletes it (review, R6).
+        // orphaned bundle is inert without its row, and a retry click deletes it.
         resolved.remove(sourceId)
         Files.deleteIfExists(bundleDir.resolve("$sourceId.index.js"))
         Unit

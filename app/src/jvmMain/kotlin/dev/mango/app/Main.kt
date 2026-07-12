@@ -15,7 +15,7 @@ import androidx.compose.ui.window.rememberWindowState
 
 fun main() {
     val graph = AppGraph()
-    // Theme is picked from the Settings screen (M4.4a); Settings.theme persists it to disk.
+    // Theme is picked from the Settings screen; Settings.theme persists it to disk.
     val settings = Settings(AppGraph.defaultDataDir())
     application {
         // Hoisted into Compose state so picking a theme on the Settings screen applies live,
@@ -24,13 +24,12 @@ fun main() {
         // Same hoist pattern as themeName: the Settings screen's slider applies live, without
         // restarting the app.
         var autoScrollSpeed by remember { mutableStateOf(settings.autoScrollSpeed) }
-        // default window size: 1440p (owner call, 2026-07-11) — a floating window this
-        // size fills a 2560x1440 monitor; the OS clamps it on smaller screens
+        // A floating window this size fills a 2560x1440 monitor; the OS clamps it on smaller screens
         val windowState = rememberWindowState(size = DpSize(2560.dp, 1440.dp))
         val palette = remember { PaletteState() }
-        // Own file/class (M6a): a hand-rolled IntelliJ-style double-Shift chord detector —
-        // this is Window-level, not a focusable Box inside AppShell, so it fires no matter
-        // which screen or field currently has focus.
+        // A hand-rolled IntelliJ-style double-Shift chord detector, own file/class — this is
+        // Window-level, not a focusable Box inside AppShell, so it fires no matter which
+        // screen or field currently has focus.
         val detector = remember { DoubleShiftDetector() }
         Window(
             onCloseRequest = { graph.dispose(); exitApplication() },

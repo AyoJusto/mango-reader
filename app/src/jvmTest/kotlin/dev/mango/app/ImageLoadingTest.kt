@@ -14,9 +14,9 @@ import kotlinx.coroutines.runBlocking
 import okio.Path.Companion.toOkioPath
 
 /**
- * Regression for the M3.5 critical bug: Coil's default 4096px bitmap cap silently
- * downsampled tall webtoon strips (real pages are 800 x ~14000px) before the reader
- * upscaled them back — unreadably pixelated pages.
+ * Regression test: Coil's default 4096px bitmap cap silently downsampled tall webtoon strips
+ * (real pages are 800 x ~14000px) before the reader upscaled them back — unreadably pixelated
+ * pages.
  */
 class ImageLoadingTest {
     @Test

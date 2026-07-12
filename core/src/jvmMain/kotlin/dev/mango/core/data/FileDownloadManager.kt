@@ -118,10 +118,10 @@ class FileDownloadManager(
             pages.forEachIndexed { i, page ->
                 // Images are fetched directly by the app, not routed through the extension's
                 // interceptor pipeline — sources that sign image URLs in interceptors will
-                // 403 here; routing image fetches through host interceptors is the M3+ fix
-                // if a real source needs it. This client also bypasses ApplicationHost's
-                // per-host rate limit; when the project-wide host allowlist lands, this
-                // path must go through the same policy, not just scheduleRequest.
+                // 403 here; routing image fetches through host interceptors is the fix if a
+                // real source needs it. This client also bypasses ApplicationHost's per-host
+                // rate limit; a project-wide host allowlist must cover this path too, not
+                // just scheduleRequest.
                 val response = http.get(page.url) {
                     page.headers.forEach { (name, value) -> header(name, value) }
                 }
@@ -148,8 +148,8 @@ class FileDownloadManager(
     }
 
     // No dedicated "select one row by key" query exists (only selectAllDownloads and
-    // selectQueuedDownloads) and adding one is a schema change outside this chunk's scope, so
-    // this filters the small in-memory row list instead of adding SQL.
+    // selectQueuedDownloads), so this filters the small in-memory row list instead of
+    // adding SQL.
     override suspend fun localPages(sourceId: String, mangaId: String, chapterId: String): List<String>? =
         withContext(context) {
             val row = db.downloadsQueries.selectAllDownloads().executeAsList().firstOrNull {

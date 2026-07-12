@@ -15,7 +15,7 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * Review-artifact screenshot plus an install flow for the M4.2 Extensions screen, backed by
+ * Screenshot plus an install flow for the Extensions screen, backed by
  * [FakeExtensionRepo]/[FakeCatalogRepository]. Style mirrors DownloadsTest/ScreenFlowTest.
  */
 class ExtensionsScreenTest {

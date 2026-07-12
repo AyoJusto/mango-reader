@@ -169,8 +169,8 @@ class ReaderFlowTest {
         // which is a different clock from rule.mainClock (Compose's frame clock, used to advance
         // animateScrollBy/withFrameNanos). advanceTimeBy on the latter doesn't resolve the former,
         // so neither waitForIdle() nor manual mainClock advancement reliably lands inside the
-        // debounce window here. Per the chunk spec's documented fallback, the debounce is made
-        // injectable and this test passes 0 for a deterministic write instead of racing clocks.
+        // debounce window here. The fallback: the debounce is made injectable, and this test
+        // passes 0 for a deterministic write instead of racing clocks.
         val library = FakeLibraryRepository()
         setReaderContent(library, catalogWithPages(), progressDebounceMillis = 0)
         rule.waitForIdle()
@@ -216,7 +216,7 @@ class ReaderFlowTest {
         val catalog = catalogWithPages()
 
         // Default FakeDownloadManager has no localPagesByKey entries, so localPages() returns
-        // null and the reader must fall back to the live catalog, same as before this chunk.
+        // null and the reader must fall back to the live catalog.
         setReaderContent(library, catalog)
         rule.waitForIdle()
 
@@ -259,7 +259,7 @@ class ReaderFlowTest {
         assertNotNull(progress, "expected ch-2 progress once the strip has scrolled into it")
     }
 
-    // R7: finished tracks "read to the last page", not merely "opened" — the divider becoming
+    // Finished tracks "read to the last page", not merely "opened" — the divider becoming
     // visible means ch-1's last PageRow has scrolled into (or past) view.
     @Test
     fun scrollingToTheEndOfAChapterMarksItFinished() {
@@ -352,7 +352,7 @@ class ReaderFlowTest {
         assertTrue(textVisible("/ 5"), "expected ch-1 to still be the current chapter after the failed append")
     }
 
-    // R2 part 1: the controls overlay only reveals on a near-top hover or a click, not any move.
+    // The controls overlay only reveals on a near-top hover or a click, not any move.
     @Test
     fun controlsAppearOnlyNearTheTopEdgeOrOnClick() {
         // HARNESS TRAP, same family as the auto-scroll one below: with autoAdvance=true, a
@@ -395,7 +395,7 @@ class ReaderFlowTest {
         rule.mainClock.autoAdvance = true
     }
 
-    // R2 part 2 (M6b): the A key toggles auto-scroll on and off.
+    // The A key toggles auto-scroll on and off.
     @Test
     fun aKeyTogglesAutoScroll() {
         val library = FakeLibraryRepository()
@@ -421,7 +421,7 @@ class ReaderFlowTest {
         assertEquals(stopped, currentPageCounter(), "expected the position to stay put once auto-scroll stopped")
     }
 
-    // R2 part 2 (M6b): a paging key interrupts auto-scroll.
+    // A paging key interrupts auto-scroll.
     @Test
     fun pageDownStopsAutoScroll() {
         val library = FakeLibraryRepository()
@@ -449,8 +449,8 @@ class ReaderFlowTest {
         rule.waitForIdle()
     }
 
-    // R4-B fix 1: a fresh LazyListState per anchor means P's re-anchor never renders one frame
-    // of the OLD chapter's scroll offset before the restore effect repositions it.
+    // A fresh LazyListState per anchor means P's re-anchor never renders one frame of the OLD
+    // chapter's scroll offset before the restore effect repositions it.
     @Test
     fun pReanchorsAtTheTopOfThePreviousChapter() {
         val library = FakeLibraryRepository()
@@ -470,8 +470,8 @@ class ReaderFlowTest {
         assertTrue(textVisible("1 / 5"), "expected P to re-anchor at the top of ch-1, not a stale scroll offset")
     }
 
-    // R4-B fix 2: while the palette overlay is up the reader has no keyboard (A can't stop the
-    // strip), so the auto-scroll drive loop pauses and auto-resumes on close.
+    // While the palette overlay is up the reader has no keyboard (A can't stop the strip), so
+    // the auto-scroll drive loop pauses and auto-resumes on close.
     @Test
     fun paletteVisibilityPausesAutoScroll() {
         val library = FakeLibraryRepository()
@@ -525,9 +525,9 @@ class ReaderFlowTest {
         rule.mainClock.autoAdvance = true
     }
 
-    // R4 review finding: the overlay Prev button must stop auto-scroll before re-anchoring —
-    // a drive loop left running would keep scrolling the OLD detached listState after the
-    // re-anchor mints a fresh one (visible freeze).
+    // The overlay Prev button must stop auto-scroll before re-anchoring — a drive loop left
+    // running would keep scrolling the OLD detached listState after the re-anchor mints a
+    // fresh one (visible freeze).
     @Test
     fun prevButtonStopsAutoScrollAndReanchors() {
         val library = FakeLibraryRepository()

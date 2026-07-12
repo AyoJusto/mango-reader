@@ -175,7 +175,7 @@ fun PaletteOverlay(state: PaletteState, tabs: List<PaletteTab>) {
     // Candidates are fetched once per tab — and once per open, since this overlay only
     // composes while visible, so re-entering composition restarts the effect. The effect
     // restart IS the cancellation of an in-flight fetch: no manual Job, no scope.launch.
-    // v1 providers ignore the query, hence query("").
+    // Providers ignore the query, hence query("").
     LaunchedEffect(state.activeTabIndex) {
         val providers = tabs.getOrNull(state.activeTabIndex)?.providers.orEmpty()
         val collected = mutableListOf<PaletteHit>()
@@ -260,7 +260,7 @@ fun PaletteContent(
         modifier = Modifier
             .fillMaxSize()
             .testTag(PALETTE_TEST_TAG)
-            // scrim role, not a Color literal: Theme.kt owns every color decision (F11)
+            // scrim role, not a Color literal: Theme.kt owns every color decision
             .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f))
             .clickable(onClick = onDismiss)
             // On the scrim — an ancestor of everything in the panel — not on the text field:
@@ -390,7 +390,7 @@ private fun screenProvider(navigate: (Screen) -> Unit): PaletteProvider {
     }
 }
 
-/** Every registered color scheme as a palette hit; run applies it immediately (M4.4a). */
+/** Every registered color scheme as a palette hit; run applies it immediately. */
 private fun themeProvider(onThemeChange: (String) -> Unit): PaletteProvider = PaletteProvider { _ ->
     Themes.schemes.keys.map { name ->
         PaletteHit(category = "Themes", title = "Theme: $name", run = { onThemeChange(name) })
@@ -418,9 +418,9 @@ private fun libraryProvider(library: LibraryRepository, navigate: (Screen) -> Un
     }
 
 /**
- * The v1 tab set (M6a): "All" fans out to every provider, "Manhwa" is just the library
- * provider, "Actions" is screens + themes + settings. A tab-bar from day one so the
- * online-search tab (PLANNING §12 backlog) slots in later without rework.
+ * The tab set: "All" fans out to every provider, "Manhwa" is just the library provider,
+ * "Actions" is screens + themes + settings. A tab-bar from day one so a future online-search
+ * tab slots in later without rework.
  */
 fun paletteTabs(
     library: LibraryRepository,

@@ -397,15 +397,15 @@ fun ReaderScreen(
     onBack: () -> Unit,
     onToggleFullscreen: () -> Unit,
     progressDebounceMillis: Long = 500,
-    // R2: injectable so tests can make the overlay's auto-hide deterministic, same precedent
-    // as progressDebounceMillis above. Production (AppShell) doesn't pass it.
+    // Injectable so tests can make the auto-hide deterministic (same precedent as
+    // progressDebounceMillis above). Production doesn't pass it.
     controlsAutoHideMillis: Long = CONTROLS_AUTO_HIDE_MS,
-    // M6(b): dp/sec driving the A-key auto-scroll loop; persisted via Settings, plumbed down
-    // as a plain composable param (not part of Screen.Reader nav state).
+    // dp/sec driving the A-key auto-scroll loop; persisted via Settings, plumbed down as a
+    // plain composable param (not part of Screen.Reader nav state).
     autoScrollSpeedDpPerSec: Float = 120f,
     pageContent: (@Composable (Page) -> Unit)? = null,
-    // M6a: while the palette overlay is up it owns the keyboard; when it closes, the reader
-    // must re-request focus or its shortcuts stay dead (focus went to the palette's field)
+    // While the palette overlay is up it owns the keyboard; when it closes the reader must
+    // re-request focus or its shortcuts stay dead (focus went to the palette's field)
     paletteVisible: Boolean = false,
 ) {
     // The chapter currently anchoring the strip's first-loaded segment. Opening the reader sets
@@ -470,7 +470,7 @@ fun ReaderScreen(
     // Shared by the N/P key handlers and the overlay's Next/Prev buttons — same action, two
     // entry points; extracted so the two can't drift. Both stop auto-scroll HERE, not at the
     // call sites: a re-anchor mints a fresh listState, and a drive loop left running would
-    // keep scrolling the old detached one (review finding, R4).
+    // keep scrolling the old detached one.
     fun goToNextChapter() {
         autoScrolling = false
         scope.launch {
@@ -549,8 +549,8 @@ fun ReaderScreen(
     // Chapter completion writes deliberately do NOT ride the debounced writer above: finished's
     // window (chapter still current AND its last page revealed) is transient during a continuous
     // binge-scroll into the next chapter, and debounce would coalesce the emission away — the
-    // fast-read flow would never mark anything finished (review finding, R7). Completion is
-    // once-per-chapter rare, so it writes immediately; the SQL MAX keeps the flag sticky and
+    // fast-read flow would never mark anything finished. Completion is once-per-chapter rare,
+    // so it writes immediately; the SQL MAX keeps the flag sticky and
     // makes any duplicate write harmless. A chapter counts as finished once its LAST PageRow has
     // scrolled into (or past) view — dividers/footers after it count too, so a short final page
     // doesn't have to reach the top of the viewport to register.
@@ -599,9 +599,9 @@ fun ReaderScreen(
         controlsVisible = false
     }
 
-    // M6(b) auto-scroll drive loop: dt from the frame clock, suspend scrollBy between frames.
-    // While the palette overlay is up the reader has no keyboard (A can't stop the strip), so
-    // the loop pauses and auto-resumes on close — autoScrolling itself stays true.
+    // Auto-scroll drive loop: dt from the frame clock, suspend scrollBy between frames. While
+    // the palette overlay is up the reader has no keyboard (A can't stop the strip), so the
+    // loop pauses and auto-resumes on close — autoScrolling itself stays true.
     LaunchedEffect(autoScrolling, autoScrollSpeedDpPerSec, paletteVisible) {
         if (!autoScrolling || paletteVisible) return@LaunchedEffect
         val speedPx = with(density) { autoScrollSpeedDpPerSec.dp.toPx() }
@@ -669,9 +669,9 @@ fun ReaderScreen(
             // branch is the first point in composition where Modifier.focusRequester below is
             // actually attached to a node. Requesting focus before that (e.g. while the loading
             // spinner above is still showing) targets nothing and silently no-ops. Keyed on
-            // paletteVisible (M6a): the initial composition still requests (the flag starts
-            // false), and closing the palette re-requests — otherwise the palette's text field
-            // keeps focus and the reader's keyboard is dead after the overlay closes.
+            // paletteVisible: the initial composition still requests (the flag starts false),
+            // and closing the palette re-requests — otherwise the palette's text field keeps
+            // focus and the reader's keyboard is dead after the overlay closes.
             LaunchedEffect(paletteVisible) { if (!paletteVisible) focusRequester.requestFocus() }
             Box(
                 modifier = Modifier
@@ -783,8 +783,8 @@ fun ReaderScreen(
 /**
  * Default page renderer: a Coil [SubcomposeAsyncImage] carrying the page's host-required
  * headers (auth, referer) through [httpHeaders]. Plain `AsyncImage`'s placeholder slot only
- * takes a static Painter, so this uses SubcomposeAsyncImage to draw the composable loading
- * box the reader spec calls for (a tinted panel with a spinner) while a page is in flight.
+ * takes a static Painter, so this uses SubcomposeAsyncImage to draw a composable loading box
+ * (a tinted panel with a spinner) while a page is in flight.
  *
  * [Page] is reused for offline reading too ([ReaderScreen] fills `url` with a local absolute
  * path when the chapter is fully downloaded). Which branch runs is decided by [local] — the

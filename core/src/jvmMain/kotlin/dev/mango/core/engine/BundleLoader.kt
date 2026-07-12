@@ -5,7 +5,7 @@ import java.security.MessageDigest
 class BundleVerificationException(message: String, cause: Throwable? = null) :
     Exception(message, cause)
 
-// ponytail: JVM-only via MessageDigest; expect/actual when native targets land (M5)
+// ponytail: JVM-only via MessageDigest; expect/actual when native targets land
 object BundleLoader {
     const val MAX_BUNDLE_BYTES = 2 * 1024 * 1024
 
@@ -14,7 +14,7 @@ object BundleLoader {
      * sha256, and strict UTF-8. Returns the bundle source only if all three pass.
      *
      * The size cap here is defense-in-depth: the bytes are already in memory. Whatever
-     * downloads bundles (M4) owns the streaming cap that aborts oversized transfers.
+     * downloads bundles owns the streaming cap that aborts oversized transfers.
      */
     @OptIn(ExperimentalStdlibApi::class)
     fun verify(bytes: ByteArray, expectedSha256: String): String {

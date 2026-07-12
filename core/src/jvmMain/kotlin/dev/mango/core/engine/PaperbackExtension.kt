@@ -20,8 +20,8 @@ import kotlinx.serialization.json.jsonObject
 import org.graalvm.polyglot.proxy.ProxyObject
 
 /**
- * First slice of the Paperback adapter: one installed 0.9 extension, normalized to
- * domain types at this boundary. Grows into the full MangaSource implementation in M1.
+ * The Paperback adapter: one installed 0.9 extension, normalized to [MangaSource]'s
+ * domain types at this boundary.
  */
 class PaperbackExtension(
     override val sourceId: String,

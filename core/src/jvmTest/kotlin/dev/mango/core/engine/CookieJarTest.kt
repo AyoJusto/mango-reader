@@ -21,7 +21,7 @@ import org.graalvm.polyglot.proxy.ProxyExecutable
 import org.graalvm.polyglot.proxy.ProxyObject
 
 /**
- * The per-source cookie jar at the host boundary (M2.3): stored cookies ride outgoing
+ * The per-source cookie jar at the host boundary: stored cookies ride outgoing
  * requests, Set-Cookie responses land in the store, and the extension's own cookies win.
  */
 class CookieJarTest {

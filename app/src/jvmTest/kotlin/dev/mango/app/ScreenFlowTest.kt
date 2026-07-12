@@ -25,8 +25,7 @@ import org.junit.Test
 
 /**
  * Wraps [FakeCatalogRepository] to count [search] calls. Kept local to this test file rather
- * than added to FakeCatalogRepository itself, which the M3.5c chunk boundary doesn't list as
- * editable.
+ * than added to FakeCatalogRepository itself.
  */
 private class CountingCatalogRepository(private val delegate: CatalogRepository) : CatalogRepository {
     var searchCallCount = 0
@@ -169,8 +168,8 @@ class ScreenFlowTest {
         rule.onNodeWithText("In library — remove").assertExists()
     }
 
-    // R7: "unread" now means "not finished" — an in-progress (opened but unfinished) chapter
-    // still counts as unread for downloading, only a fully-finished chapter is excluded.
+    // "Unread" means "not finished" — an in-progress (opened but unfinished) chapter still
+    // counts as unread for downloading; only a fully-finished chapter is excluded.
     @Test
     fun downloadUnreadEnqueuesOnlyChaptersThatAreNotFinished() {
         val library = FakeLibraryRepository()
@@ -395,7 +394,7 @@ class ScreenFlowTest {
         assertEquals(1, clearCount)
     }
 
-    // R7: the Continue button's three variants — no progress, in-progress, and finished.
+    // The Continue button's three variants — no progress, in-progress, and finished.
     @Test
     fun startReadingButtonOpensTheFirstChapterWhenThereIsNoProgressYet() {
         val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")

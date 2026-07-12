@@ -6,7 +6,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-// Kanagawa Dragon palette — locked design tokens (M3.1)
+// Kanagawa Dragon palette — locked design tokens
 private val DragonColors = darkColorScheme(
     primary = Color(0xFF8BA4B0),        // dragonBlue2
     onPrimary = Color(0xFF0D0C0C),

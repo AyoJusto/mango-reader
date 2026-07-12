@@ -176,7 +176,7 @@ class InkdexRepoTest {
         val source = AvailableSource(sourceId = "FlameComics", name = "Flame Comics", version = "1.0.0")
         repo.install(source)
         catalog.search("FlameComics", "")
-        // a UA pinned by the challenge flow (M4.3) must survive a reinstall/update
+        // a UA pinned by the challenge flow must survive a reinstall/update
         db.sourcesQueries.updateUserAgent(user_agent = "pinned-ua", source_id = "FlameComics")
 
         bundle = "// v2 bundle\n"

@@ -42,8 +42,7 @@ class InkdexException(message: String) : IOException(message)
  *
  * DTO parsing is manual [JsonObject] navigation, not `@Serializable` classes: :core has no
  * kotlin-serialization compiler plugin applied (only the `kotlinx-serialization-json` runtime,
- * used elsewhere for the same manual style — see PaperbackExtension), and wiring the plugin in
- * is a build-file change outside this chunk's scope.
+ * used elsewhere for the same manual style — see PaperbackExtension).
  */
 class InkdexRepo(
     private val http: HttpClient,

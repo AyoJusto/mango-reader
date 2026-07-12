@@ -4,8 +4,8 @@ package dev.mango.core.domain
  * The agnostic source contract. Paperback is the first adapter; nothing here may depend on
  * how a source is implemented (no HTTP, no DB, no engine types).
  *
- * getPages takes mangaId too: the 0.9 contract needs sourceManga.mangaId, which deviates
- * from the original PLANNING sketch deliberately (see M1.5).
+ * getPages takes mangaId too: the underlying source contract needs sourceManga.mangaId, not
+ * just chapterId.
  */
 interface MangaSource {
     val sourceId: String

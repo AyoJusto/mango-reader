@@ -41,8 +41,8 @@ private object NoOpChallengeSolver : ChallengeSolver {
 }
 
 /**
- * Navigation state for the app shell. Hand-rolled — no nav library (M3.2, PLANNING §13
- * simplicity bias): the tree is four flat cases, not worth a dependency.
+ * Navigation state for the app shell. Hand-rolled — no nav library: the tree is a handful of
+ * flat cases, not worth a dependency.
  */
 sealed interface Screen {
     data object Library : Screen
@@ -162,9 +162,9 @@ fun AppShell(
                                 screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = false)
                             }
                             Screen.Search -> SearchScreen(catalog, challengeSolver, searchState) { entry ->
-                                // Details has no fromSearch case yet (owner accepted for M4.4b):
-                                // back from a Search-opened Details returns to Library, same as
-                                // fromBrowse = false everywhere else that isn't Browse itself.
+                                // Details has no fromSearch case yet: back from a Search-opened
+                                // Details returns to Library, same as fromBrowse = false
+                                // everywhere else that isn't Browse itself.
                                 screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = false)
                             }
                             Screen.Browse -> BrowseScreen(catalog, challengeSolver, browseState) { entry ->

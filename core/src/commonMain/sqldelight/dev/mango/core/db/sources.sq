@@ -1,8 +1,8 @@
 -- Installed Paperback source bundles. Timestamps are epoch millis.
 --
--- version: the registry version pinned at install time (M4.2), so the Extensions screen can
+-- version: the registry version pinned at install time, so the Extensions screen can
 -- tell "up to date" from "update available" without a network round trip.
--- user_agent: per-source UA override (written by M4.3's challenge flow). upsertInstalledSource
+-- user_agent: per-source UA override (written by the challenge-solve flow). upsertInstalledSource
 -- is ON CONFLICT DO UPDATE with user_agent absent from the SET list precisely so a
 -- reinstall/update never wipes a pinned UA (INSERT OR REPLACE would delete+reinsert the row
 -- and reset unlisted columns to their defaults).

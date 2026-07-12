@@ -23,7 +23,7 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * End-to-end palette flows through [AppShell] (M6a), backed by [FakeLibraryRepository]. The
+ * End-to-end palette flows through [AppShell], backed by [FakeLibraryRepository]. The
  * underlying screen (Library, by default) stays composed behind the scrim, so every lookup here
  * is scoped to [PALETTE_TEST_TAG]'s subtree — otherwise a hit title that's also a library grid
  * caption (e.g. "Solo Leveling") would match twice and fail with an ambiguous-node error.
@@ -156,10 +156,10 @@ class PaletteFlowTest {
         rule.onNode(hasText("Solo Leveling") and inPalette).assertExists()
     }
 
-    // Completeness test for the R3 registry: every SETTINGS_ENTRIES title must surface a hit in
-    // the palette, so a future registry entry with no matching provider output fails loudly here.
-    // Also covers the end-to-end behavior: selecting the "Setting: Auto-scroll speed" hit
-    // navigates to the Settings screen.
+    // Completeness test for the settings registry: every SETTINGS_ENTRIES title must surface a
+    // hit in the palette, so a future registry entry with no matching provider output fails
+    // loudly here. Also covers the end-to-end behavior: selecting the "Setting: Auto-scroll
+    // speed" hit navigates to the Settings screen.
     @Test
     fun everyRegisteredSettingsEntrySurfacesAPaletteHitAndSelectingOneNavigatesToSettings() {
         val library = FakeLibraryRepository(libraryItems())

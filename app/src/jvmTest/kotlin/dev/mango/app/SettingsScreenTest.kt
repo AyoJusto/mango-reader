@@ -10,7 +10,7 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * Flow test for the M4.4a Settings screen: theme names are listed and picking one fires the
+ * Flow test for the Settings screen: theme names are listed and picking one fires the
  * callback. Style mirrors ExtensionsScreenTest.
  */
 class SettingsScreenTest {
@@ -39,9 +39,9 @@ class SettingsScreenTest {
         assertEquals("midnight", selected)
     }
 
-    // Completeness test for the R3 registry: every SETTINGS_ENTRIES title must be discoverable
-    // on the rendered screen (substring match — the auto-scroll label carries a live value
-    // suffix), so a future registry entry with no matching UI text fails loudly here.
+    // Completeness test for the settings registry: every SETTINGS_ENTRIES title must be
+    // discoverable on the rendered screen (substring match — the auto-scroll label carries a
+    // live value suffix), so a future registry entry with no matching UI text fails loudly here.
     @Test
     fun everyRegisteredSettingsEntryIsRenderedOnScreen() {
         rule.setContent {

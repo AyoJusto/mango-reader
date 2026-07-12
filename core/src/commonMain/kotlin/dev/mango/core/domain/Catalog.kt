@@ -2,8 +2,8 @@ package dev.mango.core.domain
 
 /**
  * An installed source's identity, as tracked by the catalog (not the source's own JS state).
- * [version] is the registry version pinned at install time (M4.2); "" for sources installed
- * before that (manual bundle seeding, or a row untouched by a migration default).
+ * [version] is the registry version pinned at install time; "" for sources installed without
+ * one (manual bundle seeding, or a row untouched by a migration default).
  */
 data class SourceInfo(val sourceId: String, val name: String, val version: String = "")
 
@@ -12,10 +12,10 @@ data class SourceInfo(val sourceId: String, val name: String, val version: Strin
  * each sourceId. No infrastructure here (no DB, no engine types, no nio) — that lives in the
  * jvmMain implementation, which resolves a sourceId to a verified bundle and a [MangaSource].
  *
- * pages takes mangaId too: same 0.9 contract precedent as [MangaSource.getPages] (see M1.5).
+ * pages takes mangaId too, matching [MangaSource.getPages]'s contract.
  *
  * install only records the source's identity and pinned checksum; placing the bundle file
- * on disk is the caller's job in M2. M4's installer owns the actual download.
+ * on disk and downloading it are the caller's responsibility, not this method's.
  */
 interface CatalogRepository {
     suspend fun installedSources(): List<SourceInfo>

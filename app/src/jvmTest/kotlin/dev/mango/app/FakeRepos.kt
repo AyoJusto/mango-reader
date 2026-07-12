@@ -34,7 +34,7 @@ class FakeLibraryRepository(initial: List<LibraryItem> = emptyList()) : LibraryR
     private val state = MutableStateFlow(initial)
 
     // Keyed by (sourceId, mangaId, chapterId) — a real in-memory stand-in for persistence,
-    // not canned responses, since M3.3's reader reads its own writes (progress round-trips).
+    // not canned responses, since the reader reads its own writes (progress round-trips).
     private val progressByChapter = mutableMapOf<Triple<String, String, String>, ReadProgress>()
 
     // Monotonically increasing stand-in for updated_at, keyed the same way as progressByChapter —

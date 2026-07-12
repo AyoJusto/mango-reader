@@ -12,7 +12,7 @@ data class StoredCookie(
 /**
  * Cookie persistence for one source; the per-source scoping happens at construction, so a
  * consumer only ever sees its own source's cookies. This is the landing slot for
- * cf_clearance when the KCEF challenge flow arrives (M3/M4, PLANNING §10).
+ * cf_clearance harvested by the challenge-solve flow.
  */
 interface CookieStore {
     /** Non-expired cookies whose domain matches [host] (exact or parent domain). */

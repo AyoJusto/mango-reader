@@ -21,7 +21,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /**
- * The host-side policy floor from M1.5: per-host rate limiting, request timeout, and the
+ * The host-side policy floor: per-host rate limiting, request timeout, and the
  * error taxonomy (ExtensionNetworkException, CancellationException passthrough) at the
  * engine boundary. See docs/application-surface.md's "Host policy" section.
  */

@@ -91,7 +91,7 @@ private class SectionCountingCatalogRepository(private val delegate: CatalogRepo
 }
 
 /**
- * End-to-end flow through [AppShell]'s Browse tab, exercising the M5(b) discover/home sections
+ * End-to-end flow through [AppShell]'s Browse tab, exercising the discover/home sections
  * rendering, its precedence over stale search results when switching source chips, the session
  * cache, and the Cloudflare-challenge/solve path for a source's sections fetch.
  */

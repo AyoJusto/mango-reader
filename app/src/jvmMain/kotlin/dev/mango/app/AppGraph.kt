@@ -26,8 +26,8 @@ import java.nio.file.Paths
 import java.util.Properties
 
 /**
- * The composition root: manual constructor DI, no framework (PLANNING §13). Wires the
- * production :core implementations together over a single on-disk data directory.
+ * The composition root: manual constructor DI, no framework. Wires the production :core
+ * implementations together over a single on-disk data directory.
  */
 class AppGraph(dataDir: Path = defaultDataDir()) {
     // db and http stay private: screens talk to the repository ports only (CLAUDE.md

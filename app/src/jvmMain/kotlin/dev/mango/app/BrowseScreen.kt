@@ -247,7 +247,7 @@ class BrowseState {
 
     // one solve at a time within this screen; the app-wide one-embedded-browser invariant
     // currently holds because single-pane navigation composes one screen at a time — hoisting
-    // a real gate into the solver is a recorded ceiling (PLANNING)
+    // a real gate into the solver would be needed if that assumption ever breaks
     var solvingSourceId by mutableStateOf<String?>(null)
 
     // search is single-source-at-a-time here (unlike Search tab's fan-out), so a plain
@@ -365,7 +365,7 @@ fun BrowseScreen(
     fun search() {
         val sourceId = state.selectedSourceId ?: return
         if (state.query.isBlank()) {
-            // Deliberate v1 way back to sections mode: there is no explicit clear button, so
+            // Deliberate way back to sections mode: there is no explicit clear button, so
             // submitting a blank query is how a tab returns to showing discover sections.
             state.searchJob?.cancel()
             state.results = emptyList()

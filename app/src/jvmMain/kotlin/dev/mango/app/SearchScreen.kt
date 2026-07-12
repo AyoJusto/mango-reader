@@ -302,7 +302,7 @@ fun SearchScreen(
             state.solvingSourceId = sourceId
             try {
                 // refetch only the solved source: re-running the whole fan-out would hit the
-                // other sources again for nothing (polite-scraper rule, PLANNING §10)
+                // other sources again for nothing (polite-scraper rule)
                 if (challengeSolver.solve(sourceId, url)) searchOne(sourceId, query)
             } finally {
                 state.solvingSourceId = null

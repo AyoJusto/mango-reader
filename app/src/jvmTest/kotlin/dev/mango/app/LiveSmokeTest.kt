@@ -7,9 +7,9 @@ import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Tag
 
 /**
- * Milestone-exit smoke (M3.4): the PRODUCTION composition — AppGraph on the real
- * %APPDATA%/mango, real bundle file, live network — drives the full read path and leaves
- * one real series in the library so the launched app has something to show.
+ * Live smoke test: the PRODUCTION composition — AppGraph on the real %APPDATA%/mango, real
+ * bundle file, live network — drives the full read path and leaves one real series in the
+ * library so the launched app has something to show.
  *
  * Deliberately mutates real app data; tagged "live" so it never runs in a normal test pass.
  * Run: .\gradlew.bat :app:jvmTest -Plive --tests *LiveSmokeTest*

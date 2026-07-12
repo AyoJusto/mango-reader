@@ -13,8 +13,8 @@ import kotlin.test.assertTrue
 import kotlin.time.Clock
 
 /**
- * Review-artifact screenshots for the M3.2 screens (M3 loop): rendered at 1280x800 with
- * canned data via the content-level composables, never asserted byte-exact.
+ * Screenshots for the screens: rendered at 1280x800 with canned data via the content-level
+ * composables, never asserted byte-exact.
  */
 class ScreenScreenshotsTest {
     @Test

@@ -15,7 +15,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Tag
 
 /**
- * M4.3b live verification. Drives the PRODUCTION solve path — real JcefManager +
+ * Live verification. Drives the PRODUCTION solve path — real JcefManager +
  * JcefChallengeSolver + real SqlCookieStore — against a real Cloudflare site, and asserts
  * cf_clearance was harvested and persisted into the source's cookie jar where the host reads it.
  *

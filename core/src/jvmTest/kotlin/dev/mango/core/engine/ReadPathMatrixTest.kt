@@ -6,7 +6,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Replays the recorded M1.4 read-path fixtures through [PaperbackExtension], per source.
+ * Replays the recorded read-path fixtures through [PaperbackExtension], per source.
  * MangaBat only: Toonily's one budgeted recording run hit a non-200 on its first request
  * (Cloudflare-protected Madara site), so there are no Toonily fixtures to replay — see
  * docs/compatibility.md.

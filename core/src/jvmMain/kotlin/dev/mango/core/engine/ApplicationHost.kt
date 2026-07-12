@@ -263,7 +263,7 @@ class ApplicationHost(
             // disconnected one, so cancelling the coroutine that started this extension
             // call actually interrupts an in-flight HTTP request here, rather than being
             // invisible to it (see ExtensionNetworkException / CancellationException
-            // taxonomy, M1.5).
+            // taxonomy).
             val (response, bytes) = runBlocking(callJob ?: EmptyCoroutineContext) {
                 awaitHostRateLimit(requestedHost)
                 try {
@@ -290,7 +290,7 @@ class ApplicationHost(
             val cookies = response.headers.getAll(HttpHeaders.SetCookie).orEmpty()
                 .map { parseServerSetCookieHeader(it) }
             // per-source cookie jar: whatever the site set is on the next request too, even
-            // from a fresh context (future landing slot for cf_clearance, PLANNING §10)
+            // from a fresh context (this is where a solved challenge's cf_clearance lands too)
             cookieStore?.let { store ->
                 runBlocking(callJob ?: EmptyCoroutineContext) {
                     // a jar write must never sink a response the site already served
@@ -368,10 +368,10 @@ class ApplicationHost(
 
     /**
      * Bundles write h2/iOS-style lowercase header names ("user-agent"); sent verbatim over
-     * this client's HTTP/1.1 connection that casing is a non-browser fingerprint Cloudflare
-     * challenges even with valid cf_clearance (verified live 2026-07-11: byte-identical
-     * request 200s title-cased, 403s lowercased). Normalize to canonical h1 casing at the
-     * wire boundary; the JS-facing side keeps lowercase (bundles do exact lowercase lookups).
+     * this client's HTTP/1.1 connection, that casing is a non-browser fingerprint — Cloudflare
+     * challenges the request even with valid cf_clearance (verified live: byte-identical
+     * requests get a 200 title-cased, a 403 lowercased). Normalize to canonical h1 casing at
+     * the wire boundary; the JS-facing side keeps lowercase (bundles do exact lowercase lookups).
      *
      * Only all-lowercase names are rewritten: a bundle that wrote "DNT" or "X-API-Key"
      * chose its casing deliberately and passes through verbatim. Chrome emits sec-* client
@@ -421,7 +421,7 @@ class ApplicationHost(
                 data.isHostObject -> setBody(data.asHostObject<ByteArray>())
                 data.hasBufferElements() -> setBody(bytesOf(data))
                 // fail loudly instead of sending an empty body; add JSON-object
-                // bodies when a real source needs them (M1 shake-out)
+                // bodies when a real source needs them
                 else -> throw IllegalArgumentException("unsupported request data type: $data")
             }
         }

@@ -1,7 +1,7 @@
--- v2 -> v3: installed sources move from manual bundle seeding to the Inkdex registry (M4.2).
+-- v2 -> v3: installed sources move from manual bundle seeding to the Inkdex registry.
 -- version tracks what's pinned so the Extensions screen can tell "installed" from "update
 -- available" without a network round trip. user_agent is added now too (nullable, unset) so
--- there's a single migration covering both columns — M4.3 is the first caller that writes it.
+-- there's a single migration covering both columns.
 
 ALTER TABLE installed_source ADD COLUMN version TEXT NOT NULL DEFAULT '';
 ALTER TABLE installed_source ADD COLUMN user_agent TEXT;
