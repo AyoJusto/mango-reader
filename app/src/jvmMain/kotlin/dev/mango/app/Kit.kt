@@ -16,6 +16,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -48,6 +49,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -59,6 +61,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -66,6 +70,12 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.utf16CodePoint
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -77,6 +87,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import kotlinx.coroutines.delay
 
 /**
  * Shared visual primitives every screen restyle builds on: reads [LocalMangoTheme]
@@ -618,11 +629,21 @@ fun CoverCard(
 
 private val KIT_DROPDOWN_MAX_MENU_HEIGHT = 320.dp
 
+/** Fixed option-row height; the type-ahead scroll math derives offsets from it, so they cannot drift. */
+private val KIT_DROPDOWN_ITEM_HEIGHT = 36.dp
+
+/** Idle time after which the type-ahead prefix buffer resets and typing starts a new prefix. */
+private const val KIT_DROPDOWN_TYPE_AHEAD_RESET_MS = 750L
+
 /**
  * The app's single-select dropdown: a kit-styled trigger row showing the current value, opening
  * a scrollable menu of [options]. The menu is at least as wide as the trigger (wider when an
  * option needs it); the selected option renders in accent color. Selection is by value, not
  * index — [onSelect] receives the clicked option string.
+ *
+ * Keyboard: typing jumps the active row to the first prefix match (case-insensitive, transient
+ * buffer), Up/Down step it without wrapping, Enter selects it, Escape dismisses. The active row
+ * shares the hover fill treatment; it starts on the selected option, scrolled into view.
  */
 @Composable
 fun KitDropdown(
@@ -651,21 +672,74 @@ fun KitDropdown(
             Text(text = selected, style = MangoType.body, color = theme.textPrimary)
             Text(text = "▾", style = MangoType.body, color = theme.textTertiary)
         }
-        val triggerWidth = with(LocalDensity.current) { triggerWidthPx.toDp() }
+        val density = LocalDensity.current
+        val triggerWidth = with(density) { triggerWidthPx.toDp() }
+        val itemHeightPx = with(density) { KIT_DROPDOWN_ITEM_HEIGHT.roundToPx() }
+        val scrollState = rememberScrollState()
+        val typeAhead = remember(expanded) { TypeAheadState(options, options.indexOf(selected)) }
+        val menuFocus = remember { FocusRequester() }
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-            scrollState = rememberScrollState(),
+            scrollState = scrollState,
             shape = RoundedCornerShape(MangoRadius.panel),
             containerColor = theme.bg2,
             modifier = Modifier
                 .widthIn(min = triggerWidth)
-                .heightIn(max = KIT_DROPDOWN_MAX_MENU_HEIGHT),
+                .heightIn(max = KIT_DROPDOWN_MAX_MENU_HEIGHT)
+                .focusRequester(menuFocus)
+                .focusable()
+                .onPreviewKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    when (event.key) {
+                        Key.DirectionDown -> {
+                            typeAhead.onArrowDown()
+                            true
+                        }
+                        Key.DirectionUp -> {
+                            typeAhead.onArrowUp()
+                            true
+                        }
+                        Key.Enter, Key.NumPadEnter -> {
+                            options.getOrNull(typeAhead.activeIndex)?.let {
+                                expanded = false
+                                onSelect(it)
+                            }
+                            true
+                        }
+                        else -> {
+                            val char = event.utf16CodePoint.toChar()
+                            if (char.code >= 32 && !char.isISOControl()) {
+                                typeAhead.onChar(char)
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                    }
+                },
         ) {
-            options.forEach { option ->
+            LaunchedEffect(Unit) { menuFocus.requestFocus() }
+            LaunchedEffect(typeAhead.buffer) {
+                if (typeAhead.buffer.isNotEmpty()) {
+                    delay(KIT_DROPDOWN_TYPE_AHEAD_RESET_MS)
+                    typeAhead.clearBuffer()
+                }
+            }
+            LaunchedEffect(typeAhead.activeIndex) {
+                val targetTop = typeAhead.activeIndex * itemHeightPx
+                val viewport = scrollState.viewportSize
+                if (targetTop < scrollState.value) {
+                    scrollState.animateScrollTo(targetTop)
+                } else if (targetTop + itemHeightPx > scrollState.value + viewport) {
+                    scrollState.animateScrollTo(targetTop + itemHeightPx - viewport)
+                }
+            }
+            options.forEachIndexed { index, option ->
                 KitDropdownItem(
                     text = option,
                     selected = option == selected,
+                    active = index == typeAhead.activeIndex,
                     onClick = {
                         expanded = false
                         onSelect(option)
@@ -677,16 +751,20 @@ fun KitDropdown(
 }
 
 @Composable
-private fun KitDropdownItem(text: String, selected: Boolean, onClick: () -> Unit) {
+private fun KitDropdownItem(text: String, selected: Boolean, active: Boolean, onClick: () -> Unit) {
     val theme = LocalMangoTheme.current
-    val hover = rememberHoverFill(rest = theme.bg1.copy(alpha = 0f), hover = theme.bg1)
+    val hover = rememberHoverFill(
+        rest = if (active) theme.bg1 else theme.bg1.copy(alpha = 0f),
+        hover = theme.bg1,
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .height(KIT_DROPDOWN_ITEM_HEIGHT)
             .background(hover.fill)
             .hoverable(hover.interaction)
             .clickable(interactionSource = hover.interaction, indication = null, onClick = onClick)
-            .padding(horizontal = MangoSpace.sm, vertical = MangoSpace.xs),
+            .padding(horizontal = MangoSpace.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
