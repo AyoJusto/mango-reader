@@ -27,6 +27,18 @@ core 101 tests + app 87 tests, all verified via forced rerun + JUnit XML.
   removed as links, not followed). Ceilings: clear-during-active-download orphans that
   one chapter's files (next clear removes them); DONE rows with hand-deleted files read
   as downloaded until cleared.
+- `442e5c1` — R7 SHIPPED: finished-chapter tracking. Owner decision: in-progress ≠ read —
+  only FULLY read chapters dim. Sticky `read_progress.finished` (3.sqm; upsert MAX keeps
+  it set), `finishedChapterIds` replaces `readChapterIds` app-wide, `latestProgress`
+  backs a Details Continue button ("Start reading" / "Continue — Ch. X · p. N" /
+  next-after-finished / nothing when caught up). Completion detection: last visible row
+  ≥ the chapter's last page row, written by a DEDICATED immediate collector — the Opus
+  review caught that riding the 500ms-debounced page writer would coalesce the finished
+  signal away during a continuous binge-scroll (the exact target flow). "Download unread"
+  = not-finished now (in-progress still downloads; test proves that direction). Ceilings:
+  no backfill (old rows start finished=0 until re-read to the end); a chapter shorter
+  than the viewport counts finished on open (accepted leniency); library-grid unread
+  badges and a per-manhwa "Continue reading" palette hit remain future work.
 - `b349f0c` — R6 SHIPPED: extension removal. CatalogRepository.uninstall(sourceId) —
   requireSafeSourceId, row delete, engine eviction, bundle-file delete LAST (Opus review
   finding: the file delete can throw on a Windows lock, and a removed source must stop
