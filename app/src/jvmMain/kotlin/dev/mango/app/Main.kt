@@ -11,6 +11,7 @@ import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -63,6 +64,7 @@ fun main() {
         Window(
             onCloseRequest = { graph.dispose(); exitApplication() },
             title = "mango",
+            icon = painterResource("mango-icon.svg"),
             state = windowState,
             onPreviewKeyEvent = { keyEvent ->
                 when {

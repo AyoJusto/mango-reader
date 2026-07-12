@@ -94,6 +94,13 @@ compose.desktop {
         jvmArgs("-Dpolyglotimpl.AttachLibraryFailureAction=ignore")
         jvmArgs(*jcefJvmArgs.toTypedArray())
         jvmArgs(*quietNativeWarningArgs(javaMajor(jbrHome)).toTypedArray())
+        nativeDistributions {
+            packageName = "mango"
+            windows {
+                // Regenerated from design/icon/mango.svg by IconRenderTest; see its KDoc.
+                iconFile.set(project.file("icons/mango.ico"))
+            }
+        }
     }
 }
 
