@@ -129,6 +129,7 @@ object MangoMotion {
     const val COVER_HOVER_SCALE = 1.03f
     const val PROGRESS_BAR_MS = 300
     const val BANNER_IN_MS = 200
+    const val SHIMMER_MS = 1800
 }
 
 /** The active [MangoTheme] for the current composition; defaults to [MangoDark] outside [ProvideMangoTheme]. */

@@ -41,6 +41,7 @@ fun ExtensionsScreenContent(
     isLoading: Boolean,
     error: String?,
     actionError: String? = null,
+    onDismissActionError: () -> Unit = {},
     onInstall: (AvailableSource) -> Unit,
     onRemove: (AvailableSource) -> Unit,
 ) {
@@ -64,10 +65,10 @@ fun ExtensionsScreenContent(
                 )
                 else -> Column(modifier = Modifier.fillMaxSize()) {
                     if (actionError != null) {
-                        Text(
-                            text = actionError,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = theme.danger,
+                        ErrorBanner(
+                            headline = actionError,
+                            detail = "Your installed sources are untouched below.",
+                            onDismiss = onDismissActionError,
                             modifier = Modifier.fillMaxWidth().padding(16.dp),
                         )
                     }
@@ -167,6 +168,7 @@ fun ExtensionsScreen(repo: ExtensionRepo, catalog: CatalogRepository) {
         isLoading = isLoading,
         error = error,
         actionError = actionError,
+        onDismissActionError = { actionError = null },
         onInstall = { source ->
             // busy is set synchronously, before the coroutine body runs: a second click on
             // the same row bails here instead of launching a duplicate install

@@ -1,28 +1,48 @@
 package dev.mango.app
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
-/** The "Opening browser… (first run downloads it, ~100MB)" progress hint shown while a challenge solve is running. */
+/** The inline "solving this source's challenge" hint shown while a challenge solve is running. */
 @Composable
 internal fun SolveProgressHint() {
-    Text(
-        text = "Opening browser… (first run downloads it, ~100MB)",
-        style = MaterialTheme.typography.bodySmall,
-        color = LocalMangoTheme.current.textSecondary,
-    )
+    val theme = LocalMangoTheme.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(MangoSpace.base),
+    ) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(12.dp),
+            color = theme.accent,
+            strokeWidth = 2.dp,
+            trackColor = Color.Transparent,
+        )
+        Text(
+            text = "Solving site challenge… ~15 s",
+            style = MangoType.caption,
+            color = theme.textSecondary,
+        )
+    }
 }
 
 /**
- * Error text plus an optional Solve button for a Cloudflare challenge.
+ * Warning-toned card plus an optional Solve button for a Cloudflare challenge: the user did
+ * nothing wrong, so this reads as warning, never danger (see board 11 in the design handoff).
  *
  * [solveEnabled] and [solving] are distinct: a solve running anywhere disables the button
  * ([solveEnabled]), but only the screen whose own solve is running shows the progress hint
@@ -36,15 +56,31 @@ internal fun ChallengeErrorContent(
     solveEnabled: Boolean,
     onSolveChallenge: () -> Unit,
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = error,
-            style = MaterialTheme.typography.bodyMedium,
-            color = LocalMangoTheme.current.danger,
-        )
+    val theme = LocalMangoTheme.current
+    Column(
+        modifier = Modifier
+            .clip(RoundedCornerShape(MangoRadius.row))
+            .background(theme.warning.copy(alpha = 0.10f))
+            .padding(MangoSpace.md),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(MangoSpace.sm),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(theme.warning),
+            )
+            Text(text = error, style = MangoType.bodyStrong, color = theme.textPrimary)
+        }
         if (challengeUrl != null) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(onClick = onSolveChallenge, enabled = solveEnabled) { Text("Solve challenge") }
+            KitButton(
+                label = "Solve challenge",
+                onClick = onSolveChallenge,
+                style = KitButtonStyle.PRIMARY,
+                enabled = solveEnabled,
+            )
             if (solving) {
                 SolveProgressHint()
             }
