@@ -1,5 +1,14 @@
 package dev.mango.app
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,29 +18,34 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.ChallengeRequiredException
 import dev.mango.core.domain.ChallengeSolver
@@ -44,6 +58,139 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.util.logging.Level
 import java.util.logging.Logger
+
+/** Board 07's search-input grammar, shared by every text query field on this screen. */
+private val SEARCH_FIELD_RADIUS = MangoRadius.row
+private val SEARCH_FIELD_RING_RADIUS = SEARCH_FIELD_RADIUS + 2.dp
+
+/**
+ * The one styled text query field on Search: bg2 fill, radius 12, a focus ring offset from the
+ * control by a bg gap, and an accent caret. Kept file-private and duplicated in BrowseScreen.kt
+ * rather than added to Kit.kt (out of scope for this restyle).
+ */
+@Composable
+private fun StyledSearchField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    onSearch: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val theme = LocalMangoTheme.current
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val ring = if (focused) {
+        Modifier.border(2.dp, theme.focus, RoundedCornerShape(SEARCH_FIELD_RING_RADIUS))
+    } else {
+        Modifier
+    }
+    Box(
+        modifier = modifier
+            .then(ring)
+            .padding(2.dp)
+            .clip(RoundedCornerShape(SEARCH_FIELD_RADIUS))
+            .background(theme.bg2)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
+            Text(text = "⌕", style = MangoType.body, color = theme.textTertiary)
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier.weight(1f),
+                textStyle = MangoType.body.copy(color = theme.textPrimary),
+                singleLine = true,
+                cursorBrush = SolidColor(theme.accent),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+                interactionSource = interaction,
+                decorationBox = { innerTextField ->
+                    Box {
+                        if (value.isEmpty()) {
+                            Text(text = placeholder, style = MangoType.body, color = theme.textTertiary)
+                        }
+                        innerTextField()
+                    }
+                },
+            )
+        }
+    }
+}
+
+/** A result row: 30x42 thumb, title, alpha-only bg1 hover — no ripple, the fill fade is the indication. */
+@Composable
+private fun SearchResultRow(entry: MangaEntry, onClick: () -> Unit) {
+    val theme = LocalMangoTheme.current
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    val rowBg by animateColorAsState(
+        // Same-color-at-zero-alpha rest state, never Color.Transparent, so the exit never flashes.
+        targetValue = if (hovered) theme.bg1 else theme.bg1.copy(alpha = 0f),
+        animationSpec = tween(MangoMotion.HOVER_MS),
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(MangoRadius.row))
+            .background(rowBg)
+            .hoverable(interaction)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .padding(horizontal = MangoSpace.sm, vertical = MangoSpace.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 30.dp, height = 42.dp)
+                .clip(RoundedCornerShape(MangoRadius.keycap))
+                .background(theme.bg2),
+        ) {
+            val cover = entry.cover
+            if (cover != null) {
+                AsyncImage(
+                    model = cover,
+                    contentDescription = entry.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+        // MangaEntry carries no chapter-count/genre metadata for the board 07 subtitle line.
+        Text(
+            text = entry.title,
+            style = MangoType.bodyStrong,
+            color = theme.textPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/** Loading placeholder for a source's result rows: shapes mirror [SearchResultRow]'s thumb + title. */
+@Composable
+private fun SearchResultsSkeleton(modifier: Modifier = Modifier) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(MangoSpace.xs)) {
+        repeat(3) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm),
+                modifier = Modifier.padding(horizontal = MangoSpace.sm, vertical = MangoSpace.xs),
+            ) {
+                SkeletonBlock(
+                    modifier = Modifier
+                        .size(width = 30.dp, height = 42.dp)
+                        .clip(RoundedCornerShape(MangoRadius.keycap)),
+                )
+                SkeletonBlock(
+                    modifier = Modifier
+                        .width(140.dp)
+                        .height(14.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+                )
+            }
+        }
+    }
+}
 
 /** One installed source's results/error within the search screen's per-source section. */
 @Composable
@@ -63,43 +210,44 @@ private fun SearchSourceSection(
 ) {
     val theme = LocalMangoTheme.current
     Column(modifier = Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(text = source.name, style = MaterialTheme.typography.titleMedium)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs)) {
+            Text(text = source.name, style = MangoType.microLabel, color = theme.textTertiary)
             if (pending) {
-                CircularProgressIndicator(modifier = Modifier.height(16.dp).width(16.dp), strokeWidth = 2.dp)
-            } else if (error != null) {
-                Text(text = error, style = MaterialTheme.typography.bodyMedium, color = theme.danger)
-                if (challengeUrl != null) {
-                    Button(onClick = onSolveChallenge, enabled = solveEnabled) { Text("Solve challenge") }
-                }
-            } else {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(14.dp),
+                    color = theme.accent,
+                    strokeWidth = 2.dp,
+                    trackColor = Color.Transparent,
+                )
+            } else if (error == null) {
                 Text(
                     text = "${results.size} result${if (results.size == 1) "" else "s"}",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MangoType.caption,
                     color = theme.textSecondary,
                 )
             }
         }
-        if (solving && challengeUrl != null) {
-            SolveProgressHint()
-        }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(MangoSpace.xs))
         when {
-            pending -> Unit // spinner already shown in the header row above
-            error != null -> Unit // error already surfaced in the header row above
-            results.isEmpty() -> Text(
-                text = "No results",
-                style = MaterialTheme.typography.bodyMedium,
-                color = theme.textSecondary,
+            pending -> SearchResultsSkeleton()
+            // the user did nothing wrong here, so a Cloudflare challenge reads as warning, never
+            // danger — see ChallengeErrorContent; any other failure stays plain danger text below
+            error != null && challengeUrl != null -> ChallengeErrorContent(
+                error = error,
+                challengeUrl = challengeUrl,
+                solving = solving,
+                solveEnabled = solveEnabled,
+                onSolveChallenge = onSolveChallenge,
             )
+            error != null -> Text(text = error, style = MangoType.body, color = theme.danger)
+            results.isEmpty() -> Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                EmptyState(title = "No results", guidance = "Try a different search term.")
+            }
             // no item keys: extension data is untrusted and a duplicate mangaId in one
             // response must not crash composition with a duplicate-key exception
-            else -> LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxWidth().height(280.dp),
-            ) {
-                items(results) { entry ->
-                    CoverCell(entry = entry, onClick = { onOpenDetails(entry) }, modifier = Modifier.height(280.dp))
+            else -> Column {
+                results.forEach { entry ->
+                    SearchResultRow(entry = entry, onClick = { onOpenDetails(entry) })
                 }
             }
         }
@@ -125,28 +273,39 @@ fun SearchScreenContent(
 ) {
     val theme = LocalMangoTheme.current
     Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
-        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                placeholder = { Text("Search all sources…") },
-                leadingIcon = { Text("⌕") },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { onSearch() }),
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(modifier = Modifier.fillMaxSize().padding(MangoSpace.md)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                StyledSearchField(
+                    value = query,
+                    onValueChange = onQueryChange,
+                    placeholder = "Search all sources…",
+                    onSearch = onSearch,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(modifier = Modifier.width(MangoSpace.sm))
+                Text(
+                    text = "${sources.size} source${if (sources.size == 1) "" else "s"}",
+                    style = MangoType.caption,
+                    color = theme.textTertiary,
+                )
+            }
+            Spacer(modifier = Modifier.height(MangoSpace.sm))
+            Row(horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs)) {
                 sources.forEach { source ->
-                    FilterChip(
-                        selected = source.sourceId in enabledSourceIds,
-                        onClick = { onToggleSource(source.sourceId) },
-                        label = { Text(source.name) },
+                    val selected = source.sourceId in enabledSourceIds
+                    Pill(
+                        text = source.name,
+                        container = if (selected) theme.accent.copy(alpha = 0.14f) else theme.surface,
+                        content = if (selected) theme.accent else theme.textSecondary,
+                        modifier = Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { onToggleSource(source.sourceId) },
+                        ),
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(MangoSpace.md))
             // no per-source data and nothing in flight means no search has run yet: show an
             // idle hint instead of a "No results" section per source. There is deliberately
             // no whole-screen spinner: each source's section appears the moment that source
@@ -161,7 +320,7 @@ fun SearchScreenContent(
                         } else {
                             "Search across all installed sources"
                         },
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MangoType.body,
                         color = theme.textSecondary,
                     )
                 }
@@ -173,7 +332,7 @@ fun SearchScreenContent(
                     it.sourceId in resultsBySource || it.sourceId in errorsBySource ||
                         it.sourceId in pendingSourceIds
                 }
-                LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(MangoSpace.lg)) {
                     items(searchedSources, key = { it.sourceId }) { source ->
                         SearchSourceSection(
                             source = source,

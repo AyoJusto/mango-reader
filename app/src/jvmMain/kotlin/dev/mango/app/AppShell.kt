@@ -1,5 +1,7 @@
 package dev.mango.app
 
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +21,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
@@ -93,6 +96,10 @@ fun AppShell(
     onThemeChange: (MangoTheme) -> Unit = {},
     autoScrollSpeed: Float = 120f,
     onAutoScrollSpeedChange: (Float) -> Unit = {},
+    stripWidthDp: Float = 880f,
+    onStripWidthDpChange: (Float) -> Unit = {},
+    hideCursorInReader: Boolean = true,
+    onHideCursorInReaderChange: (Boolean) -> Unit = {},
     onToggleFullscreen: () -> Unit = {},
     palette: PaletteState = remember { PaletteState() },
     sidebarOpen: Boolean = false,
@@ -160,9 +167,16 @@ fun AppShell(
         // Content, sidebar, and palette live in one Box so the overlays can stack above
         // whichever screen is showing; the title bar stays visible over all of them.
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            // The content behind the palette blurs while it's open — the haze sidebar source
+            // modifier below stays untouched; this composes an ordinary blur onto the same Box.
+            val contentBlurDp by animateDpAsState(
+                targetValue = if (palette.visible) 10.dp else 0.dp,
+                animationSpec = tween(MangoMotion.PALETTE_BACKDROP_MS),
+            )
+            val contentBlur = if (contentBlurDp > 0.dp) Modifier.blur(contentBlurDp) else Modifier
             when (val current = screen) {
                 is Screen.Reader -> {
-                    Box(modifier = Modifier.fillMaxSize().hazeSource(hazeState)) {
+                    Box(modifier = Modifier.fillMaxSize().hazeSource(hazeState).then(contentBlur)) {
                         ReaderScreen(
                             sourceId = current.sourceId,
                             mangaId = current.mangaId,
@@ -175,15 +189,15 @@ fun AppShell(
                             onBack = { lastDetails?.let { screen = it } ?: run { screen = Screen.Library } },
                             onToggleFullscreen = onToggleFullscreen,
                             autoScrollSpeedDpPerSec = autoScrollSpeed,
-                            // No user-facing strip-width slider is wired yet; thread the spec default.
-                            stripWidthDp = 880f,
+                            stripWidthDp = stripWidthDp,
                             paletteVisible = palette.visible,
+                            hideCursorInReader = hideCursorInReader,
                         )
                     }
                 }
                 else -> {
                     Surface(
-                        modifier = Modifier.fillMaxSize().hazeSource(hazeState),
+                        modifier = Modifier.fillMaxSize().hazeSource(hazeState).then(contentBlur),
                         color = theme.bg0,
                     ) {
                         when (current) {
@@ -215,6 +229,10 @@ fun AppShell(
                                 onThemeChange = onThemeChange,
                                 autoScrollSpeed = autoScrollSpeed,
                                 onAutoScrollSpeedChange = onAutoScrollSpeedChange,
+                                stripWidth = stripWidthDp,
+                                onStripWidthChange = onStripWidthDpChange,
+                                hideCursorInReader = hideCursorInReader,
+                                onHideCursorInReaderChange = onHideCursorInReaderChange,
                                 libraryView = libraryView,
                                 onLibraryViewChange = onLibraryViewChange,
                             )

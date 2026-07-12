@@ -27,4 +27,50 @@ class SettingsTest {
         val reloaded = Settings(dataDir)
         assertEquals(250f, reloaded.autoScrollSpeed)
     }
+
+    @Test
+    fun stripWidthDefaultsTo880AndMalformedValueFallsBackToDefault() {
+        val dataDir = Files.createTempDirectory("settings-test")
+        val file = dataDir.resolve("settings.properties")
+        Files.write(file, "stripWidth=not-a-number\n".toByteArray())
+
+        val settings = Settings(dataDir)
+
+        assertEquals(880f, settings.stripWidth)
+    }
+
+    @Test
+    fun stripWidthPersistsAcrossInstances() {
+        val dataDir = Files.createTempDirectory("settings-test")
+        val settings = Settings(dataDir)
+        assertEquals(880f, settings.stripWidth)
+
+        settings.stripWidth = 1200f
+
+        val reloaded = Settings(dataDir)
+        assertEquals(1200f, reloaded.stripWidth)
+    }
+
+    @Test
+    fun hideCursorInReaderDefaultsToTrueAndMalformedValueFallsBackToDefault() {
+        val dataDir = Files.createTempDirectory("settings-test")
+        val file = dataDir.resolve("settings.properties")
+        Files.write(file, "hideCursorInReader=not-a-boolean\n".toByteArray())
+
+        val settings = Settings(dataDir)
+
+        assertEquals(true, settings.hideCursorInReader)
+    }
+
+    @Test
+    fun hideCursorInReaderRoundTripsAcrossInstances() {
+        val dataDir = Files.createTempDirectory("settings-test")
+        val settings = Settings(dataDir)
+        assertEquals(true, settings.hideCursorInReader)
+
+        settings.hideCursorInReader = false
+
+        val reloaded = Settings(dataDir)
+        assertEquals(false, reloaded.hideCursorInReader)
+    }
 }

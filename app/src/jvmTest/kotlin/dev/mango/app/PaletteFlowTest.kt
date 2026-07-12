@@ -182,13 +182,13 @@ class PaletteFlowTest {
         palette.visible = true
         rule.waitForIdle()
 
-        // Narrow to the "Setting" prefix first: with the unfiltered "All" list, the LazyColumn
-        // only composes what's within the viewport, and library + screen hits sort ahead of
-        // "Settings" alphabetically, so an unnarrowed entry can be off-screen and absent from
-        // the semantics tree despite being a real candidate. The narrowed query text ("Setting")
-        // never equals a full hit title ("Setting: Theme"), so it can't collide with the
-        // per-entry exact-text lookups below.
-        rule.onNodeWithText("Search everywhere…").performTextInput("Setting")
+        // Narrow to the "Setting:" prefix first (colon included): with the unfiltered "All"
+        // list, the LazyColumn only composes what's within the viewport, and library/screen
+        // hits sort ahead of "Settings" alphabetically, so an unnarrowed entry can be off-screen
+        // and absent from the semantics tree despite being a real candidate. The colon also
+        // excludes the Screens-category "Settings" hit itself (its title has no colon), which
+        // would otherwise occupy a viewport slot ahead of the alphabetically-last entries.
+        rule.onNodeWithText("Search everywhere…").performTextInput("Setting:")
         rule.waitForIdle()
 
         SETTINGS_ENTRIES.forEach { title ->
@@ -196,7 +196,7 @@ class PaletteFlowTest {
         }
 
         // Narrow further to the single "Setting: Auto-scroll speed" hit and run it.
-        rule.onNodeWithText("Setting").performTextClearance()
+        rule.onNodeWithText("Setting:").performTextClearance()
         rule.waitForIdle()
         rule.onNodeWithText("Search everywhere…").performTextInput("Setting: Auto-scroll speed")
         rule.waitForIdle()
@@ -209,6 +209,37 @@ class PaletteFlowTest {
         // the hit navigated to Settings.
         assertFalse(palette.visible)
         rule.onNodeWithText("Theme").assertExists()
+    }
+
+    // New-settings coverage (board 09): both new reader settings must be reachable exactly like
+    // any other registered setting — a hit exists and running it navigates to Settings.
+    @Test
+    fun stripWidthAndHideCursorSettingsHitsNavigateToSettings() {
+        val library = FakeLibraryRepository(libraryItems())
+        val palette = PaletteState()
+
+        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, FakeCatalogRepository(), FakeDownloadManager(), palette = palette) } }
+        rule.waitForIdle()
+
+        listOf("Strip width", "Hide cursor").forEach { title ->
+            palette.visible = true
+            rule.waitForIdle()
+
+            // Narrows to the single matching hit; no separate existence assertion first (the
+            // query text now equals the hit's own title, so the input field's own EditableText
+            // would double-match a hasText lookup) — running it and observing the navigation
+            // below is proof enough it existed, same idiom as the Auto-scroll-speed run above.
+            rule.onNodeWithText("Search everywhere…").performTextInput("Setting: $title")
+            rule.waitForIdle()
+
+            rule.onRoot().performKeyInput { pressKey(Key.Enter) }
+            rule.waitForIdle()
+
+            assertFalse(palette.visible)
+            // "Theme" is the Settings screen's own row title, same uniqueness rationale as the
+            // completeness test above — it proves the hit navigated to Settings.
+            rule.onNodeWithText("Theme").assertExists()
+        }
     }
 
     // Completeness test for the accent registry: every ACCENT_PRESETS label must surface an

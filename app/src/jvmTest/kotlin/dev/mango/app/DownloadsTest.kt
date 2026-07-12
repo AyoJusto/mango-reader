@@ -94,7 +94,7 @@ class DownloadsTest {
         // Downloading a chapter implies the user cares about the series — it lands in the library.
         assertTrue(runBlocking { library.observeLibrary().first() }.any { it.entry.mangaId == "manga-1" })
         // Clicking the download affordance must not navigate to the reader — still on Details.
-        rule.onNodeWithText("Chapters").assertExists()
+        rule.onNodeWithText("chapters", substring = true).assertExists()
     }
 
     @Test

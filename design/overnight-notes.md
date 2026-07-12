@@ -37,6 +37,25 @@ is a blocker; it is the morning's triage list.
 - U5: title bar stays visible over the reader (merged-chrome constraint) — I will pick
   the treatment per the design's immersion intent and note it here.
 
+- U6 scope trims (restyle ships without these; each needs data/APIs that don't exist yet):
+  Downloads "Pause all" (no pause API on DownloadManager) and bulk "Clear done";
+  Search "In library" pill (needs LibraryRepository threaded into SearchScreen);
+  Settings "Download location" row (real storage-config infra);
+  Browse Popular/Latest/Filter listing modes (source-listing machinery — restyle keeps
+  current behavior). All are morning-triage candidates, none blocks the visual pass.
+- U6: Details "Mark finished" implemented as an app-level loop finishing every loaded
+  chapter via the existing setProgress (ponytail: N upserts; a bulk core op if it ever
+  feels slow).
+- U6 discovery: board 07's Browse infinite-scroll footer assumes PAGINATION that mango
+  doesn't have — CatalogRepository.search takes a page param but no screen/state tracks
+  pages or fetches page 2+. That's a feature ticket (paging state machinery), not a
+  restyle; the footer ships when paging does.
+- U6: Details in-progress chapter rows show "reading · p. N" not "· X%" — page counts
+  per chapter aren't loaded on Details; percentage needs page-count data.
+- Cosmetic follow-up: the Strip-width/Auto-scroll sliders still use Material's default
+  thumb/track rendering (looks clunky against the new rows); board 09 wants a 4dp track
+  with a 14dp round thumb — a small custom slider or Material colors pass.
+
 ## Issues found during the run
 
 - Infra: implementer agents were killed twice by a transient API content-filter error,

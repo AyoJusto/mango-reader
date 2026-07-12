@@ -2,6 +2,7 @@ package dev.mango.app
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -19,6 +20,7 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -41,12 +43,14 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -280,34 +284,68 @@ fun Sidebar(
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             if (continueItems.isNotEmpty()) {
-                Text(
-                    text = "CONTINUE READING",
-                    style = MangoType.microLabel,
-                    color = theme.textTertiary,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                )
-                continueItems.forEach { item ->
-                    ContinueCard(item = item, onClick = { onContinue(item) })
+                SidebarStaggerGroup(groupIndex = 0) {
+                    Text(
+                        text = "CONTINUE READING",
+                        style = MangoType.microLabel,
+                        color = theme.textTertiary,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    )
+                    continueItems.forEach { item ->
+                        ContinueCard(item = item, onClick = { onContinue(item) })
+                    }
+                    HorizontalDivider(
+                        color = theme.divider,
+                        modifier = Modifier.padding(vertical = 10.dp),
+                    )
                 }
-                HorizontalDivider(
-                    color = theme.divider,
-                    modifier = Modifier.padding(vertical = 10.dp),
-                )
             }
-            SIDEBAR_NAV_ITEMS.forEach { nav ->
-                SidebarNavRow(
-                    nav = nav,
-                    active = nav.screen == activeScreen,
-                    pill = if (nav.screen == Screen.Downloads && pendingDownloadCount > 0) {
-                        pendingDownloadCount.toString()
-                    } else {
-                        null
-                    },
-                    onClick = { onNavigate(nav.screen) },
-                )
+            // Offset by how many groups actually rendered before this one, not a fixed slot:
+            // with no continue items, nav is the first (and only) group, so it opens immediately.
+            SidebarStaggerGroup(groupIndex = if (continueItems.isNotEmpty()) 1 else 0) {
+                SIDEBAR_NAV_ITEMS.forEach { nav ->
+                    SidebarNavRow(
+                        nav = nav,
+                        active = nav.screen == activeScreen,
+                        pill = if (nav.screen == Screen.Downloads && pendingDownloadCount > 0) {
+                            pendingDownloadCount.toString()
+                        } else {
+                            null
+                        },
+                        onClick = { onNavigate(nav.screen) },
+                    )
+                }
             }
         }
     }
+}
+
+/**
+ * One stagger group of the sidebar's contents: fades and rises in on first composition (the
+ * panel opening), offset by [groupIndex] * [MangoMotion.SIDEBAR_STAGGER_MS] capped at
+ * [MangoMotion.SIDEBAR_STAGGER_CAP_MS]. Content stays composed at full opacity once settled, so
+ * closing the sidebar is just the outer panel's own slide-out — no separate exit animation here.
+ */
+@Composable
+private fun SidebarStaggerGroup(groupIndex: Int, content: @Composable ColumnScope.() -> Unit) {
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        val delayMs = (groupIndex * MangoMotion.SIDEBAR_STAGGER_MS).coerceAtMost(MangoMotion.SIDEBAR_STAGGER_CAP_MS)
+        progress.animateTo(
+            targetValue = 1f,
+            // delayMillis, not a raw suspend delay(): stays on the same frame-clock-driven
+            // timing every other animation in this file uses.
+            animationSpec = tween(durationMillis = MangoMotion.SIDEBAR_OPEN_MS, delayMillis = delayMs, easing = MangoMotion.decel),
+        )
+    }
+    Column(
+        modifier = Modifier.graphicsLayer {
+            alpha = progress.value
+            translationY = (1f - progress.value) * 6.dp.toPx()
+        },
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        content = content,
+    )
 }
 
 @Composable

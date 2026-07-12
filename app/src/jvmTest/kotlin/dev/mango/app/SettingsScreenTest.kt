@@ -24,12 +24,28 @@ class SettingsScreenTest {
             }
         }
 
-        rule.onNodeWithText(MangoDark.name).assertExists()
+        // Board 09's Theme row sub-copy is "<name> · yours to edit", not the bare theme name —
+        // this replaces the old bare-name assertion (display-copy change, not a behavior change).
+        rule.onNodeWithText("${MangoDark.name} · yours to edit").assertExists()
         rule.onNodeWithText("Export .json").assertExists()
         rule.onNodeWithText("Import…").assertExists()
         ACCENT_PRESETS.forEach { (label, _) ->
             rule.onNodeWithTag("accent-swatch-$label").assertExists()
         }
+    }
+
+    // Structure smoke test for board 09: the three micro-label group headers must render.
+    @Test
+    fun showsAllThreeGroupHeaders() {
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                SettingsScreenContent(theme = MangoDark, onThemeChange = {})
+            }
+        }
+
+        rule.onNodeWithText("APPEARANCE").assertExists()
+        rule.onNodeWithText("READER").assertExists()
+        rule.onNodeWithText("GENERAL").assertExists()
     }
 
     @Test

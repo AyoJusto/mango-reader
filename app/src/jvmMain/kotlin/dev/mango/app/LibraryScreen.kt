@@ -23,10 +23,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,42 +53,6 @@ internal const val LIBRARY_LIST_TEST_TAG = "library-list"
 
 /** Test hook: the grid view's cell container, present only while [LIBRARY_VIEW_GRID] is active. */
 internal const val LIBRARY_GRID_TEST_TAG = "library-grid"
-
-/**
- * Cover cell shared by the Browse and Search grids: a 2:3 card with the cover image (or an
- * empty bg2 box when there is none) and a title footer. The Library grid uses [CoverCard]
- * instead (unread pill, hover scrim, finished treatment); this one stays plain.
- */
-@Composable
-fun CoverCell(entry: MangaEntry, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val theme = LocalMangoTheme.current
-    Card(
-        modifier = modifier.aspectRatio(2f / 3f).clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = theme.bg2),
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                val cover = entry.cover
-                if (cover != null) {
-                    AsyncImage(
-                        model = cover,
-                        contentDescription = entry.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-            }
-            Text(
-                text = entry.title,
-                style = MaterialTheme.typography.bodySmall,
-                color = theme.textPrimary,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(8.dp),
-            )
-        }
-    }
-}
 
 /** A series' read fraction in [0, 1], or null when its chapter count is unknown (never opened yet). */
 private fun LibraryItem.readFraction(): Float? =

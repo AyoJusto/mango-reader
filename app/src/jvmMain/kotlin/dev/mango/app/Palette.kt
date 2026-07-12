@@ -1,25 +1,30 @@
 package dev.mango.app
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -29,16 +34,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import dev.mango.core.domain.LibraryRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
@@ -50,6 +61,8 @@ data class PaletteHit(
     val category: String, // display group: "Screens", "Appearance", "Manhwa"
     val title: String,
     val subtitle: String? = null,
+    // A right-aligned keycap hint (e.g. a shortcut), shown only when the hit carries one.
+    val hint: String? = null,
     val run: () -> Unit,
 )
 
@@ -209,14 +222,27 @@ fun PaletteOverlay(state: PaletteState, tabs: List<PaletteTab>) {
     )
 }
 
+/** Category-to-glyph map for [PaletteResultTile]; a category with no entry falls back to the hit title's initial letter. */
+private val PALETTE_CATEGORY_GLYPHS = mapOf(
+    "Screens" to "▤",
+    "Appearance" to "◐",
+    "Settings" to "⚙",
+    "Actions" to "⚡",
+)
+
+private val PALETTE_PANEL_WIDTH = 660.dp
+private val PALETTE_PANEL_TOP_OFFSET = 120.dp
+private val PALETTE_RESULTS_MAX_HEIGHT = 600.dp
+
 /**
  * Pure, data-driven content — the screenshot harness renders this directly. Full-screen scrim
- * (click closes) with a centered panel: a tab row of [FilterChip]s, an autofocused search
- * field, and a text-only [LazyColumn] of hits (no cover images anywhere — an IntelliJ-style
+ * (click closes) with a centered, Spotlight-styled panel: an autofocused search field, filter
+ * tab pills, and a text-only [LazyColumn] of hits (no cover images anywhere — an IntelliJ-style
  * list is meant to be scanned fast, and extension covers are untrusted network fetches this
- * palette has no business making). No item keys: hit titles come from extension-provided
- * library data, and a duplicate title must not crash composition with a duplicate-key exception
- * (same rationale as Browse/Search's result grids).
+ * palette has no business making — every category, including manhwa, renders a glyph tile
+ * instead). No item keys: hit titles come from extension-provided library data, and a duplicate
+ * title must not crash composition with a duplicate-key exception (same rationale as
+ * Browse/Search's result grids).
  */
 @Composable
 fun PaletteContent(
@@ -262,7 +288,7 @@ fun PaletteContent(
             .fillMaxSize()
             .testTag(PALETTE_TEST_TAG)
             // scrim role, not a Color literal: Theme.kt owns every color decision
-            .background(theme.bg0.copy(alpha = 0.5f))
+            .background(theme.bg0.copy(alpha = 0.55f))
             .clickable(onClick = onDismiss)
             // On the scrim — an ancestor of everything in the panel — not on the text field:
             // ancestor preview sees keys no matter which descendant (chip, row, field) holds
@@ -301,77 +327,145 @@ fun PaletteContent(
             },
         contentAlignment = Alignment.TopCenter,
     ) {
-        Surface(
-            modifier = Modifier
-                .padding(top = 96.dp)
-                .widthIn(max = 600.dp)
-                .fillMaxWidth()
-                .fillMaxHeight(0.7f)
-                // consumes the click so it doesn't fall through to the scrim's onDismiss above
-                .clickable(onClick = {}),
-            color = theme.bg1,
-            tonalElevation = 8.dp,
+        val panelVisible = remember { MutableTransitionState(false) }.apply { targetState = true }
+        AnimatedVisibility(
+            visibleState = panelVisible,
+            modifier = Modifier.padding(top = PALETTE_PANEL_TOP_OFFSET),
+            enter = scaleIn(
+                initialScale = 0.98f,
+                animationSpec = tween(MangoMotion.PALETTE_OPEN_MS, easing = MangoMotion.decel),
+            ) + fadeIn(
+                animationSpec = tween(MangoMotion.PALETTE_OPEN_MS, easing = MangoMotion.decel),
+            ),
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = onQueryChange,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focusRequester),
-                    singleLine = true,
-                    placeholder = { Text("Search everywhere…") },
-                    leadingIcon = { Text("⌕") },
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    tabNames.forEachIndexed { index, name ->
-                        FilterChip(
-                            selected = index == activeTabIndex,
-                            onClick = { onTabIndexChange(index) },
-                            label = { Text(name) },
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                LazyColumn(state = listState, modifier = Modifier.fillMaxWidth()) {
-                    itemsIndexed(hits) { index, hit ->
-                        val selected = index == selectedIndex
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    if (selected) {
-                                        theme.accent.copy(alpha = 0.15f)
-                                    } else {
-                                        Color.Transparent
-                                    },
-                                )
-                                .clickable { onRunHit(hit) }
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            Text(
-                                text = hit.category,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = theme.textSecondary,
-                                modifier = Modifier.widthIn(min = 72.dp),
-                            )
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(text = hit.title, style = MaterialTheme.typography.bodyMedium)
-                                hit.subtitle?.let { subtitle ->
-                                    Text(
-                                        text = subtitle,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = theme.textSecondary,
-                                    )
-                                }
-                            }
+            Box(
+                modifier = Modifier
+                    .width(PALETTE_PANEL_WIDTH)
+                    .shadow(elevation = 32.dp, shape = RoundedCornerShape(MangoRadius.large))
+                    .clip(RoundedCornerShape(MangoRadius.large))
+                    .background(theme.overlay)
+                    .border(1.dp, theme.divider, RoundedCornerShape(MangoRadius.large))
+                    // consumes the click so it doesn't fall through to the scrim's onDismiss above
+                    .clickable(onClick = {}),
+            ) {
+                Column(modifier = Modifier.padding(MangoSpace.md)) {
+                    PaletteInputRow(query = query, onQueryChange = onQueryChange, focusRequester = focusRequester)
+                    Spacer(modifier = Modifier.height(MangoSpace.xs))
+                    PaletteFilterTabs(tabNames = tabNames, activeTabIndex = activeTabIndex, onTabIndexChange = onTabIndexChange)
+                    Spacer(modifier = Modifier.height(MangoSpace.xs))
+                    LazyColumn(state = listState, modifier = Modifier.fillMaxWidth().heightIn(max = PALETTE_RESULTS_MAX_HEIGHT)) {
+                        itemsIndexed(hits) { index, hit ->
+                            PaletteResultRow(hit = hit, selected = index == selectedIndex, onClick = { onRunHit(hit) })
                         }
                     }
+                    PaletteFooter(resultCount = hits.size)
                 }
             }
+        }
+    }
+}
+
+/**
+ * The palette's input row: magnifier glyph, the query field, and a trailing esc keycap. A bare
+ * [BasicTextField] — the spec has no border/fill chrome around it, just glyph + text + keycap —
+ * with the placeholder composed through [BasicTextField]'s own decorationBox so it merges into
+ * the field's semantics node the same way Material's TextField does (preserving every existing
+ * `onNodeWithText("Search everywhere…").performTextInput(...)` call across the flow tests).
+ */
+@Composable
+private fun PaletteInputRow(query: String, onQueryChange: (String) -> Unit, focusRequester: FocusRequester) {
+    val theme = LocalMangoTheme.current
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
+        Text(text = "⌕", fontSize = 19.sp, color = theme.textTertiary)
+        BasicTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier
+                .weight(1f)
+                .focusRequester(focusRequester),
+            singleLine = true,
+            textStyle = TextStyle(fontSize = 19.sp, color = theme.textPrimary),
+            cursorBrush = SolidColor(theme.accent),
+            decorationBox = { innerTextField ->
+                if (query.isEmpty()) {
+                    Text(text = "Search everywhere…", fontSize = 19.sp, color = theme.textTertiary)
+                }
+                innerTextField()
+            },
+        )
+        Keycap("esc")
+    }
+}
+
+/** Filter tabs as accent-fill/surface-fill pills; Tab cycling is handled by the caller, this is click-only. */
+@Composable
+private fun PaletteFilterTabs(tabNames: List<String>, activeTabIndex: Int, onTabIndexChange: (Int) -> Unit) {
+    val theme = LocalMangoTheme.current
+    Row(horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs)) {
+        tabNames.forEachIndexed { index, name ->
+            val active = index == activeTabIndex
+            Pill(
+                text = name,
+                container = if (active) theme.accent else theme.surface,
+                content = if (active) theme.accentOn else theme.textSecondary,
+                modifier = Modifier.clickable { onTabIndexChange(index) },
+            )
+        }
+    }
+}
+
+/** One result row: a glyph tile, primary/secondary text, and an optional right-aligned keycap hint. */
+@Composable
+private fun PaletteResultRow(hit: PaletteHit, selected: Boolean, onClick: () -> Unit) {
+    val theme = LocalMangoTheme.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(MangoRadius.control))
+            .background(if (selected) theme.accent.copy(alpha = 0.14f) else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = MangoSpace.sm, vertical = MangoSpace.base),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm),
+    ) {
+        PaletteResultTile(category = hit.category, title = hit.title)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = hit.title, fontSize = 13.5.sp, fontWeight = FontWeight.Medium, color = theme.textPrimary)
+            Text(text = hit.subtitle ?: hit.category, fontSize = 11.5.sp, color = theme.textTertiary)
+        }
+        hit.hint?.let { hint -> Keycap(hint) }
+    }
+}
+
+/** A 26 dp glyph tile: a category glyph where one is defined, otherwise the hit title's initial letter. */
+@Composable
+private fun PaletteResultTile(category: String, title: String) {
+    val theme = LocalMangoTheme.current
+    Box(
+        modifier = Modifier
+            .size(26.dp)
+            .clip(RoundedCornerShape(MangoRadius.keycap))
+            .background(theme.textPrimary.copy(alpha = 0.07f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        val glyph = PALETTE_CATEGORY_GLYPHS[category] ?: title.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+        Text(text = glyph, fontSize = 13.sp, color = theme.textSecondary)
+    }
+}
+
+/** Hairline divider, keyboard hints, and the result count. */
+@Composable
+private fun PaletteFooter(resultCount: Int) {
+    val theme = LocalMangoTheme.current
+    Column(modifier = Modifier.padding(top = MangoSpace.sm)) {
+        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(theme.divider))
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = MangoSpace.sm),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(text = "↑↓ navigate · ↵ open · tab next filter", fontSize = 11.sp, color = theme.textTertiary)
+            Text(text = resultCount.toString(), fontSize = 11.sp, color = theme.textTertiary)
         }
     }
 }

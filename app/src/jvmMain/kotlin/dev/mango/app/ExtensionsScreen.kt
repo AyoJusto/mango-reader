@@ -1,21 +1,24 @@
 package dev.mango.app
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -25,6 +28,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.mango.core.domain.AvailableSource
 import dev.mango.core.domain.CatalogRepository
@@ -49,19 +54,18 @@ fun ExtensionsScreenContent(
     Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             when {
-                isLoading -> CircularProgressIndicator()
+                isLoading -> ExtensionsLoadingSkeleton(modifier = Modifier.fillMaxSize())
                 // The initial load has no list to show yet, so its failure takes over the whole
                 // screen; an install/remove failure must not reuse this state or it would blank
                 // an already-loaded list.
                 error != null -> Text(
                     text = error,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MangoType.body,
                     color = theme.danger,
                 )
-                available.isEmpty() -> Text(
-                    text = "No extensions available",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = theme.textSecondary,
+                available.isEmpty() -> EmptyState(
+                    title = "No extensions available",
+                    guidance = "Nothing in the registry right now — press Shift-Shift to search everywhere.",
                 )
                 else -> Column(modifier = Modifier.fillMaxSize()) {
                     if (actionError != null) {
@@ -74,54 +78,114 @@ fun ExtensionsScreenContent(
                     }
                     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
                         items(available, key = { it.sourceId }) { source ->
-                            val installedVersion = installed[source.sourceId]
-                            Column {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = source.name,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = theme.textPrimary,
-                                        )
-                                        Text(
-                                            text = "${source.sourceId} · ${source.language ?: "?"} · v${source.version}",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = theme.textSecondary,
-                                        )
-                                    }
-                                    when {
-                                        source.sourceId in busy ->
-                                            CircularProgressIndicator(modifier = Modifier.size(20.dp))
-                                        installedVersion == null -> Button(onClick = { onInstall(source) }) {
-                                            Text("Install")
-                                        }
-                                        installedVersion == source.version -> Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                text = "Installed",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = theme.accent,
-                                            )
-                                            TextButton(onClick = { onRemove(source) }) {
-                                                Text("Remove")
-                                            }
-                                        }
-                                        else -> Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Button(onClick = { onInstall(source) }) {
-                                                Text("Update to ${source.version}")
-                                            }
-                                            TextButton(onClick = { onRemove(source) }) {
-                                                Text("Remove")
-                                            }
-                                        }
-                                    }
-                                }
-                                HorizontalDivider(color = theme.divider)
-                            }
+                            ExtensionRow(
+                                source = source,
+                                installedVersion = installed[source.sourceId],
+                                busy = source.sourceId in busy,
+                                onInstall = { onInstall(source) },
+                                onRemove = { onRemove(source) },
+                            )
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+/** One extension row: icon tile, name + version/language meta, and the install/update/remove action. */
+@Composable
+private fun ExtensionRow(
+    source: AvailableSource,
+    installedVersion: String?,
+    busy: Boolean,
+    onInstall: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    val theme = LocalMangoTheme.current
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = MangoSpace.sm),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ExtensionIconTile(name = source.name)
+            Spacer(modifier = Modifier.width(MangoSpace.sm))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = source.name,
+                    style = MangoType.bodyStrong,
+                    color = theme.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                // Version is always present; language is skipped silently when absent, and
+                // there is no "series in library" count on this data to show here.
+                val metaSegments = listOfNotNull("v${source.version}", source.language?.uppercase())
+                if (metaSegments.isNotEmpty()) {
+                    Text(text = metaSegments.joinToString(" · "), style = MangoType.caption, color = theme.textSecondary)
+                }
+            }
+            Spacer(modifier = Modifier.width(MangoSpace.sm))
+            when {
+                busy -> CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                installedVersion == null -> KitButton(label = "Install", onClick = onInstall, style = KitButtonStyle.PRIMARY)
+                installedVersion == source.version -> Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm),
+                ) {
+                    Text(text = "Installed", style = MangoType.bodyStrong, color = theme.accent)
+                    KitButton(label = "Remove", onClick = onRemove, style = KitButtonStyle.DANGER)
+                }
+                else -> Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm),
+                ) {
+                    KitButton(label = "Update to ${source.version}", onClick = onInstall, style = KitButtonStyle.PRIMARY)
+                    KitButton(label = "Remove", onClick = onRemove, style = KitButtonStyle.DANGER)
+                }
+            }
+        }
+        HorizontalDivider(color = theme.divider)
+    }
+}
+
+/** 36dp icon tile: an initial-letter placeholder, since [AvailableSource] carries no icon data. */
+@Composable
+private fun ExtensionIconTile(name: String) {
+    val theme = LocalMangoTheme.current
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(RoundedCornerShape(MangoRadius.control))
+            .background(theme.bg2),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = name.take(1).uppercase(),
+            style = MangoType.bodyStrong,
+            color = theme.textSecondary,
+        )
+    }
+}
+
+/** Loading placeholder mirroring the row layout: icon tile + two text lines, shimmering. */
+@Composable
+private fun ExtensionsLoadingSkeleton(modifier: Modifier = Modifier) {
+    Column(modifier = modifier.padding(horizontal = 16.dp)) {
+        repeat(5) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = MangoSpace.sm),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SkeletonBlock(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(MangoRadius.control)))
+                Spacer(modifier = Modifier.width(MangoSpace.sm))
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(MangoSpace.base)) {
+                    SkeletonBlock(
+                        modifier = Modifier.width(160.dp).height(14.dp).clip(RoundedCornerShape(MangoRadius.keycap)),
+                    )
+                    SkeletonBlock(
+                        modifier = Modifier.width(90.dp).height(11.dp).clip(RoundedCornerShape(MangoRadius.keycap)),
+                    )
                 }
             }
         }

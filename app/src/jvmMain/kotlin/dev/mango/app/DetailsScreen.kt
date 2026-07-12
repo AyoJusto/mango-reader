@@ -1,27 +1,32 @@
 package dev.mango.app
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -37,9 +42,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.Chapter
@@ -70,6 +80,7 @@ fun DetailsScreenContent(
     onDownloadChapter: (MangaEntry, Chapter) -> Unit,
     onDownloadAll: (MangaEntry, List<Chapter>) -> Unit,
     onClearStorage: () -> Unit = {},
+    onMarkAllFinished: () -> Unit = {},
 ) {
     val theme = LocalMangoTheme.current
     // Local UI state for the range dialog — presentation-only, never leaves this composable.
@@ -80,11 +91,21 @@ fun DetailsScreenContent(
     val descendingChapters = remember(chapters) { chapters.sortedByDescending { it.number } }
     val continueTarget = remember(chapters, latestProgress) { continueTarget(chapters, latestProgress) }
     Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(modifier = Modifier.padding(24.dp)) {
-                Card(
-                    modifier = Modifier.width(220.dp).aspectRatio(2f / 3f),
-                    colors = CardDefaults.cardColors(containerColor = theme.bg2),
+        Row(
+            modifier = Modifier.fillMaxSize().padding(start = 48.dp, end = 48.dp, top = 48.dp),
+            horizontalArrangement = Arrangement.spacedBy(40.dp),
+        ) {
+            Column(
+                modifier = Modifier.width(300.dp),
+                verticalArrangement = Arrangement.spacedBy(MangoSpace.sm),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(2f / 3f)
+                        .shadow(elevation = 16.dp, shape = RoundedCornerShape(MangoRadius.panel))
+                        .clip(RoundedCornerShape(MangoRadius.panel))
+                        .background(theme.bg2),
                 ) {
                     val cover = details.entry.cover
                     if (cover != null) {
@@ -96,121 +117,121 @@ fun DetailsScreenContent(
                         )
                     }
                 }
-                Column(modifier = Modifier.padding(start = 16.dp).weight(1f)) {
-                    Text(
-                        text = details.entry.title,
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = theme.textPrimary,
+                continueTarget?.let { (chapter, label) ->
+                    KitButton(
+                        label = label,
+                        onClick = { onOpenChapter(chapter, chapters) },
+                        style = KitButtonStyle.PRIMARY,
+                        modifier = Modifier.fillMaxWidth(),
                     )
-                    if (details.authors.isNotEmpty()) {
-                        Text(
-                            text = details.authors.joinToString(", "),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = theme.textSecondary,
-                        )
-                    }
-                    Text(
-                        text = details.status.name,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = theme.accent,
+                }
+                if (chapters.isNotEmpty()) {
+                    KitButton(
+                        label = "Mark finished",
+                        onClick = onMarkAllFinished,
+                        style = KitButtonStyle.SECONDARY,
+                        modifier = Modifier.fillMaxWidth(),
                     )
-                    details.description?.let { description ->
-                        Text(
-                            text = description,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = theme.textPrimary,
-                            maxLines = 6,
-                            overflow = TextOverflow.Ellipsis,
+                }
+                KitButton(
+                    label = if (inLibrary) "In library — remove" else "Add to library",
+                    onClick = onToggleLibrary,
+                    style = KitButtonStyle.SECONDARY,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                KitButton(
+                    label = "Download all",
+                    onClick = { onDownloadAll(details.entry, chapters.filter { it.chapterId !in downloadedChapterIds }) },
+                    style = KitButtonStyle.GHOST,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                KitButton(
+                    label = "Download unread",
+                    onClick = {
+                        onDownloadAll(
+                            details.entry,
+                            chapters.filter { it.chapterId !in finishedChapterIds && it.chapterId !in downloadedChapterIds },
                         )
-                    }
-                    if (details.tags.isNotEmpty()) {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            details.tags.forEach { tag ->
-                                AssistChip(onClick = {}, label = { Text(tag) })
-                            }
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (inLibrary) {
-                            OutlinedButton(onClick = onToggleLibrary) { Text("In library — remove") }
-                        } else {
-                            Button(onClick = onToggleLibrary) { Text("Add to library") }
-                        }
-                        continueTarget?.let { (chapter, label) ->
-                            Button(onClick = { onOpenChapter(chapter, chapters) }) { Text(label) }
-                        }
-                        TextButton(onClick = {
-                            onDownloadAll(details.entry, chapters.filter { it.chapterId !in downloadedChapterIds })
-                        }) {
-                            Text("Download all")
-                        }
-                        TextButton(onClick = {
-                            onDownloadAll(
-                                details.entry,
-                                chapters.filter { it.chapterId !in finishedChapterIds && it.chapterId !in downloadedChapterIds },
-                            )
-                        }) {
-                            Text("Download unread")
-                        }
-                        TextButton(onClick = { showRangeDialog = true }) {
-                            Text("Download range…")
-                        }
-                        if (hasDownloads) {
-                            TextButton(onClick = { showClearStorageDialog = true }) {
-                                Text("Clear storage")
-                            }
-                        }
-                    }
+                    },
+                    style = KitButtonStyle.GHOST,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                KitButton(
+                    label = "Download range…",
+                    onClick = { showRangeDialog = true },
+                    style = KitButtonStyle.GHOST,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (hasDownloads) {
+                    KitButton(
+                        label = "Clear storage",
+                        onClick = { showClearStorageDialog = true },
+                        style = KitButtonStyle.GHOST,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                Spacer(modifier = Modifier.height(MangoSpace.base))
+                MetadataRow(key = "Status", value = details.status.name)
+                if (details.authors.isNotEmpty()) {
+                    MetadataRow(key = "Author", value = details.authors.joinToString(", "))
+                }
+                MetadataRow(key = "Source", value = details.entry.sourceId)
+                if (chapters.isNotEmpty()) {
+                    MetadataRow(
+                        key = "Progress",
+                        value = "${finishedChapterIds.size} of ${chapters.size} read",
+                        accentValue = true,
+                    )
                 }
             }
-            Text(
-                text = "Chapters",
-                style = MaterialTheme.typography.titleMedium,
-                color = theme.textPrimary,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-            )
-            LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                items(
-                    descendingChapters,
-                    key = { it.chapterId },
-                ) { chapter ->
-                    Column {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onOpenChapter(chapter, chapters) }
-                                .padding(horizontal = 24.dp, vertical = 12.dp),
-                        ) {
-                            Text(
-                                text = buildString {
-                                    append("Ch. ")
-                                    append(formatChapterNumber(chapter.number))
-                                    chapter.title?.let { append(" — "); append(it) }
-                                },
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (chapter.chapterId in finishedChapterIds) {
-                                    theme.textSecondary
-                                } else {
-                                    theme.textPrimary
-                                },
-                                modifier = Modifier.weight(1f),
-                            )
-                            Text(
-                                text = chapter.publishedAt?.let { formatDate(it) }.orEmpty(),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = theme.textSecondary,
-                            )
-                            if (chapter.chapterId in downloadedChapterIds) {
-                                TextButton(onClick = {}, enabled = false) {
-                                    Text("✓")
-                                }
-                            } else {
-                                TextButton(onClick = { onDownloadChapter(details.entry, chapter) }) {
-                                    Text("↓")
-                                }
-                            }
-                        }
-                        HorizontalDivider(color = theme.divider)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = details.entry.title,
+                    style = MangoType.display,
+                    color = theme.textPrimary,
+                )
+                if (details.tags.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(MangoSpace.sm))
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs),
+                        verticalArrangement = Arrangement.spacedBy(MangoSpace.xs),
+                    ) {
+                        details.tags.forEach { tag -> GenreChip(tag) }
+                    }
+                }
+                details.description?.let { description ->
+                    Spacer(modifier = Modifier.height(MangoSpace.md))
+                    Text(
+                        text = description,
+                        fontSize = 14.sp,
+                        lineHeight = 22.4.sp,
+                        color = theme.textSecondary,
+                        maxLines = 6,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 680.dp),
+                    )
+                }
+                Spacer(modifier = Modifier.height(MangoSpace.lg))
+                Text(
+                    text = "${chapters.size} chapters",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = theme.textPrimary,
+                )
+                Spacer(modifier = Modifier.height(MangoSpace.xs))
+                LazyColumn(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentPadding = PaddingValues(bottom = MangoSpace.xl),
+                ) {
+                    items(descendingChapters, key = { it.chapterId }) { chapter ->
+                        ChapterRow(
+                            chapter = chapter,
+                            finished = chapter.chapterId in finishedChapterIds,
+                            downloaded = chapter.chapterId in downloadedChapterIds,
+                            inProgress = latestProgress?.takeIf { it.chapterId == chapter.chapterId && !it.finished },
+                            onOpen = { onOpenChapter(chapter, chapters) },
+                            onDownload = { onDownloadChapter(details.entry, chapter) },
+                        )
                     }
                 }
             }
@@ -275,6 +296,185 @@ fun DetailsScreenContent(
                 TextButton(onClick = { showClearStorageDialog = false }) { Text("Cancel") }
             },
         )
+    }
+}
+
+/** One key/value line of the left column's metadata list; [accentValue] renders the value in accent. */
+@Composable
+private fun MetadataRow(key: String, value: String, accentValue: Boolean = false) {
+    val theme = LocalMangoTheme.current
+    Row {
+        Text(text = key, fontSize = 12.5.sp, color = theme.textTertiary, modifier = Modifier.width(80.dp))
+        Text(
+            text = value,
+            fontSize = 12.5.sp,
+            color = if (accentValue) theme.accent else theme.textSecondary,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+/** A genre tag chip — display only, not a filter control. */
+@Composable
+private fun GenreChip(text: String) {
+    val theme = LocalMangoTheme.current
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(theme.bg2)
+            .padding(horizontal = 11.dp, vertical = 3.dp),
+    ) {
+        Text(text = text, fontSize = 12.sp, color = theme.textSecondary)
+    }
+}
+
+/**
+ * One chapter row: state dot, mono chapter number, title, state text, date, and the
+ * per-chapter download action. [inProgress] is non-null only for the chapter the reader
+ * last left unfinished — the one row that reads in accent.
+ */
+@Composable
+private fun ChapterRow(
+    chapter: Chapter,
+    finished: Boolean,
+    downloaded: Boolean,
+    inProgress: ReadProgress?,
+    onOpen: () -> Unit,
+    onDownload: () -> Unit,
+) {
+    val theme = LocalMangoTheme.current
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    val fill by animateColorAsState(
+        // Same-color-at-zero-alpha rest state; see Chrome.kt's title-bar glyph for why.
+        targetValue = if (hovered) theme.bg1 else theme.bg1.copy(alpha = 0f),
+        animationSpec = tween(MangoMotion.HOVER_MS),
+    )
+    val dotColor = when {
+        inProgress != null -> theme.accent
+        finished -> theme.textPrimary.copy(alpha = 0.25f)
+        else -> theme.textPrimary
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(MangoRadius.control))
+            .background(fill)
+            .hoverable(interaction)
+            .clickable(interactionSource = interaction, indication = null, onClick = onOpen)
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm),
+    ) {
+        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(dotColor))
+        Text(
+            text = formatChapterNumber(chapter.number),
+            style = MangoType.monoChapter,
+            color = theme.textTertiary,
+            modifier = Modifier.width(76.dp),
+        )
+        Text(
+            text = chapter.title ?: "Chapter ${formatChapterNumber(chapter.number)}",
+            fontSize = 13.5.sp,
+            fontWeight = FontWeight.Medium,
+            color = if (finished) theme.textSecondary else theme.textPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        when {
+            // Chapter page counts aren't loaded on this screen, so the in-progress state
+            // shows the saved page (the Continue button's grammar), not a percentage.
+            inProgress != null -> Text(
+                text = "reading · p. ${inProgress.page + 1}",
+                fontSize = 12.sp,
+                color = theme.accent,
+            )
+            downloaded && !finished -> Text(text = "downloaded", fontSize = 12.sp, color = theme.success)
+        }
+        Text(
+            text = chapter.publishedAt?.let { formatDate(it) }.orEmpty(),
+            fontSize = 12.sp,
+            color = theme.textTertiary,
+            textAlign = TextAlign.End,
+            modifier = Modifier.width(90.dp),
+        )
+        if (downloaded) {
+            Text(text = "✓", fontSize = 12.sp, color = theme.success)
+        } else {
+            ChapterDownloadGlyph(onClick = onDownload)
+        }
+    }
+}
+
+/** The per-chapter download affordance — a nested click target that must not trigger the row's open. */
+@Composable
+private fun ChapterDownloadGlyph(onClick: () -> Unit) {
+    val theme = LocalMangoTheme.current
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    val fill by animateColorAsState(
+        // Same-color-at-zero-alpha rest state; see Chrome.kt's title-bar glyph for why.
+        targetValue = if (hovered) theme.surface else theme.surface.copy(alpha = 0f),
+        animationSpec = tween(MangoMotion.HOVER_MS),
+    )
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(MangoRadius.keycap))
+            .background(fill)
+            .hoverable(interaction)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    ) {
+        Text(text = "↓", fontSize = 12.sp, color = theme.textSecondary)
+    }
+}
+
+/** Loading placeholder whose skeleton shapes mirror the loaded two-column layout, so content replaces it without a jump. */
+@Composable
+private fun DetailsSkeleton() {
+    val theme = LocalMangoTheme.current
+    Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
+        Row(
+            modifier = Modifier.fillMaxSize().padding(start = 48.dp, end = 48.dp, top = 48.dp),
+            horizontalArrangement = Arrangement.spacedBy(40.dp),
+        ) {
+            Column(
+                modifier = Modifier.width(300.dp),
+                verticalArrangement = Arrangement.spacedBy(MangoSpace.sm),
+            ) {
+                SkeletonBlock(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(2f / 3f)
+                        .clip(RoundedCornerShape(MangoRadius.panel)),
+                )
+                repeat(2) {
+                    SkeletonBlock(
+                        modifier = Modifier.fillMaxWidth().height(38.dp).clip(RoundedCornerShape(MangoRadius.control)),
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(MangoSpace.sm),
+            ) {
+                SkeletonBlock(modifier = Modifier.width(320.dp).height(34.dp).clip(RoundedCornerShape(MangoRadius.control)))
+                SkeletonBlock(
+                    modifier = Modifier
+                        .widthIn(max = 680.dp)
+                        .fillMaxWidth()
+                        .height(64.dp)
+                        .clip(RoundedCornerShape(MangoRadius.control)),
+                )
+                Spacer(modifier = Modifier.height(MangoSpace.xs))
+                repeat(6) {
+                    SkeletonBlock(
+                        modifier = Modifier.fillMaxWidth().height(36.dp).clip(RoundedCornerShape(MangoRadius.control)),
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -425,11 +625,7 @@ fun DetailsScreen(
                 )
             }
         }
-        currentDetails == null -> Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        }
+        currentDetails == null -> DetailsSkeleton()
         else -> DetailsScreenContent(
             details = currentDetails,
             chapters = chapters,
@@ -455,6 +651,27 @@ fun DetailsScreen(
             onDownloadChapter = onDownloadChapter,
             onDownloadAll = onDownloadAll,
             onClearStorage = { scope.launch { downloads.clearDownloads(sourceId, mangaId) } },
+            onMarkAllFinished = {
+                scope.launch {
+                    // ponytail: one progress upsert per chapter — fine at chapter-list scale
+                    // (hundreds of rows); a repository-level bulk mark-finished is the upgrade
+                    // path if it ever drags.
+                    chapters.forEach { chapter ->
+                        library.setProgress(
+                            sourceId,
+                            mangaId,
+                            chapter.chapterId,
+                            page = 0,
+                            finished = true,
+                            chapterNumber = chapter.number,
+                        )
+                    }
+                    // Re-read the same state the load effect populates, so the rows and the
+                    // Continue button reflect the new progress without renavigation.
+                    finishedChapterIds = library.finishedChapterIds(sourceId, mangaId)
+                    latestProgress = library.latestProgress(sourceId, mangaId)
+                }
+            },
         )
     }
 }

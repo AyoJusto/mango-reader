@@ -1,38 +1,44 @@
 package dev.mango.app
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import dev.mango.core.domain.CatalogRepository
@@ -47,20 +53,151 @@ import kotlinx.coroutines.launch
 import java.util.logging.Level
 import java.util.logging.Logger
 
-/** One discover/home section: title + a horizontal shelf of covers, same look as Search's per-source row. */
+/** Cover width used by both the search-results grid and the discover shelves: board 07's "5-column feel". */
+private val BROWSE_COVER_WIDTH = 190.dp
+
+/** Board 07's search-input grammar, shared by every text query field on this screen. */
+private val SEARCH_FIELD_RADIUS = MangoRadius.row
+private val SEARCH_FIELD_RING_RADIUS = SEARCH_FIELD_RADIUS + 2.dp
+
+/**
+ * The one styled text query field on Browse: bg2 fill, radius 12, a focus ring offset from the
+ * control by a bg gap, and an accent caret. Kept file-private and duplicated in SearchScreen.kt
+ * rather than added to Kit.kt (out of scope for this restyle).
+ */
+@Composable
+private fun StyledSearchField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    onSearch: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val theme = LocalMangoTheme.current
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val ring = if (focused) {
+        Modifier.border(2.dp, theme.focus, RoundedCornerShape(SEARCH_FIELD_RING_RADIUS))
+    } else {
+        Modifier
+    }
+    Box(
+        modifier = modifier
+            .then(ring)
+            .padding(2.dp)
+            .clip(RoundedCornerShape(SEARCH_FIELD_RADIUS))
+            .background(theme.bg2)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
+            Text(text = "⌕", style = MangoType.body, color = theme.textTertiary)
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier.weight(1f),
+                textStyle = MangoType.body.copy(color = theme.textPrimary),
+                singleLine = true,
+                cursorBrush = SolidColor(theme.accent),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+                interactionSource = interaction,
+                decorationBox = { innerTextField ->
+                    Box {
+                        if (value.isEmpty()) {
+                            Text(text = placeholder, style = MangoType.body, color = theme.textTertiary)
+                        }
+                        innerTextField()
+                    }
+                },
+            )
+        }
+    }
+}
+
+/** Loading placeholder for the search-results grid: shapes mirror [CoverCard]'s cover + title. */
+@Composable
+private fun CoverGridSkeleton(modifier: Modifier = Modifier) {
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = BROWSE_COVER_WIDTH),
+        contentPadding = PaddingValues(0.dp),
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
+        modifier = modifier,
+        userScrollEnabled = false,
+    ) {
+        items(10) {
+            Column {
+                SkeletonBlock(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(2f / 3f)
+                        .clip(RoundedCornerShape(MangoRadius.row)),
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                SkeletonBlock(
+                    modifier = Modifier
+                        .fillMaxWidth(0.7f)
+                        .height(12.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+                )
+            }
+        }
+    }
+}
+
+/** Loading placeholder for discover sections: shapes mirror [BrowseSectionRow]'s title + shelf. */
+@Composable
+private fun SectionsSkeleton(modifier: Modifier = Modifier) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(MangoSpace.md)) {
+        repeat(2) {
+            Column {
+                SkeletonBlock(
+                    modifier = Modifier
+                        .width(120.dp)
+                        .height(16.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+                )
+                Spacer(modifier = Modifier.height(MangoSpace.xs))
+                Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                    repeat(5) {
+                        SkeletonBlock(
+                            modifier = Modifier
+                                .width(BROWSE_COVER_WIDTH)
+                                .aspectRatio(2f / 3f)
+                                .clip(RoundedCornerShape(MangoRadius.row)),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** One discover/home section: a title above a horizontal shelf of covers. */
 @Composable
 private fun BrowseSectionRow(section: HomeSection, onOpenDetails: (MangaEntry) -> Unit) {
+    val theme = LocalMangoTheme.current
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(text = section.title, style = MaterialTheme.typography.titleMedium)
-        Spacer(modifier = Modifier.height(8.dp))
+        Text(text = section.title, style = MangoType.bodyStrong, color = theme.textPrimary)
+        Spacer(modifier = Modifier.height(MangoSpace.xs))
         // no item keys: extension data is untrusted and a duplicate mangaId in one
         // response must not crash composition with a duplicate-key exception
         LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxWidth().height(280.dp),
+            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            modifier = Modifier.fillMaxWidth(),
         ) {
             items(section.items) { entry ->
-                CoverCell(entry = entry, onClick = { onOpenDetails(entry) }, modifier = Modifier.height(280.dp))
+                CoverCard(
+                    title = entry.title,
+                    coverUrl = entry.cover,
+                    // MangaEntry carries no chapter/genre metadata to show here or on hover.
+                    metaLine = "",
+                    unreadCount = null,
+                    progress = null,
+                    finished = false,
+                    onClick = { onOpenDetails(entry) },
+                    modifier = Modifier.width(BROWSE_COVER_WIDTH),
+                )
             }
         }
     }
@@ -95,46 +232,41 @@ fun BrowseScreenContent(
     val theme = LocalMangoTheme.current
 
     Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
-        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                sources.forEach { source ->
-                    FilterChip(
-                        selected = source.sourceId == selectedSourceId,
-                        onClick = { onSelectSource(source.sourceId) },
-                        label = { Text(source.name) },
-                    )
-                }
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = onQueryChange,
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    placeholder = { Text("Search…") },
-                    leadingIcon = { Text("⌕") },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { onSearch() }),
-                )
+        Column(modifier = Modifier.fillMaxSize().padding(MangoSpace.md)) {
+            val selectedSource = sources.firstOrNull { it.sourceId == selectedSourceId }
+            if (selectedSource != null) {
+                // "updated …" caption from board 07 is skipped: SourceInfo carries no such timestamp.
+                Text(text = selectedSource.name, style = MangoType.title, color = theme.textPrimary)
+                Spacer(modifier = Modifier.height(MangoSpace.sm))
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            if (sources.isNotEmpty()) {
+                SegmentedControl(
+                    options = sources.map { it.name },
+                    selectedIndex = sources.indexOfFirst { it.sourceId == selectedSourceId },
+                    onSelect = { index -> onSelectSource(sources[index].sourceId) },
+                )
+                Spacer(modifier = Modifier.height(MangoSpace.sm))
+            }
+            StyledSearchField(
+                value = query,
+                onValueChange = onQueryChange,
+                placeholder = "Search…",
+                onSearch = onSearch,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(modifier = Modifier.height(MangoSpace.md))
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 if (selectedSourceId == null) {
                     // nothing to browse: either the registry read failed (say so honestly) or
                     // there are genuinely no sources — never the sections-mode hint
                     Text(
                         text = sourcesError ?: "No sources installed — add one from the Extensions tab",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (sourcesError != null) {
-                            theme.danger
-                        } else {
-                            theme.textSecondary
-                        },
+                        style = MangoType.body,
+                        color = if (sourcesError != null) theme.danger else theme.textSecondary,
                     )
                 } else if (searchActive) {
                     when {
-                        isLoading -> CircularProgressIndicator()
+                        isLoading -> CoverGridSkeleton(modifier = Modifier.fillMaxSize())
                         error != null -> ChallengeErrorContent(
                             error = error,
                             challengeUrl = challengeUrl,
@@ -142,28 +274,35 @@ fun BrowseScreenContent(
                             solveEnabled = solveEnabled,
                             onSolveChallenge = onSolveChallenge,
                         )
-                        results.isEmpty() -> Text(
-                            text = "No results",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = theme.textSecondary,
+                        results.isEmpty() -> EmptyState(
+                            title = "No results",
+                            guidance = "Try a different search term.",
                         )
                         // no item keys: extension data is untrusted and a duplicate mangaId in one
                         // response must not crash composition with a duplicate-key exception
                         else -> LazyVerticalGrid(
-                            columns = GridCells.Adaptive(minSize = 160.dp),
+                            columns = GridCells.Adaptive(minSize = BROWSE_COVER_WIDTH),
                             contentPadding = PaddingValues(0.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(18.dp),
+                            verticalArrangement = Arrangement.spacedBy(18.dp),
                             modifier = Modifier.fillMaxSize(),
                         ) {
                             items(results) { entry ->
-                                CoverCell(entry = entry, onClick = { onOpenDetails(entry) })
+                                CoverCard(
+                                    title = entry.title,
+                                    coverUrl = entry.cover,
+                                    metaLine = "",
+                                    unreadCount = null,
+                                    progress = null,
+                                    finished = false,
+                                    onClick = { onOpenDetails(entry) },
+                                )
                             }
                         }
                     }
                 } else {
                     when {
-                        sectionsLoading -> CircularProgressIndicator()
+                        sectionsLoading -> SectionsSkeleton(modifier = Modifier.fillMaxSize())
                         sectionsError != null -> ChallengeErrorContent(
                             error = sectionsError,
                             challengeUrl = challengeUrl,
@@ -173,7 +312,7 @@ fun BrowseScreenContent(
                         )
                         sections.isNotEmpty() -> LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(MangoSpace.md),
                         ) {
                             // no item keys: extension-provided section ids are untrusted and a
                             // duplicate must not crash composition with a duplicate-key exception
@@ -181,10 +320,9 @@ fun BrowseScreenContent(
                                 BrowseSectionRow(section = section, onOpenDetails = onOpenDetails)
                             }
                         }
-                        else -> Text(
-                            text = "No discover sections — search this source instead",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = theme.textSecondary,
+                        else -> EmptyState(
+                            title = "No discover sections — search this source instead",
+                            guidance = "Try the search field above.",
                         )
                     }
                 }

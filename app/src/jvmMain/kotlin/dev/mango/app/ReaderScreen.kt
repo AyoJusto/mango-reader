@@ -637,6 +637,9 @@ fun ReaderScreen(
     // While the palette overlay is up it owns the keyboard; when it closes the reader must
     // re-request focus or its shortcuts stay dead (focus went to the palette's field)
     paletteVisible: Boolean = false,
+    // Gates only the cursor-blanking half of the controls-overlay behavior; the overlay itself
+    // still hides on idle regardless of this flag.
+    hideCursorInReader: Boolean = true,
 ) {
     // The chapter currently anchoring the strip's first-loaded segment. Opening the reader sets
     // it to chapterId; pressing P re-anchors it to the previous chapter (a fresh "open", not an
@@ -945,8 +948,12 @@ fun ReaderScreen(
                     .focusRequester(focusRequester)
                     .focusable()
                     // The cursor hides together with the overlay; restored the instant
-                    // controlsVisible flips back (never leaks past this Box's lifetime).
-                    .pointerHoverIcon(if (controlsVisible) PointerIcon.Default else BLANK_CURSOR_ICON, overrideDescendants = true)
+                    // controlsVisible flips back (never leaks past this Box's lifetime). Only the
+                    // blanking is conditional on hideCursorInReader — the overlay itself always hides.
+                    .pointerHoverIcon(
+                        if (controlsVisible || !hideCursorInReader) PointerIcon.Default else BLANK_CURSOR_ICON,
+                        overrideDescendants = true,
+                    )
                     .onPointerEvent(PointerEventType.Move) { event ->
                         val position = event.changes.firstOrNull()?.position
                         // Keyboard paging/N/P never reach this handler — only a genuine pointer

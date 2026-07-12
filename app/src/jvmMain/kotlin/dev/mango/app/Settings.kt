@@ -46,6 +46,24 @@ class Settings(dataDir: Path) {
             save()
         }
 
+    // dp width of the reader's centered reading column. Same malformed-falls-back-to-default
+    // stance as autoScrollSpeed above.
+    var stripWidth: Float
+        get() = props.getProperty("stripWidth")?.toFloatOrNull() ?: 880f
+        set(value) {
+            props.setProperty("stripWidth", value.toString())
+            save()
+        }
+
+    // Whether the reader blanks the mouse cursor together with the controls overlay. Same
+    // malformed-falls-back-to-default stance as the other settings above.
+    var hideCursorInReader: Boolean
+        get() = props.getProperty("hideCursorInReader")?.toBooleanStrictOrNull() ?: true
+        set(value) {
+            props.setProperty("hideCursorInReader", value.toString())
+            save()
+        }
+
     private fun save() {
         try {
             Files.createDirectories(file.parent)

@@ -34,6 +34,11 @@ fun main() {
         // Same hoist pattern as theme: the Settings screen's slider applies live, without
         // restarting the app.
         var autoScrollSpeed by remember { mutableStateOf(settings.autoScrollSpeed) }
+        // Same hoist pattern as autoScrollSpeed: the Settings screen's strip-width slider
+        // applies live, without restarting the app.
+        var stripWidthDp by remember { mutableStateOf(settings.stripWidth) }
+        // Same hoist pattern again: the Settings screen's hide-cursor toggle applies live.
+        var hideCursorInReader by remember { mutableStateOf(settings.hideCursorInReader) }
         // Same hoist pattern again: the Settings screen's segmented control and the palette's
         // toggle action both apply live, without restarting the app.
         var libraryView by remember { mutableStateOf(settings.libraryView) }
@@ -102,6 +107,10 @@ fun main() {
                     onThemeChange = { theme = it; themeStore.save(it) },
                     autoScrollSpeed = autoScrollSpeed,
                     onAutoScrollSpeedChange = { autoScrollSpeed = it; settings.autoScrollSpeed = it },
+                    stripWidthDp = stripWidthDp,
+                    onStripWidthDpChange = { stripWidthDp = it; settings.stripWidth = it },
+                    hideCursorInReader = hideCursorInReader,
+                    onHideCursorInReaderChange = { hideCursorInReader = it; settings.hideCursorInReader = it },
                     onToggleFullscreen = {
                         windowState.placement = if (windowState.placement == WindowPlacement.Fullscreen) {
                             WindowPlacement.Floating
