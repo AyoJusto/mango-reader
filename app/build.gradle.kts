@@ -18,6 +18,9 @@ kotlin {
             // way to blur only the region behind an overlay
             implementation(libs.haze)
             implementation(libs.kotlinx.coroutines.core)
+            // Provides Dispatchers.Main (Swing EDT) on the JVM — nothing supplies it
+            // transitively, and Coil's enqueue() dispatches to Main for prefetch
+            implementation(libs.kotlinx.coroutines.swing)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.ktor.client.cio)
             implementation(libs.coil.compose)
