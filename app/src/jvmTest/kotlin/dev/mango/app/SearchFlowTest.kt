@@ -75,7 +75,7 @@ class SearchFlowTest {
             failuresBySource = mapOf("MangaBat" to RuntimeException("site unreachable")),
         )
 
-        rule.setContent { MangoTheme { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
 
         rule.onNodeWithText("Search").performClick()
         rule.waitForIdle()
@@ -96,7 +96,7 @@ class SearchFlowTest {
             sources = listOf(SourceInfo("FlameComics", "FlameComics"), SourceInfo("MangaBat", "MangaBat")),
         )
 
-        rule.setContent { MangoTheme { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
 
         rule.onNodeWithText("Search").performClick()
         rule.waitForIdle()
@@ -119,7 +119,7 @@ class SearchFlowTest {
             gatesBySource = mapOf("MangaBat" to gate),
         )
 
-        rule.setContent { MangoTheme { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
 
         rule.onNodeWithText("Search").performClick()
         rule.waitForIdle()

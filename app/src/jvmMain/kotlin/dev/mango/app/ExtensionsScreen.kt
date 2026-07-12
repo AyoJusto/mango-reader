@@ -44,7 +44,8 @@ fun ExtensionsScreenContent(
     onInstall: (AvailableSource) -> Unit,
     onRemove: (AvailableSource) -> Unit,
 ) {
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+    val theme = LocalMangoTheme.current
+    Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             when {
                 isLoading -> CircularProgressIndicator()
@@ -54,19 +55,19 @@ fun ExtensionsScreenContent(
                 error != null -> Text(
                     text = error,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
+                    color = theme.danger,
                 )
                 available.isEmpty() -> Text(
                     text = "No extensions available",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = theme.textSecondary,
                 )
                 else -> Column(modifier = Modifier.fillMaxSize()) {
                     if (actionError != null) {
                         Text(
                             text = actionError,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error,
+                            color = theme.danger,
                             modifier = Modifier.fillMaxWidth().padding(16.dp),
                         )
                     }
@@ -82,12 +83,12 @@ fun ExtensionsScreenContent(
                                         Text(
                                             text = source.name,
                                             style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurface,
+                                            color = theme.textPrimary,
                                         )
                                         Text(
                                             text = "${source.sourceId} · ${source.language ?: "?"} · v${source.version}",
                                             style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            color = theme.textSecondary,
                                         )
                                     }
                                     when {
@@ -100,7 +101,7 @@ fun ExtensionsScreenContent(
                                             Text(
                                                 text = "Installed",
                                                 style = MaterialTheme.typography.labelMedium,
-                                                color = MaterialTheme.colorScheme.primary,
+                                                color = theme.accent,
                                             )
                                             TextButton(onClick = { onRemove(source) }) {
                                                 Text("Remove")
@@ -116,7 +117,7 @@ fun ExtensionsScreenContent(
                                         }
                                     }
                                 }
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                                HorizontalDivider(color = theme.divider)
                             }
                         }
                     }

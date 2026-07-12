@@ -1,5 +1,9 @@
 package dev.mango.app
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasAnyAncestor
@@ -16,6 +20,7 @@ import dev.mango.core.domain.LibraryItem
 import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
 import dev.mango.core.domain.MangaStatus
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.time.Clock
@@ -45,18 +50,23 @@ class PaletteFlowTest {
         val library = FakeLibraryRepository(libraryItems())
         val palette = PaletteState()
 
-        rule.setContent { MangoTheme { AppShell(library, FakeCatalogRepository(), FakeDownloadManager(), palette = palette) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, FakeCatalogRepository(), FakeDownloadManager(), palette = palette) } }
         rule.waitForIdle()
 
         palette.visible = true
         rule.waitForIdle()
 
+        // Narrow to a query only the "Library" screen hit matches (no accent, manhwa, or
+        // setting title shares that subsequence): the unfiltered "All" list sorts Appearance
+        // and Manhwa hits ahead of Screens alphabetically, so an unnarrowed Screens hit can sit
+        // outside the LazyColumn's composed viewport despite being a real candidate.
+        rule.onNodeWithText("Search everywhere…").performTextInput("Library")
+        rule.waitForIdle()
+
         // "Screens" is the category label the Screens provider stamps on every hit; nothing
-        // else in the app renders that word, so its presence alone proves screen hits are
-        // showing. Not all 6 are necessarily composed (LazyColumn only composes what's within
-        // the visible viewport), so check for at least one rather than an exact count.
+        // else in the app renders that word, so its presence alone proves the screen hit is showing.
         val screenHits = rule.onAllNodes(hasText("Screens") and inPalette).fetchSemanticsNodes()
-        assertTrue(screenHits.isNotEmpty(), "expected at least one Screens-category hit to be showing")
+        assertTrue(screenHits.isNotEmpty(), "expected the Screens-category hit to be showing")
     }
 
     @Test
@@ -64,7 +74,7 @@ class PaletteFlowTest {
         val library = FakeLibraryRepository(libraryItems())
         val palette = PaletteState()
 
-        rule.setContent { MangoTheme { AppShell(library, FakeCatalogRepository(), FakeDownloadManager(), palette = palette) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, FakeCatalogRepository(), FakeDownloadManager(), palette = palette) } }
         rule.waitForIdle()
         palette.visible = true
         rule.waitForIdle()
@@ -98,13 +108,13 @@ class PaletteFlowTest {
         )
         val palette = PaletteState()
 
-        rule.setContent { MangoTheme { AppShell(library, catalog, FakeDownloadManager(), palette = palette) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager(), palette = palette) } }
         rule.waitForIdle()
         palette.visible = true
         rule.waitForIdle()
 
-        // "Solo" fuzzy-matches exactly these two library titles (no screen or theme name has
-        // that subsequence); equal scores tie-break by title, so hits are
+        // "Solo" fuzzy-matches exactly these two library titles (no screen, accent, or setting
+        // name has that subsequence); equal scores tie-break by title, so hits are
         // [Solo Leveling, Solo Prime] and Down must move the selection to the SECOND one.
         rule.onNodeWithText("Search everywhere…").performTextInput("Solo")
         rule.waitForIdle()
@@ -127,7 +137,7 @@ class PaletteFlowTest {
         val library = FakeLibraryRepository(libraryItems())
         val palette = PaletteState()
 
-        rule.setContent { MangoTheme { AppShell(library, FakeCatalogRepository(), FakeDownloadManager(), palette = palette) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, FakeCatalogRepository(), FakeDownloadManager(), palette = palette) } }
         rule.waitForIdle()
         palette.visible = true
         rule.waitForIdle()
@@ -143,7 +153,7 @@ class PaletteFlowTest {
         val library = FakeLibraryRepository(libraryItems())
         val palette = PaletteState()
 
-        rule.setContent { MangoTheme { AppShell(library, FakeCatalogRepository(), FakeDownloadManager(), palette = palette) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, FakeCatalogRepository(), FakeDownloadManager(), palette = palette) } }
         rule.waitForIdle()
         palette.visible = true
         rule.waitForIdle()
@@ -165,7 +175,7 @@ class PaletteFlowTest {
         val library = FakeLibraryRepository(libraryItems())
         val palette = PaletteState()
 
-        rule.setContent { MangoTheme { AppShell(library, FakeCatalogRepository(), FakeDownloadManager(), palette = palette) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, FakeCatalogRepository(), FakeDownloadManager(), palette = palette) } }
         rule.waitForIdle()
 
         palette.visible = true
@@ -200,6 +210,57 @@ class PaletteFlowTest {
         rule.onNodeWithText("Theme").assertExists()
     }
 
+    // Completeness test for the accent registry: every ACCENT_PRESETS label must surface an
+    // "Accent: <label>" hit under the "Appearance" category, so a future preset with no
+    // matching provider output fails loudly here. Also covers the end-to-end behavior: picking
+    // one recolors the current theme's accent and leaves every other token untouched.
+    @Test
+    fun everyAccentPresetSurfacesAPaletteHitAndSelectingOneRecolorsTheAccent() {
+        val library = FakeLibraryRepository(libraryItems())
+        val palette = PaletteState()
+        var appliedTheme: MangoTheme = MangoDark
+
+        rule.setContent {
+            var theme by remember { mutableStateOf(MangoDark) }
+            ProvideMangoTheme(theme) {
+                AppShell(
+                    library,
+                    FakeCatalogRepository(),
+                    FakeDownloadManager(),
+                    theme = theme,
+                    onThemeChange = { theme = it; appliedTheme = it },
+                    palette = palette,
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        palette.visible = true
+        rule.waitForIdle()
+
+        // Narrow to the "Accent:" prefix first — same rationale as the settings completeness
+        // test above: the unfiltered "All" list only composes what's within the viewport.
+        rule.onNodeWithText("Search everywhere…").performTextInput("Accent:")
+        rule.waitForIdle()
+
+        ACCENT_PRESETS.forEach { (label, _) ->
+            rule.onNode(hasText("Accent: $label") and inPalette).assertExists()
+        }
+
+        rule.onNodeWithText("Accent:").performTextClearance()
+        rule.waitForIdle()
+        rule.onNodeWithText("Search everywhere…").performTextInput("Accent: Violet")
+        rule.waitForIdle()
+
+        rule.onRoot().performKeyInput { pressKey(Key.Enter) }
+        rule.waitForIdle()
+
+        assertFalse(palette.visible)
+        val violet = ACCENT_PRESETS.first { it.first == "Violet" }.second
+        assertEquals(violet, appliedTheme.accent)
+        assertEquals(MangoDark.bg0, appliedTheme.bg0)
+    }
+
     @Test
     fun aThrowingProviderDoesNotBlankTheGoodProvidersHits() {
         val state = PaletteState()
@@ -208,7 +269,7 @@ class PaletteFlowTest {
         val badProvider = PaletteProvider { throw RuntimeException("boom") }
         val tabs = listOf(PaletteTab("All", listOf(goodProvider, badProvider)))
 
-        rule.setContent { MangoTheme { PaletteOverlay(state = state, tabs = tabs) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { PaletteOverlay(state = state, tabs = tabs) } }
         rule.waitForIdle()
 
         rule.onNodeWithText("GoodHit").assertExists()

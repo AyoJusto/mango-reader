@@ -54,7 +54,7 @@ class DownloadsTest {
             ),
         )
         val file = Screenshots.render("downloads") {
-            MangoTheme { DownloadsScreenContent(items = items) }
+            ProvideMangoTheme(MangoDark) { DownloadsScreenContent(items = items) }
         }
         assertTrue(Files.size(file) > 0, "expected a non-empty PNG at $file")
     }
@@ -73,7 +73,7 @@ class DownloadsTest {
             chapters = mapOf(("FlameComics" to "manga-1") to listOf(chapter)),
         )
 
-        rule.setContent { MangoTheme { AppShell(library, catalog, downloads) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, downloads) } }
 
         rule.onNodeWithText("Browse").performClick()
         rule.waitForIdle()
@@ -115,7 +115,7 @@ class DownloadsTest {
             ),
         )
 
-        rule.setContent { MangoTheme { DownloadsScreen(downloads) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { DownloadsScreen(downloads) } }
         rule.waitForIdle()
 
         rule.onNodeWithText("Done").assertExists()

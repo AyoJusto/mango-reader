@@ -6,26 +6,6 @@ import kotlin.test.assertEquals
 
 class SettingsTest {
     @Test
-    fun defaultsWhenFileMissing() {
-        val dataDir = Files.createTempDirectory("settings-test")
-
-        val settings = Settings(dataDir)
-
-        assertEquals(Themes.DEFAULT, settings.theme)
-    }
-
-    @Test
-    fun setPersistsAndASecondInstanceReadsItBack() {
-        val dataDir = Files.createTempDirectory("settings-test")
-        val settings = Settings(dataDir)
-
-        settings.theme = "midnight"
-
-        val reloaded = Settings(dataDir)
-        assertEquals("midnight", reloaded.theme)
-    }
-
-    @Test
     fun malformedFileFallsBackToDefaultsWithoutThrowing() {
         val dataDir = Files.createTempDirectory("settings-test")
         val file = dataDir.resolve("settings.properties")
@@ -33,14 +13,7 @@ class SettingsTest {
 
         val settings = Settings(dataDir)
 
-        assertEquals(Themes.DEFAULT, settings.theme)
-    }
-
-    @Test
-    fun unknownThemeNameResolvesToTheDefaultScheme() {
-        val scheme = Themes.scheme("not-a-real-theme")
-
-        assertEquals(Themes.schemes.getValue(Themes.DEFAULT), scheme)
+        assertEquals(120f, settings.autoScrollSpeed)
     }
 
     @Test

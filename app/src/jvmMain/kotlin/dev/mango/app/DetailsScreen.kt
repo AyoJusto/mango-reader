@@ -71,6 +71,7 @@ fun DetailsScreenContent(
     onDownloadAll: (MangaEntry, List<Chapter>) -> Unit,
     onClearStorage: () -> Unit = {},
 ) {
+    val theme = LocalMangoTheme.current
     // Local UI state for the range dialog — presentation-only, never leaves this composable.
     var showRangeDialog by remember { mutableStateOf(false) }
     var fromText by remember { mutableStateOf("") }
@@ -95,12 +96,12 @@ fun DetailsScreenContent(
             }
         }
     }
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+    Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(modifier = Modifier.padding(24.dp)) {
                 Card(
                     modifier = Modifier.width(220.dp).aspectRatio(2f / 3f),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    colors = CardDefaults.cardColors(containerColor = theme.bg2),
                 ) {
                     val cover = details.entry.cover
                     if (cover != null) {
@@ -116,25 +117,25 @@ fun DetailsScreenContent(
                     Text(
                         text = details.entry.title,
                         style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onBackground,
+                        color = theme.textPrimary,
                     )
                     if (details.authors.isNotEmpty()) {
                         Text(
                             text = details.authors.joinToString(", "),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = theme.textSecondary,
                         )
                     }
                     Text(
                         text = details.status.name,
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.tertiary,
+                        color = theme.accent,
                     )
                     details.description?.let { description ->
                         Text(
                             text = description,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = theme.textPrimary,
                             maxLines = 6,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -182,7 +183,7 @@ fun DetailsScreenContent(
             Text(
                 text = "Chapters",
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onBackground,
+                color = theme.textPrimary,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
             )
             LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -205,16 +206,16 @@ fun DetailsScreenContent(
                                 },
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = if (chapter.chapterId in finishedChapterIds) {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                    theme.textSecondary
                                 } else {
-                                    MaterialTheme.colorScheme.onSurface
+                                    theme.textPrimary
                                 },
                                 modifier = Modifier.weight(1f),
                             )
                             Text(
                                 text = chapter.publishedAt?.let { formatDate(it) }.orEmpty(),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = theme.textSecondary,
                             )
                             if (chapter.chapterId in downloadedChapterIds) {
                                 TextButton(onClick = {}, enabled = false) {
@@ -226,7 +227,7 @@ fun DetailsScreenContent(
                                 }
                             }
                         }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                        HorizontalDivider(color = theme.divider)
                     }
                 }
             }
@@ -331,6 +332,7 @@ fun DetailsScreen(
     onDownloadAll: (MangaEntry, List<Chapter>) -> Unit = { _, _ -> },
     cache: DetailsCache = remember { DetailsCache() },
 ) {
+    val theme = LocalMangoTheme.current
     var details by remember(sourceId, mangaId) { mutableStateOf<MangaDetails?>(null) }
     var chapters by remember(sourceId, mangaId) { mutableStateOf<List<Chapter>>(emptyList()) }
     var finishedChapterIds by remember(sourceId, mangaId) { mutableStateOf<Set<String>>(emptySet()) }
@@ -380,7 +382,7 @@ fun DetailsScreen(
     val currentDetails = details
     val currentError = error
     when {
-        currentError != null -> Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        currentError != null -> Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 val url = challengeUrl
                 ChallengeErrorContent(
@@ -403,7 +405,7 @@ fun DetailsScreen(
                 )
             }
         }
-        currentDetails == null -> Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        currentDetails == null -> Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }

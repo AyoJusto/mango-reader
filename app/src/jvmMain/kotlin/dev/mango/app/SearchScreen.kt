@@ -61,13 +61,14 @@ private fun SearchSourceSection(
     onOpenDetails: (MangaEntry) -> Unit,
     onSolveChallenge: () -> Unit,
 ) {
+    val theme = LocalMangoTheme.current
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(text = source.name, style = MaterialTheme.typography.titleMedium)
             if (pending) {
                 CircularProgressIndicator(modifier = Modifier.height(16.dp).width(16.dp), strokeWidth = 2.dp)
             } else if (error != null) {
-                Text(text = error, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                Text(text = error, style = MaterialTheme.typography.bodyMedium, color = theme.danger)
                 if (challengeUrl != null) {
                     Button(onClick = onSolveChallenge, enabled = solveEnabled) { Text("Solve challenge") }
                 }
@@ -75,7 +76,7 @@ private fun SearchSourceSection(
                 Text(
                     text = "${results.size} result${if (results.size == 1) "" else "s"}",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = theme.textSecondary,
                 )
             }
         }
@@ -89,7 +90,7 @@ private fun SearchSourceSection(
             results.isEmpty() -> Text(
                 text = "No results",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = theme.textSecondary,
             )
             // no item keys: extension data is untrusted and a duplicate mangaId in one
             // response must not crash composition with a duplicate-key exception
@@ -122,7 +123,8 @@ fun SearchScreenContent(
     solvingSourceId: String? = null,
     onSolveChallenge: (String) -> Unit = {},
 ) {
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+    val theme = LocalMangoTheme.current
+    Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             OutlinedTextField(
                 value = query,
@@ -160,7 +162,7 @@ fun SearchScreenContent(
                             "Search across all installed sources"
                         },
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = theme.textSecondary,
                     )
                 }
             } else {

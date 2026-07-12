@@ -47,7 +47,7 @@ import java.util.logging.Logger
 
 /** One candidate result in the palette: what a row shows and what Enter/click does. */
 data class PaletteHit(
-    val category: String, // display group: "Screens", "Themes", "Manhwa"
+    val category: String, // display group: "Screens", "Appearance", "Manhwa"
     val title: String,
     val subtitle: String? = null,
     val run: () -> Unit,
@@ -231,6 +231,7 @@ fun PaletteContent(
     onRunHit: (PaletteHit) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val theme = LocalMangoTheme.current
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
     val listState = rememberLazyListState()
@@ -261,7 +262,7 @@ fun PaletteContent(
             .fillMaxSize()
             .testTag(PALETTE_TEST_TAG)
             // scrim role, not a Color literal: Theme.kt owns every color decision
-            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f))
+            .background(theme.bg0.copy(alpha = 0.5f))
             .clickable(onClick = onDismiss)
             // On the scrim — an ancestor of everything in the panel — not on the text field:
             // ancestor preview sees keys no matter which descendant (chip, row, field) holds
@@ -308,7 +309,7 @@ fun PaletteContent(
                 .fillMaxHeight(0.7f)
                 // consumes the click so it doesn't fall through to the scrim's onDismiss above
                 .clickable(onClick = {}),
-            color = MaterialTheme.colorScheme.surface,
+            color = theme.bg1,
             tonalElevation = 8.dp,
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -341,7 +342,7 @@ fun PaletteContent(
                                 .fillMaxWidth()
                                 .background(
                                     if (selected) {
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                        theme.accent.copy(alpha = 0.15f)
                                     } else {
                                         Color.Transparent
                                     },
@@ -354,7 +355,7 @@ fun PaletteContent(
                             Text(
                                 text = hit.category,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = theme.textSecondary,
                                 modifier = Modifier.widthIn(min = 72.dp),
                             )
                             Column(modifier = Modifier.weight(1f)) {
@@ -363,7 +364,7 @@ fun PaletteContent(
                                     Text(
                                         text = subtitle,
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        color = theme.textSecondary,
                                     )
                                 }
                             }
@@ -390,12 +391,17 @@ private fun screenProvider(navigate: (Screen) -> Unit): PaletteProvider {
     }
 }
 
-/** Every registered color scheme as a palette hit; run applies it immediately. */
-private fun themeProvider(onThemeChange: (String) -> Unit): PaletteProvider = PaletteProvider { _ ->
-    Themes.schemes.keys.map { name ->
-        PaletteHit(category = "Themes", title = "Theme: $name", run = { onThemeChange(name) })
+/** Every built-in accent preset as a palette hit; run applies it to the current theme immediately. */
+private fun accentProvider(theme: MangoTheme, onThemeChange: (MangoTheme) -> Unit): PaletteProvider =
+    PaletteProvider { _ ->
+        ACCENT_PRESETS.map { (label, color) ->
+            PaletteHit(
+                category = "Appearance",
+                title = "Accent: $label",
+                run = { onThemeChange(theme.copy(accent = color)) },
+            )
+        }
     }
-}
 
 /** Every registered settings entry as a palette hit; run opens the Settings screen. */
 private fun settingsProvider(navigate: (Screen) -> Unit): PaletteProvider = PaletteProvider { _ ->
@@ -419,21 +425,22 @@ private fun libraryProvider(library: LibraryRepository, navigate: (Screen) -> Un
 
 /**
  * The tab set: "All" fans out to every provider, "Manhwa" is just the library provider,
- * "Actions" is screens + themes + settings. A tab-bar from day one so a future online-search
+ * "Actions" is screens + accents + settings. A tab-bar from day one so a future online-search
  * tab slots in later without rework.
  */
 fun paletteTabs(
     library: LibraryRepository,
     navigate: (Screen) -> Unit,
-    onThemeChange: (String) -> Unit,
+    theme: MangoTheme,
+    onThemeChange: (MangoTheme) -> Unit,
 ): List<PaletteTab> {
     val screens = screenProvider(navigate)
-    val themes = themeProvider(onThemeChange)
+    val accents = accentProvider(theme, onThemeChange)
     val manhwa = libraryProvider(library, navigate)
     val settings = settingsProvider(navigate)
     return listOf(
-        PaletteTab("All", listOf(screens, themes, manhwa, settings)),
+        PaletteTab("All", listOf(screens, accents, manhwa, settings)),
         PaletteTab("Manhwa", listOf(manhwa)),
-        PaletteTab("Actions", listOf(screens, themes, settings)),
+        PaletteTab("Actions", listOf(screens, accents, settings)),
     )
 }

@@ -15,13 +15,15 @@ import androidx.compose.ui.window.rememberWindowState
 
 fun main() {
     val graph = AppGraph()
-    // Theme is picked from the Settings screen; Settings.theme persists it to disk.
     val settings = Settings(AppGraph.defaultDataDir())
+    // Theme is picked from the Settings screen (or the palette's accent hits); ThemeStore
+    // persists it to disk on every change.
+    val themeStore = ThemeStore(AppGraph.defaultDataDir())
     application {
         // Hoisted into Compose state so picking a theme on the Settings screen applies live,
         // without restarting the app.
-        var themeName by remember { mutableStateOf(settings.theme) }
-        // Same hoist pattern as themeName: the Settings screen's slider applies live, without
+        var theme by remember { mutableStateOf(themeStore.load()) }
+        // Same hoist pattern as theme: the Settings screen's slider applies live, without
         // restarting the app.
         var autoScrollSpeed by remember { mutableStateOf(settings.autoScrollSpeed) }
         // A floating window this size fills a 2560x1440 monitor; the OS clamps it on smaller screens
@@ -46,15 +48,15 @@ fun main() {
                 }
             },
         ) {
-            MangoTheme(themeName = themeName) {
+            ProvideMangoTheme(theme) {
                 AppShell(
                     graph.library,
                     graph.catalog,
                     graph.downloads,
                     graph.extensions,
                     graph.challengeSolver,
-                    currentTheme = themeName,
-                    onThemeChange = { themeName = it; settings.theme = it },
+                    theme = theme,
+                    onThemeChange = { theme = it; themeStore.save(it) },
                     autoScrollSpeed = autoScrollSpeed,
                     onAutoScrollSpeedChange = { autoScrollSpeed = it; settings.autoScrollSpeed = it },
                     onToggleFullscreen = {

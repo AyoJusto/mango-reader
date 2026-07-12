@@ -47,7 +47,7 @@ class ReaderScreenshotsTest {
     @Test
     fun controlsVisible() {
         val file = Screenshots.render("reader-controls-visible") {
-            MangoTheme {
+            ProvideMangoTheme(MangoDark) {
                 ReaderContent(
                     segments = fakeSegments,
                     listState = rememberLazyListState(),
@@ -63,7 +63,7 @@ class ReaderScreenshotsTest {
     @Test
     fun immersive() {
         val file = Screenshots.render("reader-immersive") {
-            MangoTheme {
+            ProvideMangoTheme(MangoDark) {
                 ReaderContent(
                     segments = fakeSegments,
                     listState = rememberLazyListState(),

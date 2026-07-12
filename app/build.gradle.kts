@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 kotlin {
@@ -13,6 +14,7 @@ kotlin {
             implementation(compose.desktop.currentOs)
             implementation(compose.material3)
             implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.serialization.json)
             implementation(libs.ktor.client.cio)
             implementation(libs.coil.compose)
             implementation(libs.coil.network.ktor3)

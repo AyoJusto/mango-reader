@@ -92,8 +92,9 @@ fun BrowseScreenContent(
     // solving, but the progress hint only shows on this source (see BrowseState.solvingSourceId)
     val solving = solvingSourceId != null && solvingSourceId == selectedSourceId
     val solveEnabled = solvingSourceId == null
+    val theme = LocalMangoTheme.current
 
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+    Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -126,9 +127,9 @@ fun BrowseScreenContent(
                         text = sourcesError ?: "No sources installed — add one from the Extensions tab",
                         style = MaterialTheme.typography.bodyMedium,
                         color = if (sourcesError != null) {
-                            MaterialTheme.colorScheme.error
+                            theme.danger
                         } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
+                            theme.textSecondary
                         },
                     )
                 } else if (searchActive) {
@@ -144,7 +145,7 @@ fun BrowseScreenContent(
                         results.isEmpty() -> Text(
                             text = "No results",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = theme.textSecondary,
                         )
                         // no item keys: extension data is untrusted and a duplicate mangaId in one
                         // response must not crash composition with a duplicate-key exception
@@ -183,7 +184,7 @@ fun BrowseScreenContent(
                         else -> Text(
                             text = "No discover sections — search this source instead",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = theme.textSecondary,
                         )
                     }
                 }

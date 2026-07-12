@@ -36,9 +36,10 @@ import dev.mango.core.domain.MangaEntry
  */
 @Composable
 fun CoverCell(entry: MangaEntry, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val theme = LocalMangoTheme.current
     Card(
         modifier = modifier.aspectRatio(2f / 3f).clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = theme.bg2),
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -55,7 +56,7 @@ fun CoverCell(entry: MangaEntry, onClick: () -> Unit, modifier: Modifier = Modif
             Text(
                 text = entry.title,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = theme.textPrimary,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(8.dp),
@@ -67,19 +68,20 @@ fun CoverCell(entry: MangaEntry, onClick: () -> Unit, modifier: Modifier = Modif
 /** Pure, data-driven content — the screenshot harness renders this directly. */
 @Composable
 fun LibraryScreenContent(items: List<LibraryItem>, onOpenDetails: (MangaEntry) -> Unit) {
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+    val theme = LocalMangoTheme.current
+    Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
         if (items.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         text = "mango",
                         style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.onBackground,
+                        color = theme.textPrimary,
                     )
                     Text(
                         text = "Library is empty — browse sources to add manhwa",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = theme.textSecondary,
                     )
                 }
             }

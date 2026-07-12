@@ -39,7 +39,7 @@ class ExtensionsScreenTest {
         val busy = setOf("WebtoonXYZ")
 
         val file = Screenshots.render("extensions") {
-            MangoTheme {
+            ProvideMangoTheme(MangoDark) {
                 ExtensionsScreenContent(
                     available = available,
                     installed = installed,
@@ -60,7 +60,7 @@ class ExtensionsScreenTest {
         val catalog = FakeCatalogRepository()
         val repo = FakeExtensionRepo(available = listOf(source), catalog = catalog)
 
-        rule.setContent { MangoTheme { ExtensionsScreen(repo, catalog) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { ExtensionsScreen(repo, catalog) } }
         rule.waitForIdle()
 
         rule.onNodeWithText("Install").assertExists()
@@ -78,7 +78,7 @@ class ExtensionsScreenTest {
         val notInstalledSource = AvailableSource(sourceId = "MangaBat", name = "MangaBat", version = "2.0.0", language = "en")
 
         rule.setContent {
-            MangoTheme {
+            ProvideMangoTheme(MangoDark) {
                 ExtensionsScreenContent(
                     available = listOf(installedSource, notInstalledSource),
                     installed = mapOf("FlameComics" to "1.0.0"),
@@ -104,7 +104,7 @@ class ExtensionsScreenTest {
             override suspend fun install(source: AvailableSource): Nothing = throw RuntimeException("Install failed: network error")
         }
 
-        rule.setContent { MangoTheme { ExtensionsScreen(repo, catalog) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { ExtensionsScreen(repo, catalog) } }
         rule.waitForIdle()
 
         rule.onNodeWithText("Install").performClick()
@@ -120,7 +120,7 @@ class ExtensionsScreenTest {
         val catalog = FakeCatalogRepository(sources = listOf(SourceInfo(sourceId = "FlameComics", name = "Flame Comics", version = "1.0.0")))
         val repo = FakeExtensionRepo(available = listOf(source), catalog = catalog)
 
-        rule.setContent { MangoTheme { ExtensionsScreen(repo, catalog) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { ExtensionsScreen(repo, catalog) } }
         rule.waitForIdle()
 
         rule.onNodeWithText("Remove").assertExists()

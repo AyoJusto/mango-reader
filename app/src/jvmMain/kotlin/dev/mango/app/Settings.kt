@@ -9,8 +9,7 @@ import java.util.logging.Logger
 
 /**
  * Tiny persisted key-value settings over [Properties] at `<dataDir>/settings.properties`.
- * Loaded once into memory at construction; each setter persists immediately. Backs the
- * Settings screen — [theme] is read on startup and written back on every pick.
+ * Loaded once into memory at construction; each setter persists immediately.
  *
  * Missing or malformed files fall back to defaults rather than crashing startup: a settings
  * file is a convenience, not a trust boundary worth failing the app over.
@@ -28,13 +27,6 @@ class Settings(dataDir: Path) {
             clear()
         }
     }
-
-    var theme: String
-        get() = props.getProperty("theme") ?: Themes.DEFAULT
-        set(value) {
-            props.setProperty("theme", value)
-            save()
-        }
 
     // dp/sec for the reader's A-key auto-scroll. A malformed value falls back to the default,
     // same stance as the file-load fallback above.

@@ -17,7 +17,7 @@ internal fun SolveProgressHint() {
     Text(
         text = "Opening browser… (first run downloads it, ~100MB)",
         style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = LocalMangoTheme.current.textSecondary,
     )
 }
 
@@ -40,7 +40,7 @@ internal fun ChallengeErrorContent(
         Text(
             text = error,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.error,
+            color = LocalMangoTheme.current.danger,
         )
         if (challengeUrl != null) {
             Spacer(modifier = Modifier.height(8.dp))

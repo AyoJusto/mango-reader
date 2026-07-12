@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Surface
@@ -74,8 +73,8 @@ fun AppShell(
     downloads: DownloadManager,
     extensions: ExtensionRepo = NoOpExtensionRepo,
     challengeSolver: ChallengeSolver = NoOpChallengeSolver,
-    currentTheme: String = Themes.DEFAULT,
-    onThemeChange: (String) -> Unit = {},
+    theme: MangoTheme = MangoDark,
+    onThemeChange: (MangoTheme) -> Unit = {},
     autoScrollSpeed: Float = 120f,
     onAutoScrollSpeedChange: (Float) -> Unit = {},
     onToggleFullscreen: () -> Unit = {},
@@ -156,7 +155,7 @@ fun AppShell(
                     }
                     Surface(
                         modifier = Modifier.weight(1f).fillMaxHeight(),
-                        color = MaterialTheme.colorScheme.background,
+                        color = theme.bg0,
                     ) {
                         when (current) {
                             Screen.Library -> LibraryScreen(library) { entry ->
@@ -177,9 +176,8 @@ fun AppShell(
                             Screen.Downloads -> DownloadsScreen(downloads)
                             Screen.Extensions -> ExtensionsScreen(extensions, catalog)
                             Screen.Settings -> SettingsScreenContent(
-                                themeNames = Themes.schemes.keys.toList(),
-                                currentTheme = currentTheme,
-                                onSelectTheme = onThemeChange,
+                                theme = theme,
+                                onThemeChange = onThemeChange,
                                 autoScrollSpeed = autoScrollSpeed,
                                 onAutoScrollSpeedChange = onAutoScrollSpeedChange,
                             )
@@ -230,7 +228,7 @@ fun AppShell(
                                         },
                                         modifier = Modifier.padding(8.dp),
                                     ) {
-                                        Text("←", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text("←", color = theme.textSecondary)
                                     }
                                 }
                             }
@@ -240,9 +238,10 @@ fun AppShell(
                 }
             }
         }
-        // remembered: providers capture stable references, so rebuilding the tab list on
-        // every shell recomposition would be pure allocation churn
-        val tabs = remember {
+        // keyed on theme (not plain remember{}): the accent provider closes over the current
+        // theme by value, so a theme change must rebuild the tab list or its hits would apply
+        // an accent on top of a stale, already-replaced theme
+        val tabs = remember(theme) {
             paletteTabs(
                 library = library,
                 navigate = { target ->
@@ -251,6 +250,7 @@ fun AppShell(
                     if (target is Screen.Details) detailsCache.invalidate(target.sourceId, target.mangaId)
                     screen = target
                 },
+                theme = theme,
                 onThemeChange = onThemeChange,
             )
         }

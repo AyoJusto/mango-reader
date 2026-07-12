@@ -20,7 +20,7 @@ class ScreenScreenshotsTest {
     @Test
     fun libraryEmpty() {
         val file = Screenshots.render("library-empty") {
-            MangoTheme { LibraryScreenContent(items = emptyList(), onOpenDetails = {}) }
+            ProvideMangoTheme(MangoDark) { LibraryScreenContent(items = emptyList(), onOpenDetails = {}) }
         }
         assertTrue(Files.size(file) > 0, "expected a non-empty PNG at $file")
     }
@@ -42,7 +42,7 @@ class ScreenScreenshotsTest {
             )
         }
         val file = Screenshots.render("library-populated") {
-            MangoTheme { LibraryScreenContent(items = items, onOpenDetails = {}) }
+            ProvideMangoTheme(MangoDark) { LibraryScreenContent(items = items, onOpenDetails = {}) }
         }
         assertTrue(Files.size(file) > 0, "expected a non-empty PNG at $file")
     }
@@ -57,7 +57,7 @@ class ScreenScreenshotsTest {
             MangaEntry(sourceId = "FlameComics", mangaId = "manga-4", title = "Nano Machine"),
         )
         val file = Screenshots.render("browse-results") {
-            MangoTheme {
+            ProvideMangoTheme(MangoDark) {
                 BrowseScreenContent(
                     sources = sources,
                     selectedSourceId = "FlameComics",
@@ -102,7 +102,7 @@ class ScreenScreenshotsTest {
             ),
         )
         val file = Screenshots.render("browse-sections") {
-            MangoTheme {
+            ProvideMangoTheme(MangoDark) {
                 BrowseScreenContent(
                     sources = sources,
                     selectedSourceId = "FlameComics",
@@ -132,7 +132,7 @@ class ScreenScreenshotsTest {
             MangaEntry(sourceId = "FlameComics", mangaId = "manga-2", title = "Omniscient Reader"),
         )
         val file = Screenshots.render("search-results") {
-            MangoTheme {
+            ProvideMangoTheme(MangoDark) {
                 SearchScreenContent(
                     sources = sources,
                     enabledSourceIds = setOf("FlameComics", "MangaBat"),
@@ -173,7 +173,7 @@ class ScreenScreenshotsTest {
             )
         }
         val file = Screenshots.render("details") {
-            MangoTheme {
+            ProvideMangoTheme(MangoDark) {
                 DetailsScreenContent(
                     details = details,
                     chapters = chapters,
@@ -191,12 +191,8 @@ class ScreenScreenshotsTest {
     @Test
     fun settings() {
         val file = Screenshots.render("settings") {
-            MangoTheme {
-                SettingsScreenContent(
-                    themeNames = Themes.schemes.keys.toList(),
-                    currentTheme = Themes.DEFAULT,
-                    onSelectTheme = {},
-                )
+            ProvideMangoTheme(MangoDark) {
+                SettingsScreenContent(theme = MangoDark, onThemeChange = {})
             }
         }
         assertTrue(Files.size(file) > 0, "expected a non-empty PNG at $file")
@@ -207,12 +203,12 @@ class ScreenScreenshotsTest {
         val hits = listOf(
             PaletteHit(category = "Screens", title = "Library", run = {}),
             PaletteHit(category = "Screens", title = "Browse", run = {}),
-            PaletteHit(category = "Themes", title = "Theme: midnight", run = {}),
+            PaletteHit(category = "Appearance", title = "Accent: Violet", run = {}),
             PaletteHit(category = "Manhwa", title = "Solo Leveling", subtitle = "FlameComics", run = {}),
             PaletteHit(category = "Manhwa", title = "Tower of God", subtitle = "FlameComics", run = {}),
         )
         val file = Screenshots.render("palette-open") {
-            MangoTheme {
+            ProvideMangoTheme(MangoDark) {
                 PaletteContent(
                     tabNames = listOf("All", "Manhwa", "Actions"),
                     activeTabIndex = 0,

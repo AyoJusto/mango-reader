@@ -398,6 +398,14 @@ De-risk the unknown before building around it.
   behavior). RESOLVED (R4, 2026-07-11): auto-scroll now pauses while the palette overlay
   is open (paletteVisible in the drive loop's keys/guard) and auto-resumes on close.
 - ~~M5+ — Apple targets~~ moved to §12 backlog (2026-07-11): not needed now or anytime soon.
+- **MU — UI overhaul (planned 2026-07-12).** Full visual direction from the owner's
+  claude.ai/design lookbook: token theme system with JSON export/import, borderless
+  window chrome, Arc-style overlay sidebar (Ctrl+B), immersive reader overlay, Spotlight-
+  styled palette, per-screen restyles. Spec of record: `design/lookbook-handoff.md`;
+  execution plan (chunks U1–U6, dispatch maps, acceptance criteria):
+  `design/ui-milestone-plan.md`. Covers the §12 backlog items "proper UI design pass"
+  and library unread badges. The U2 undecorated-window spike is the scheduled unknown;
+  fallback keeps OS chrome and de-scopes nothing else.
 
 ---
 
@@ -529,3 +537,8 @@ you want generated audio shared across devices.
   at chunk boundaries. Discovery never goes to implementers (research subagents report
   back for review before facts enter a brief). Four-role loop retired; multi-agent
   fan-out only for wide mechanical work (M4 shake-out) with owner approval.
+- Loop, MU addendum (owner decision 2026-07-12): implementers never spawn their own
+  subagents — brief fidelity and the disjoint-file-set discipline require the decision
+  maker to hold the only fan-out map. A single Opus implementer (still no nesting) is
+  allowed where a spike shows the work is platform-subtle (candidate: U2 window chrome).
+  Opus stays the reviewer at every chunk boundary.

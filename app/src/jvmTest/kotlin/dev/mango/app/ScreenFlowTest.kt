@@ -72,7 +72,7 @@ class ScreenFlowTest {
         val library = FakeLibraryRepository()
         val catalog = FakeCatalogRepository(sources = listOf(SourceInfo("FlameComics", "FlameComics")))
 
-        rule.setContent { MangoTheme { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
 
         rule.onNodeWithText("Library is empty — browse sources to add manhwa").assertExists()
 
@@ -91,7 +91,7 @@ class ScreenFlowTest {
             results = mapOf("solo" to listOf(entry)),
         )
 
-        rule.setContent { MangoTheme { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
 
         rule.onNodeWithText("Browse").performClick()
         rule.waitForIdle()
@@ -114,7 +114,7 @@ class ScreenFlowTest {
         )
         val catalog = CountingCatalogRepository(fake)
 
-        rule.setContent { MangoTheme { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
 
         rule.onNodeWithText("Browse").performClick()
         rule.waitForIdle()
@@ -147,7 +147,7 @@ class ScreenFlowTest {
         )
 
         rule.setContent {
-            MangoTheme {
+            ProvideMangoTheme(MangoDark) {
                 DetailsScreen(
                     sourceId = "FlameComics",
                     mangaId = "manga-1",
@@ -193,7 +193,7 @@ class ScreenFlowTest {
         var downloaded: List<Chapter>? = null
 
         rule.setContent {
-            MangoTheme {
+            ProvideMangoTheme(MangoDark) {
                 DetailsScreen(
                     sourceId = "FlameComics",
                     mangaId = "manga-1",
@@ -229,7 +229,7 @@ class ScreenFlowTest {
         var downloaded: List<Chapter>? = null
 
         rule.setContent {
-            MangoTheme {
+            ProvideMangoTheme(MangoDark) {
                 DetailsScreen(
                     sourceId = "FlameComics",
                     mangaId = "manga-1",
@@ -270,7 +270,7 @@ class ScreenFlowTest {
         var downloaded: List<Chapter>? = null
 
         rule.setContent {
-            MangoTheme {
+            ProvideMangoTheme(MangoDark) {
                 DetailsScreen(
                     sourceId = "FlameComics",
                     mangaId = "manga-1",
@@ -306,7 +306,7 @@ class ScreenFlowTest {
         )
 
         rule.setContent {
-            MangoTheme {
+            ProvideMangoTheme(MangoDark) {
                 DetailsScreenContent(
                     details = details,
                     chapters = chapters,
@@ -336,7 +336,7 @@ class ScreenFlowTest {
         var downloaded: List<Chapter>? = null
 
         rule.setContent {
-            MangoTheme {
+            ProvideMangoTheme(MangoDark) {
                 DetailsScreenContent(
                     details = details,
                     chapters = chapters,
@@ -365,7 +365,7 @@ class ScreenFlowTest {
         var hasDownloads by mutableStateOf(false)
 
         rule.setContent {
-            MangoTheme {
+            ProvideMangoTheme(MangoDark) {
                 DetailsScreenContent(
                     details = details,
                     chapters = emptyList(),
@@ -406,7 +406,7 @@ class ScreenFlowTest {
         var opened: Chapter? = null
 
         rule.setContent {
-            MangoTheme {
+            ProvideMangoTheme(MangoDark) {
                 DetailsScreenContent(
                     details = details,
                     chapters = chapters,
@@ -437,7 +437,7 @@ class ScreenFlowTest {
         var opened: Chapter? = null
 
         rule.setContent {
-            MangoTheme {
+            ProvideMangoTheme(MangoDark) {
                 DetailsScreenContent(
                     details = details,
                     chapters = chapters,
@@ -469,7 +469,7 @@ class ScreenFlowTest {
         var opened: Chapter? = null
 
         rule.setContent {
-            MangoTheme {
+            ProvideMangoTheme(MangoDark) {
                 DetailsScreenContent(
                     details = details,
                     chapters = chapters,
@@ -506,7 +506,7 @@ class ScreenFlowTest {
         var showDetails by mutableStateOf(true)
 
         rule.setContent {
-            MangoTheme {
+            ProvideMangoTheme(MangoDark) {
                 if (showDetails) {
                     DetailsScreen(
                         sourceId = "FlameComics",

@@ -1,62 +1,69 @@
 package dev.mango.app
 
-import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
 /**
- * Flow test for the Settings screen: theme names are listed and picking one fires the
- * callback. Style mirrors ExtensionsScreenTest.
+ * Flow test for the Settings screen: the current theme's name and controls are shown, and
+ * picking an accent swatch fires the callback. Style mirrors ExtensionsScreenTest.
  */
 class SettingsScreenTest {
     @get:Rule
     val rule = createComposeRule()
 
     @Test
-    fun listsThemeNamesAndClickingOneFiresTheCallback() {
-        var selected: String? = null
-
+    fun showsTheCurrentThemeNameExportImportButtonsAndAccentSwatches() {
         rule.setContent {
-            MangoTheme {
-                SettingsScreenContent(
-                    themeNames = Themes.schemes.keys.toList(),
-                    currentTheme = Themes.DEFAULT,
-                    onSelectTheme = { selected = it },
-                )
+            ProvideMangoTheme(MangoDark) {
+                SettingsScreenContent(theme = MangoDark, onThemeChange = {})
             }
         }
 
-        Themes.schemes.keys.forEach { name -> rule.onNodeWithText(name).assertExists() }
-
-        rule.onNodeWithText("midnight").performClick()
-        rule.waitForIdle()
-
-        assertEquals("midnight", selected)
+        rule.onNodeWithText(MangoDark.name).assertExists()
+        rule.onNodeWithText("Export .json").assertExists()
+        rule.onNodeWithText("Import…").assertExists()
+        ACCENT_PRESETS.forEach { (label, _) ->
+            rule.onNodeWithTag("accent-swatch-$label").assertExists()
+        }
     }
 
-    // Completeness test for the settings registry: every SETTINGS_ENTRIES title must be
-    // discoverable on the rendered screen (substring match — the auto-scroll label carries a
-    // live value suffix), so a future registry entry with no matching UI text fails loudly here.
     @Test
-    fun everyRegisteredSettingsEntryIsRenderedOnScreen() {
+    fun clickingAnAccentSwatchFiresTheCallbackWithOnlyTheAccentChanged() {
+        var applied: MangoTheme? = null
+
         rule.setContent {
-            MangoTheme {
-                SettingsScreenContent(
-                    themeNames = Themes.schemes.keys.toList(),
-                    currentTheme = Themes.DEFAULT,
-                    onSelectTheme = {},
-                )
+            ProvideMangoTheme(MangoDark) {
+                SettingsScreenContent(theme = MangoDark, onThemeChange = { applied = it })
+            }
+        }
+
+        rule.onNodeWithTag("accent-swatch-Violet").performClick()
+        rule.waitForIdle()
+
+        val violet = ACCENT_PRESETS.first { it.first == "Violet" }.second
+        assertEquals(violet, applied?.accent)
+        assertEquals(MangoDark.bg0, applied?.bg0)
+    }
+
+    // Completeness test for the settings registry: every SETTINGS_ENTRIES title must back a
+    // real control on the rendered screen via its settingsEntryTag (not the visible label —
+    // button wording is free to change), so a future registry entry with no matching control
+    // fails loudly here.
+    @Test
+    fun everyRegisteredSettingsEntryHasARenderedControl() {
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                SettingsScreenContent(theme = MangoDark, onThemeChange = {})
             }
         }
 
         SETTINGS_ENTRIES.forEach { title ->
-            val matches = rule.onAllNodes(hasText(title, substring = true)).fetchSemanticsNodes()
-            assertTrue(matches.isNotEmpty(), "expected a node containing \"$title\" for registered setting \"$title\"")
+            rule.onNodeWithTag(settingsEntryTag(title)).assertExists()
         }
     }
 }

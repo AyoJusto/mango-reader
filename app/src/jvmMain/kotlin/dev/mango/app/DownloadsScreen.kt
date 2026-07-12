@@ -26,13 +26,14 @@ import dev.mango.core.domain.DownloadStatus
 /** Pure, data-driven content — the screenshot harness renders this directly. */
 @Composable
 fun DownloadsScreenContent(items: List<Download>) {
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+    val theme = LocalMangoTheme.current
+    Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
         if (items.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     text = "No downloads yet",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = theme.textSecondary,
                 )
             }
             return@Surface
@@ -51,34 +52,34 @@ fun DownloadsScreenContent(items: List<Download>) {
                             Text(
                                 text = download.mangaTitle,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
+                                color = theme.textPrimary,
                             )
                             Text(
                                 text = "${download.sourceId} · Ch. ${formatChapterNumber(download.chapterNumber)}",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = theme.textSecondary,
                             )
                         }
                         when (download.status) {
                             DownloadStatus.DONE -> Text(
                                 text = "Done",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary,
+                                color = theme.accent,
                             )
                             DownloadStatus.FAILED -> Text(
                                 text = "Failed",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.error,
+                                color = theme.danger,
                             )
                             DownloadStatus.QUEUED -> Text(
                                 text = "Queued",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = theme.textSecondary,
                             )
                             DownloadStatus.RUNNING -> Text(
                                 text = "${download.pagesDone} / ${download.pagesTotal}",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = theme.textSecondary,
                             )
                         }
                     }
@@ -92,7 +93,7 @@ fun DownloadsScreenContent(items: List<Download>) {
                             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                         }
                     }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                    HorizontalDivider(color = theme.divider)
                 }
             }
         }

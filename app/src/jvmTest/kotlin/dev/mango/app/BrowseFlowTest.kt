@@ -112,7 +112,7 @@ class BrowseFlowTest {
             sectionsBySource = mapOf("FlameComics" to listOf(popular)),
         )
 
-        rule.setContent { MangoTheme { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
 
         rule.onNodeWithText("Browse").performClick()
         rule.waitForIdle()
@@ -126,7 +126,7 @@ class BrowseFlowTest {
         val library = FakeLibraryRepository()
         val catalog = FakeCatalogRepository(sources = listOf(SourceInfo("FlameComics", "FlameComics")))
 
-        rule.setContent { MangoTheme { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
 
         rule.onNodeWithText("Browse").performClick()
         rule.waitForIdle()
@@ -149,7 +149,7 @@ class BrowseFlowTest {
             sectionsBySource = mapOf("MangaBat" to listOf(popular)),
         )
 
-        rule.setContent { MangoTheme { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
 
         rule.onNodeWithText("Browse").performClick()
         rule.waitForIdle()
@@ -182,7 +182,7 @@ class BrowseFlowTest {
             results = mapOf("solo" to listOf(entry)),
         )
 
-        rule.setContent { MangoTheme { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
 
         rule.onNodeWithText("Browse").performClick()
         rule.waitForIdle()
@@ -212,7 +212,7 @@ class BrowseFlowTest {
             ),
         )
 
-        rule.setContent { MangoTheme { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
 
         rule.onNodeWithText("Browse").performClick()
         rule.waitForIdle()
@@ -236,7 +236,7 @@ class BrowseFlowTest {
             ),
         )
 
-        rule.setContent { MangoTheme { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
 
         rule.onNodeWithText("Browse").performClick()
         rule.waitForIdle()
@@ -272,7 +272,7 @@ class BrowseFlowTest {
         )
 
         rule.setContent {
-            MangoTheme { AppShell(library, catalog, FakeDownloadManager(), challengeSolver = solver) }
+            ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager(), challengeSolver = solver) }
         }
 
         rule.onNodeWithText("Browse").performClick()
@@ -296,7 +296,7 @@ class BrowseFlowTest {
         val library = FakeLibraryRepository()
         val catalog = FakeCatalogRepository()
 
-        rule.setContent { MangoTheme { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
 
         rule.onNodeWithText("Browse").performClick()
         rule.waitForIdle()

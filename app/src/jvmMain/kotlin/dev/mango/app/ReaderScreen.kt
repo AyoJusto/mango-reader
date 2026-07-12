@@ -202,7 +202,7 @@ private fun previousChapter(chapters: List<Chapter>, currentChapterId: String): 
 
 /**
  * Pure, data-driven long-strip content — the screenshot harness renders this directly.
- * Full-bleed pages of every loaded chapter in one [LazyColumn] on [ReaderBlack], centered at a
+ * Full-bleed pages of every loaded chapter in one [LazyColumn] on [LocalMangoTheme]'s `bg0`, centered at a
  * max width so ultrawide monitors don't stretch pages absurdly, with a fading controls overlay
  * on top. [chapters] only backs the Prev/Next enabled-state (whether a neighbor exists); loading
  * a neighbor is [ReaderScreen]'s job.
@@ -225,6 +225,7 @@ fun ReaderContent(
     nextChallengeSolving: Boolean = false,
     pageContent: @Composable (Page, Boolean) -> Unit,
 ) {
+    val theme = LocalMangoTheme.current
     val rows = remember(segments, isLastChapter, nextLoading, nextError, nextChallengeUrl) {
         buildRows(segments, isLastChapter, nextLoading, nextError, nextChallengeUrl)
     }
@@ -242,7 +243,7 @@ fun ReaderContent(
         }
     }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = ReaderBlack) {
+    Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
         Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
                 state = listState,
@@ -274,18 +275,18 @@ fun ReaderContent(
                 exit = fadeOut(),
                 modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth(),
             ) {
-                Surface(color = MaterialTheme.colorScheme.background.copy(alpha = 0.85f)) {
+                Surface(color = theme.bg0.copy(alpha = 0.85f)) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         IconButton(onClick = onBack) {
-                            Text("←", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("←", color = theme.textSecondary)
                         }
                         Text(
                             text = currentSegment?.label.orEmpty(),
                             style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onBackground,
+                            color = theme.textPrimary,
                         )
                         Spacer(modifier = Modifier.fillMaxWidth().weight(1f))
                         TextButton(onClick = onPrev, enabled = prevEnabled) { Text("‹ Prev") }
@@ -293,7 +294,7 @@ fun ReaderContent(
                         Text(
                             text = counterText,
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = theme.textSecondary,
                             modifier = Modifier.padding(end = 16.dp),
                         )
                     }
@@ -309,7 +310,7 @@ private fun ChapterDividerRow(fromLabel: String, toLabel: String) {
         Text(
             text = "$fromLabel — end · $toLabel",
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = LocalMangoTheme.current.textSecondary,
         )
     }
 }
@@ -320,7 +321,7 @@ private fun EndOfStripRow() {
         Text(
             text = "No more chapters",
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = LocalMangoTheme.current.textSecondary,
         )
     }
 }
@@ -345,7 +346,7 @@ private fun FailedTailRow(
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
+                color = LocalMangoTheme.current.danger,
             )
             Button(onClick = onRetry, enabled = !solving) { Text("Retry") }
             if (challengeUrl != null) {
@@ -672,7 +673,7 @@ fun ReaderScreen(
 
     val currentError = error
     when {
-        currentError != null -> Surface(modifier = Modifier.fillMaxSize(), color = ReaderBlack) {
+        currentError != null -> Surface(modifier = Modifier.fillMaxSize(), color = LocalMangoTheme.current.bg0) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 val url = challengeUrl
                 ChallengeErrorContent(
@@ -695,7 +696,7 @@ fun ReaderScreen(
                 )
             }
         }
-        segments.isEmpty() -> Surface(modifier = Modifier.fillMaxSize(), color = ReaderBlack) {
+        segments.isEmpty() -> Surface(modifier = Modifier.fillMaxSize(), color = LocalMangoTheme.current.bg0) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
@@ -868,7 +869,7 @@ private fun DefaultReaderPage(page: Page, local: Boolean) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(600.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
+                    .background(LocalMangoTheme.current.bg2.copy(alpha = 0.2f)),
                 contentAlignment = Alignment.Center,
             ) {
                 CircularProgressIndicator(modifier = Modifier.size(24.dp))

@@ -113,7 +113,7 @@ class ReaderFlowTest {
         chapters: List<Chapter> = listOf(Chapter(CHAPTER_ID, number = 1.0)),
     ) {
         rule.setContent {
-            MangoTheme {
+            ProvideMangoTheme(MangoDark) {
                 ReaderScreen(
                     sourceId = SOURCE_ID,
                     mangaId = MANGA_ID,
@@ -477,7 +477,7 @@ class ReaderFlowTest {
         val library = FakeLibraryRepository()
         val paletteVisibleState = mutableStateOf(false)
         rule.setContent {
-            MangoTheme {
+            ProvideMangoTheme(MangoDark) {
                 ReaderScreen(
                     sourceId = SOURCE_ID,
                     mangaId = MANGA_ID,
