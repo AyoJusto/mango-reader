@@ -546,6 +546,37 @@ fun ReaderScreen(
             }
     }
 
+    // Chapter completion writes deliberately do NOT ride the debounced writer above: finished's
+    // window (chapter still current AND its last page revealed) is transient during a continuous
+    // binge-scroll into the next chapter, and debounce would coalesce the emission away — the
+    // fast-read flow would never mark anything finished (review finding, R7). Completion is
+    // once-per-chapter rare, so it writes immediately; the SQL MAX keeps the flag sticky and
+    // makes any duplicate write harmless. A chapter counts as finished once its LAST PageRow has
+    // scrolled into (or past) view — dividers/footers after it count too, so a short final page
+    // doesn't have to reach the top of the viewport to register.
+    LaunchedEffect(firstSegmentChapterId) {
+        if (firstSegmentChapterId == null) return@LaunchedEffect
+        val written = mutableSetOf<String>()
+        snapshotFlow {
+            val rows = currentRows()
+            val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
+                ?: return@snapshotFlow emptySet<String>()
+            segments.indices.filter { segmentIndex ->
+                val lastPageRowIndex = rows.indexOfLast { row ->
+                    row is ReaderRow.PageRow && row.segmentIndex == segmentIndex
+                }
+                lastPageRowIndex != -1 && lastVisibleIndex >= lastPageRowIndex
+            }.mapNotNull { segments.getOrNull(it)?.chapterId }.toSet()
+        }
+            .distinctUntilChanged()
+            .collect { completed ->
+                completed.filter(written::add).forEach { chapterId ->
+                    val lastPage = (segments.find { it.chapterId == chapterId }?.pages?.size ?: 1) - 1
+                    library.setProgress(sourceId, mangaId, chapterId, page = lastPage, finished = true)
+                }
+            }
+    }
+
     // Auto-append: once the strip's tail is close, and nothing is already loading, fetch the
     // next chapter and append it. The nextLoad-is-Idle check is the single in-flight-load gate.
     LaunchedEffect(sourceId, mangaId, anchorChapterId) {

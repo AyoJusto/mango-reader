@@ -14,6 +14,7 @@ CREATE TABLE read_progress (
   manga_id TEXT NOT NULL,
   chapter_id TEXT NOT NULL,
   page INTEGER NOT NULL,
+  finished INTEGER NOT NULL DEFAULT 0,
   updated_at INTEGER NOT NULL,
   PRIMARY KEY (source_id, manga_id, chapter_id)
 );
@@ -32,8 +33,15 @@ selectProgress:
 SELECT * FROM read_progress WHERE source_id = ? AND manga_id = ? AND chapter_id = ?;
 
 upsertProgress:
-INSERT OR REPLACE INTO read_progress(source_id, manga_id, chapter_id, page, updated_at)
-VALUES (?, ?, ?, ?, ?);
+INSERT INTO read_progress(source_id, manga_id, chapter_id, page, finished, updated_at)
+VALUES (?, ?, ?, ?, ?, ?)
+ON CONFLICT(source_id, manga_id, chapter_id) DO UPDATE SET
+  page = excluded.page,
+  finished = MAX(read_progress.finished, excluded.finished),
+  updated_at = excluded.updated_at;
 
-selectReadChapterIds:
-SELECT chapter_id FROM read_progress WHERE source_id = ? AND manga_id = ?;
+selectFinishedChapterIds:
+SELECT chapter_id FROM read_progress WHERE source_id = ? AND manga_id = ? AND finished = 1;
+
+selectLatestProgress:
+SELECT * FROM read_progress WHERE source_id = ? AND manga_id = ? ORDER BY updated_at DESC LIMIT 1;

@@ -49,6 +49,7 @@ import dev.mango.core.domain.DownloadStatus
 import dev.mango.core.domain.LibraryRepository
 import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
+import dev.mango.core.domain.ReadProgress
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -59,9 +60,10 @@ fun DetailsScreenContent(
     details: MangaDetails,
     chapters: List<Chapter>,
     inLibrary: Boolean,
-    readChapterIds: Set<String> = emptySet(),
+    finishedChapterIds: Set<String> = emptySet(),
     downloadedChapterIds: Set<String> = emptySet(),
     hasDownloads: Boolean = false,
+    latestProgress: ReadProgress? = null,
     onToggleLibrary: () -> Unit,
     onOpenChapter: (Chapter, List<Chapter>) -> Unit,
     onDownloadChapter: (MangaEntry, Chapter) -> Unit,
@@ -73,6 +75,23 @@ fun DetailsScreenContent(
     var fromText by remember { mutableStateOf("") }
     var toText by remember { mutableStateOf("") }
     var showClearStorageDialog by remember { mutableStateOf(false) }
+    // The chapter to resume into, plus its button label — computed once here so the header
+    // button and its click handler can't drift. Ascending order (unlike the chapters list
+    // below, which the LazyColumn shows newest-first) so "next after latest" walks forward.
+    val continueTarget: Pair<Chapter, String>? = run {
+        val ascending = chapters.sortedBy { it.number }
+        val latest = latestProgress
+        val latestChapter = latest?.let { progress -> ascending.find { it.chapterId == progress.chapterId } }
+        when {
+            latest == null || latestChapter == null -> ascending.firstOrNull()?.let { it to "Start reading" }
+            !latest.finished -> latestChapter to
+                "Continue — Ch. ${formatChapterNumber(latestChapter.number)} · p. ${latest.page + 1}"
+            else -> {
+                val next = ascending.getOrNull(ascending.indexOf(latestChapter) + 1)
+                next?.let { it to "Continue — Ch. ${formatChapterNumber(it.number)}" }
+            }
+        }
+    }
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(modifier = Modifier.padding(24.dp)) {
@@ -130,6 +149,9 @@ fun DetailsScreenContent(
                         } else {
                             Button(onClick = onToggleLibrary) { Text("Add to library") }
                         }
+                        continueTarget?.let { (chapter, label) ->
+                            Button(onClick = { onOpenChapter(chapter, chapters) }) { Text(label) }
+                        }
                         TextButton(onClick = {
                             onDownloadAll(details.entry, chapters.filter { it.chapterId !in downloadedChapterIds })
                         }) {
@@ -138,7 +160,7 @@ fun DetailsScreenContent(
                         TextButton(onClick = {
                             onDownloadAll(
                                 details.entry,
-                                chapters.filter { it.chapterId !in readChapterIds && it.chapterId !in downloadedChapterIds },
+                                chapters.filter { it.chapterId !in finishedChapterIds && it.chapterId !in downloadedChapterIds },
                             )
                         }) {
                             Text("Download unread")
@@ -179,7 +201,11 @@ fun DetailsScreenContent(
                                     chapter.title?.let { append(" — "); append(it) }
                                 },
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
+                                color = if (chapter.chapterId in finishedChapterIds) {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                },
                                 modifier = Modifier.weight(1f),
                             )
                             Text(
@@ -284,7 +310,8 @@ fun DetailsScreen(
 ) {
     var details by remember(sourceId, mangaId) { mutableStateOf<MangaDetails?>(null) }
     var chapters by remember(sourceId, mangaId) { mutableStateOf<List<Chapter>>(emptyList()) }
-    var readChapterIds by remember(sourceId, mangaId) { mutableStateOf<Set<String>>(emptySet()) }
+    var finishedChapterIds by remember(sourceId, mangaId) { mutableStateOf<Set<String>>(emptySet()) }
+    var latestProgress by remember(sourceId, mangaId) { mutableStateOf<ReadProgress?>(null) }
     var error by remember(sourceId, mangaId) { mutableStateOf<String?>(null) }
     var challengeUrl by remember(sourceId, mangaId) { mutableStateOf<String?>(null) }
     var solving by remember(sourceId, mangaId) { mutableStateOf(false) }
@@ -304,7 +331,8 @@ fun DetailsScreen(
         try {
             details = catalog.details(sourceId, mangaId)
             chapters = catalog.chapters(sourceId, mangaId)
-            readChapterIds = library.readChapterIds(sourceId, mangaId)
+            finishedChapterIds = library.finishedChapterIds(sourceId, mangaId)
+            latestProgress = library.latestProgress(sourceId, mangaId)
         } catch (e: CancellationException) {
             throw e
         } catch (e: ChallengeRequiredException) {
@@ -361,9 +389,10 @@ fun DetailsScreen(
             details = currentDetails,
             chapters = chapters,
             inLibrary = inLibrary,
-            readChapterIds = readChapterIds,
+            finishedChapterIds = finishedChapterIds,
             downloadedChapterIds = downloadedChapterIds,
             hasDownloads = hasDownloads,
+            latestProgress = latestProgress,
             onToggleLibrary = {
                 scope.launch {
                     if (inLibrary) {

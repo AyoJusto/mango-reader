@@ -37,6 +37,12 @@ class FakeLibraryRepository(initial: List<LibraryItem> = emptyList()) : LibraryR
     // not canned responses, since M3.3's reader reads its own writes (progress round-trips).
     private val progressByChapter = mutableMapOf<Triple<String, String, String>, ReadProgress>()
 
+    // Monotonically increasing stand-in for updated_at, keyed the same way as progressByChapter —
+    // matches the SQL ORDER BY updated_at ordering latestProgress() needs, without relying on
+    // real clock time (ties/resolution would make ordering flaky in a fast-running test).
+    private var writeCounter = 0L
+    private val updatedAtOrder = mutableMapOf<Triple<String, String, String>, Long>()
+
     override fun observeLibrary(): Flow<List<LibraryItem>> = state
 
     override suspend fun addToLibrary(entry: MangaEntry) {
@@ -52,16 +58,30 @@ class FakeLibraryRepository(initial: List<LibraryItem> = emptyList()) : LibraryR
     override suspend fun progress(sourceId: String, mangaId: String, chapterId: String): ReadProgress? =
         progressByChapter[Triple(sourceId, mangaId, chapterId)]
 
-    override suspend fun setProgress(sourceId: String, mangaId: String, chapterId: String, page: Int) {
-        progressByChapter[Triple(sourceId, mangaId, chapterId)] =
-            ReadProgress(chapterId = chapterId, page = page, updatedAt = Clock.System.now())
+    override suspend fun setProgress(sourceId: String, mangaId: String, chapterId: String, page: Int, finished: Boolean) {
+        val key = Triple(sourceId, mangaId, chapterId)
+        val existingFinished = progressByChapter[key]?.finished ?: false
+        progressByChapter[key] = ReadProgress(
+            chapterId = chapterId,
+            page = page,
+            updatedAt = Clock.System.now(),
+            finished = existingFinished || finished,
+        )
+        writeCounter++
+        updatedAtOrder[key] = writeCounter
     }
 
-    override suspend fun readChapterIds(sourceId: String, mangaId: String): Set<String> =
-        progressByChapter.keys
-            .filter { it.first == sourceId && it.second == mangaId }
-            .map { it.third }
+    override suspend fun finishedChapterIds(sourceId: String, mangaId: String): Set<String> =
+        progressByChapter.entries
+            .filter { it.key.first == sourceId && it.key.second == mangaId && it.value.finished }
+            .map { it.key.third }
             .toSet()
+
+    override suspend fun latestProgress(sourceId: String, mangaId: String): ReadProgress? =
+        updatedAtOrder.entries
+            .filter { it.key.first == sourceId && it.key.second == mangaId }
+            .maxByOrNull { it.value }
+            ?.let { progressByChapter[it.key] }
 }
 
 /** Canned [CatalogRepository] for tests. Unstubbed members throw. No DB, no network. */

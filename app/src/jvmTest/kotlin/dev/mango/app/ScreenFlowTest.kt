@@ -15,8 +15,10 @@ import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
 import dev.mango.core.domain.MangaStatus
 import dev.mango.core.domain.Page
+import dev.mango.core.domain.ReadProgress
 import dev.mango.core.domain.SourceInfo
 import kotlin.test.assertEquals
+import kotlin.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -167,20 +169,28 @@ class ScreenFlowTest {
         rule.onNodeWithText("In library — remove").assertExists()
     }
 
+    // R7: "unread" now means "not finished" — an in-progress (opened but unfinished) chapter
+    // still counts as unread for downloading, only a fully-finished chapter is excluded.
     @Test
-    fun downloadUnreadEnqueuesOnlyChaptersWithoutProgress() {
+    fun downloadUnreadEnqueuesOnlyChaptersThatAreNotFinished() {
         val library = FakeLibraryRepository()
         val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
         val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
         val chapters = listOf(
             Chapter(chapterId = "c1", number = 1.0, title = null, publishedAt = null),
             Chapter(chapterId = "c2", number = 2.0, title = null, publishedAt = null),
+            Chapter(chapterId = "c3", number = 3.0, title = null, publishedAt = null),
         )
         val catalog = FakeCatalogRepository(
             details = mapOf(("FlameComics" to "manga-1") to details),
             chapters = mapOf(("FlameComics" to "manga-1") to chapters),
         )
-        runBlocking { library.setProgress("FlameComics", "manga-1", "c1", page = 3) }
+        runBlocking {
+            library.setProgress("FlameComics", "manga-1", "c1", page = 3, finished = true)
+            // c3 is opened-but-unfinished: the new semantics' load-bearing case — it has a
+            // progress row (old "read") yet must still count as unread for downloading.
+            library.setProgress("FlameComics", "manga-1", "c3", page = 1, finished = false)
+        }
         var downloaded: List<Chapter>? = null
 
         rule.setContent {
@@ -202,7 +212,7 @@ class ScreenFlowTest {
         rule.onNodeWithText("Download unread").performClick()
         rule.waitForIdle()
 
-        assertEquals(listOf("c2"), downloaded?.map { it.chapterId })
+        assertEquals(listOf("c2", "c3"), downloaded?.map { it.chapterId })
     }
 
     @Test
@@ -383,5 +393,101 @@ class ScreenFlowTest {
         rule.waitForIdle()
 
         assertEquals(1, clearCount)
+    }
+
+    // R7: the Continue button's three variants — no progress, in-progress, and finished.
+    @Test
+    fun startReadingButtonOpensTheFirstChapterWhenThereIsNoProgressYet() {
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        val chapters = listOf(
+            Chapter(chapterId = "c1", number = 1.0, title = null, publishedAt = null),
+            Chapter(chapterId = "c2", number = 2.0, title = null, publishedAt = null),
+        )
+        var opened: Chapter? = null
+
+        rule.setContent {
+            MangoTheme {
+                DetailsScreenContent(
+                    details = details,
+                    chapters = chapters,
+                    inLibrary = false,
+                    onToggleLibrary = {},
+                    onOpenChapter = { chapter, _ -> opened = chapter },
+                    onDownloadChapter = { _, _ -> },
+                    onDownloadAll = { _, _ -> },
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Start reading").performClick()
+        rule.waitForIdle()
+
+        assertEquals("c1", opened?.chapterId)
+    }
+
+    @Test
+    fun continueButtonShowsTheSavedPageAndReopensTheUnfinishedChapter() {
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        val chapters = listOf(
+            Chapter(chapterId = "c1", number = 1.0, title = null, publishedAt = null),
+            Chapter(chapterId = "c2", number = 2.0, title = null, publishedAt = null),
+        )
+        var opened: Chapter? = null
+
+        rule.setContent {
+            MangoTheme {
+                DetailsScreenContent(
+                    details = details,
+                    chapters = chapters,
+                    inLibrary = false,
+                    latestProgress = ReadProgress(chapterId = "c1", page = 2, updatedAt = Clock.System.now(), finished = false),
+                    onToggleLibrary = {},
+                    onOpenChapter = { chapter, _ -> opened = chapter },
+                    onDownloadChapter = { _, _ -> },
+                    onDownloadAll = { _, _ -> },
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Continue — Ch. 1 · p. 3").performClick()
+        rule.waitForIdle()
+
+        assertEquals("c1", opened?.chapterId)
+    }
+
+    @Test
+    fun continueButtonAdvancesToTheNextChapterOnceTheLatestOneIsFinished() {
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        val chapters = listOf(
+            Chapter(chapterId = "c1", number = 1.0, title = null, publishedAt = null),
+            Chapter(chapterId = "c2", number = 2.0, title = null, publishedAt = null),
+        )
+        var opened: Chapter? = null
+
+        rule.setContent {
+            MangoTheme {
+                DetailsScreenContent(
+                    details = details,
+                    chapters = chapters,
+                    inLibrary = false,
+                    latestProgress = ReadProgress(chapterId = "c1", page = 4, updatedAt = Clock.System.now(), finished = true),
+                    onToggleLibrary = {},
+                    onOpenChapter = { chapter, _ -> opened = chapter },
+                    onDownloadChapter = { _, _ -> },
+                    onDownloadAll = { _, _ -> },
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Continue — Ch. 2").performClick()
+        rule.waitForIdle()
+
+        assertEquals("c2", opened?.chapterId)
     }
 }

@@ -259,6 +259,35 @@ class ReaderFlowTest {
         assertNotNull(progress, "expected ch-2 progress once the strip has scrolled into it")
     }
 
+    // R7: finished tracks "read to the last page", not merely "opened" — the divider becoming
+    // visible means ch-1's last PageRow has scrolled into (or past) view.
+    @Test
+    fun scrollingToTheEndOfAChapterMarksItFinished() {
+        val library = FakeLibraryRepository()
+        val catalog = catalogWithPages()
+        setReaderContent(library, catalog, chapters = twoChapters, progressDebounceMillis = 0)
+        rule.waitForIdle()
+
+        scrollUntil { textVisible("Ch. 2") }
+        rule.waitForIdle()
+
+        val progress = runBlocking { library.progress(SOURCE_ID, MANGA_ID, CHAPTER_ID) }
+        assertTrue(progress?.finished == true, "expected ch-1 to be marked finished once its divider scrolled into view")
+    }
+
+    @Test
+    fun aSinglePageDownWritesProgressButDoesNotMarkTheChapterFinished() {
+        val library = FakeLibraryRepository()
+        setReaderContent(library, catalogWithPages(), progressDebounceMillis = 0)
+        rule.waitForIdle()
+
+        rule.onRoot().performKeyInput { pressKey(Key.PageDown) }
+        rule.waitForIdle()
+
+        val progress = runBlocking { library.progress(SOURCE_ID, MANGA_ID, CHAPTER_ID) }
+        assertTrue(progress != null && !progress.finished, "expected a single PageDown to record progress without finishing the chapter")
+    }
+
     @Test
     fun keyNAdvancesToTheNextChapter() {
         val library = FakeLibraryRepository()

@@ -9,15 +9,26 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 
 /** Integration tests for [SqlLibraryRepository], driven only through the [LibraryRepository] contract. */
 class LibraryRepositoryTest {
-    private fun newRepository(): LibraryRepository {
+    /**
+     * A tick-per-call clock: back-to-back writes in a fast test can otherwise land in the same
+     * real millisecond, making updated_at ties (and ordering by it) nondeterministic.
+     */
+    private class TickingClock : Clock {
+        private var millis = 0L
+        override fun now(): Instant = Instant.fromEpochMilliseconds(++millis)
+    }
+
+    private fun newRepository(clock: Clock = TickingClock()): LibraryRepository {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())
         MangoDatabase.Schema.create(driver)
-        return SqlLibraryRepository(MangoDatabase(driver))
+        return SqlLibraryRepository(MangoDatabase(driver), clock = clock)
     }
 
     @Test
@@ -93,13 +104,36 @@ class LibraryRepositoryTest {
     }
 
     @Test
-    fun readChapterIdsContainsOnlyChaptersWithProgress() = runTest {
+    fun finishedChapterIdsContainsOnlyFinishedChapters() = runTest {
         val repo = newRepository()
 
-        repo.setProgress("MangaBat", "m1", "c1", page = 3)
+        repo.setProgress("MangaBat", "m1", "c1", page = 3, finished = true)
+        repo.setProgress("MangaBat", "m1", "c2", page = 1)
 
-        val readIds = repo.readChapterIds("MangaBat", "m1")
-        assertTrue("c1" in readIds)
-        assertTrue("c2" !in readIds)
+        val finishedIds = repo.finishedChapterIds("MangaBat", "m1")
+        assertTrue("c1" in finishedIds)
+        assertTrue("c2" !in finishedIds)
+    }
+
+    @Test
+    fun finishedStaysStickyAndPageStaysLiveOnceAChapterIsFinished() = runTest {
+        val repo = newRepository()
+
+        repo.setProgress("MangaBat", "m1", "c1", page = 5, finished = true)
+        repo.setProgress("MangaBat", "m1", "c1", page = 0, finished = false)
+
+        val progress = repo.progress("MangaBat", "m1", "c1")
+        assertEquals(true, progress?.finished)
+        assertEquals(0, progress?.page)
+    }
+
+    @Test
+    fun latestProgressReturnsTheMostRecentlyWrittenRow() = runTest {
+        val repo = newRepository()
+
+        repo.setProgress("MangaBat", "m1", "c1", page = 1)
+        repo.setProgress("MangaBat", "m1", "c2", page = 2)
+
+        assertEquals("c2", repo.latestProgress("MangaBat", "m1")?.chapterId)
     }
 }

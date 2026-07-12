@@ -1,0 +1,5 @@
+-- v3 -> v4: track whether a chapter was read to its last page, not just opened (R7). Existing
+-- rows stay finished=0 — historical chapters won't dim until read to the end again; page totals
+-- were never stored, so there's nothing to backfill from.
+
+ALTER TABLE read_progress ADD COLUMN finished INTEGER NOT NULL DEFAULT 0;

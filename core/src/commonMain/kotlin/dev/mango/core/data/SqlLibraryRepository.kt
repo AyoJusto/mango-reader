@@ -59,23 +59,36 @@ class SqlLibraryRepository(
                     chapterId = row.chapter_id,
                     page = row.page.toInt(),
                     updatedAt = Instant.fromEpochMilliseconds(row.updated_at),
+                    finished = row.finished != 0L,
                 )
             }
         }
 
-    override suspend fun setProgress(sourceId: String, mangaId: String, chapterId: String, page: Int) =
+    override suspend fun setProgress(sourceId: String, mangaId: String, chapterId: String, page: Int, finished: Boolean) =
         withContext(context) {
             db.libraryQueries.upsertProgress(
                 source_id = sourceId,
                 manga_id = mangaId,
                 chapter_id = chapterId,
                 page = page.toLong(),
+                finished = if (finished) 1L else 0L,
                 updated_at = clock.now().toEpochMilliseconds(),
             )
             Unit
         }
 
-    override suspend fun readChapterIds(sourceId: String, mangaId: String): Set<String> = withContext(context) {
-        db.libraryQueries.selectReadChapterIds(sourceId, mangaId).executeAsList().toSet()
+    override suspend fun finishedChapterIds(sourceId: String, mangaId: String): Set<String> = withContext(context) {
+        db.libraryQueries.selectFinishedChapterIds(sourceId, mangaId).executeAsList().toSet()
+    }
+
+    override suspend fun latestProgress(sourceId: String, mangaId: String): ReadProgress? = withContext(context) {
+        db.libraryQueries.selectLatestProgress(sourceId, mangaId).executeAsOneOrNull()?.let { row ->
+            ReadProgress(
+                chapterId = row.chapter_id,
+                page = row.page.toInt(),
+                updatedAt = Instant.fromEpochMilliseconds(row.updated_at),
+                finished = row.finished != 0L,
+            )
+        }
     }
 }
