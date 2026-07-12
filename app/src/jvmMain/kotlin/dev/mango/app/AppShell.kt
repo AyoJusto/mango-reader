@@ -106,6 +106,9 @@ fun AppShell(
     onSidebarChange: (Boolean) -> Unit = {},
     libraryView: String = LIBRARY_VIEW_GRID,
     onLibraryViewChange: (String) -> Unit = {},
+    fontFamilyName: String? = null,
+    installedFonts: List<String> = emptyList(),
+    onFontFamilyChange: (String?) -> Unit = {},
     jbrBar: JbrBar? = null,
 ) {
     var screen by remember { mutableStateOf<Screen>(Screen.Library) }
@@ -235,6 +238,9 @@ fun AppShell(
                                 onHideCursorInReaderChange = onHideCursorInReaderChange,
                                 libraryView = libraryView,
                                 onLibraryViewChange = onLibraryViewChange,
+                                fontFamilyName = fontFamilyName,
+                                installedFonts = installedFonts,
+                                onFontFamilyChange = onFontFamilyChange,
                             )
                             is Screen.Details -> {
                                 LaunchedEffect(current) { lastDetails = current.copy(autoContinue = false) }

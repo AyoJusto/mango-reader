@@ -64,6 +64,20 @@ class Settings(dataDir: Path) {
             save()
         }
 
+    // The interface font family, by system name; null/absent means the platform default. A
+    // name for a font that's no longer installed is preserved rather than cleared — see
+    // resolveAppFontFamily's KDoc for the fallback behavior.
+    var fontFamilyName: String?
+        get() = props.getProperty("fontFamily")?.takeIf { it.isNotBlank() }
+        set(value) {
+            if (value.isNullOrBlank()) {
+                props.remove("fontFamily")
+            } else {
+                props.setProperty("fontFamily", value)
+            }
+            save()
+        }
+
     private fun save() {
         try {
             Files.createDirectories(file.parent)

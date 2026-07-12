@@ -51,6 +51,7 @@ import kotlin.math.roundToInt
 val SETTINGS_ENTRIES = listOf(
     "Theme",
     "Accent",
+    "App font",
     "Export theme",
     "Import theme",
     "Strip width",
@@ -61,6 +62,9 @@ val SETTINGS_ENTRIES = listOf(
 )
 
 private val settingsLog = Logger.getLogger("SettingsScreen")
+
+/** The App font dropdown's first option: no stored family, platform default rendering. */
+private const val FONT_SYSTEM_DEFAULT = "System default"
 
 /**
  * Test hook prefix: each row/control that backs a [SETTINGS_ENTRIES] title carries the tag
@@ -87,6 +91,9 @@ fun SettingsScreenContent(
     onHideCursorInReaderChange: (Boolean) -> Unit = {},
     libraryView: String = LIBRARY_VIEW_GRID,
     onLibraryViewChange: (String) -> Unit = {},
+    fontFamilyName: String? = null,
+    installedFonts: List<String> = emptyList(),
+    onFontFamilyChange: (String?) -> Unit = {},
 ) {
     var importError by remember { mutableStateOf<String?>(null) }
 
@@ -180,6 +187,23 @@ fun SettingsScreenContent(
                                 )
                             }
                         }
+                    }
+                    SettingsDivider()
+                    SettingsRow(
+                        title = "App font",
+                        subtitle = "Applies to the interface, not the pages",
+                        modifier = Modifier.testTag(settingsEntryTag("App font")),
+                    ) {
+                        // A stored name whose font is gone shows as the default rather than
+                        // rendering a stale label the dropdown can't honor.
+                        val shown = fontFamilyName?.takeIf { it in installedFonts } ?: FONT_SYSTEM_DEFAULT
+                        KitDropdown(
+                            selected = shown,
+                            options = listOf(FONT_SYSTEM_DEFAULT) + installedFonts,
+                            onSelect = { picked ->
+                                onFontFamilyChange(picked.takeIf { it != FONT_SYSTEM_DEFAULT })
+                            },
+                        )
                     }
                 }
 

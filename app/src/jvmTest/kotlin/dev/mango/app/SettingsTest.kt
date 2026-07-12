@@ -73,4 +73,32 @@ class SettingsTest {
         val reloaded = Settings(dataDir)
         assertEquals(false, reloaded.hideCursorInReader)
     }
+
+    @Test
+    fun fontFamilyNameDefaultsToNullAndRoundTripsAcrossInstances() {
+        val dataDir = Files.createTempDirectory("settings-test")
+        val settings = Settings(dataDir)
+        assertEquals(null, settings.fontFamilyName)
+
+        settings.fontFamilyName = "Georgia"
+
+        val reloaded = Settings(dataDir)
+        assertEquals("Georgia", reloaded.fontFamilyName)
+    }
+
+    @Test
+    fun fontFamilyNameSetToNullClearsThePersistedValueAndBlankReadsAsNull() {
+        val dataDir = Files.createTempDirectory("settings-test")
+        val file = dataDir.resolve("settings.properties")
+        Files.write(file, "fontFamily=\n".toByteArray())
+
+        val settings = Settings(dataDir)
+        assertEquals(null, settings.fontFamilyName)
+
+        settings.fontFamilyName = "Georgia"
+        settings.fontFamilyName = null
+
+        val reloaded = Settings(dataDir)
+        assertEquals(null, reloaded.fontFamilyName)
+    }
 }

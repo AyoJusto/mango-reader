@@ -1,10 +1,13 @@
 package dev.mango.app
 
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
@@ -74,19 +77,44 @@ val ACCENT_PRESETS: List<Pair<String, Color>> = listOf(
     "Red" to Color(0xFFF26055),
 )
 
-/** The type ramp: sizes, weights, and tracking, independent of any theme's colors. */
-object MangoType {
-    val display = TextStyle(fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.02).em)
-    val title = TextStyle(fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.01).em)
-    val bodyStrong = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold)
-    val body = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Normal)
-    val label = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Normal)
-    val caption = TextStyle(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Normal)
-    val meta = TextStyle(fontSize = 11.5.sp, fontWeight = FontWeight.Normal)
-    val hint = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Normal)
-    val microLabel = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Normal, letterSpacing = 0.12.em)
+/**
+ * The type ramp: sizes, weights, and tracking, independent of any theme's colors. [fontFamily]
+ * applies to every style except [monoKeycap] and [monoChapter], which stay monospace regardless
+ * of the chosen interface font (they render literal key names and chapter numbers, not prose).
+ */
+class MangoTypeRamp(fontFamily: FontFamily?) {
+    val display = TextStyle(fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.02).em, fontFamily = fontFamily)
+    val title = TextStyle(fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.01).em, fontFamily = fontFamily)
+    val bodyStrong = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = fontFamily)
+    val body = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Normal, fontFamily = fontFamily)
+    val label = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Normal, fontFamily = fontFamily)
+    val caption = TextStyle(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Normal, fontFamily = fontFamily)
+    val meta = TextStyle(fontSize = 11.5.sp, fontWeight = FontWeight.Normal, fontFamily = fontFamily)
+    val hint = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Normal, fontFamily = fontFamily)
+    val microLabel = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Normal, letterSpacing = 0.12.em, fontFamily = fontFamily)
     val monoKeycap = TextStyle(fontSize = 11.sp, fontFamily = FontFamily.Monospace)
     val monoChapter = TextStyle(fontSize = 12.5.sp, fontFamily = FontFamily.Monospace)
+}
+
+/** The active [MangoTypeRamp] for the current composition; defaults to the platform font outside [ProvideMangoTheme]. */
+val LocalMangoType = staticCompositionLocalOf { MangoTypeRamp(null) }
+
+/**
+ * Facade over [LocalMangoType] so every existing `MangoType.foo` call site keeps compiling and
+ * reading the app's current font choice without threading it through every screen by hand.
+ */
+object MangoType {
+    val display: TextStyle @Composable get() = LocalMangoType.current.display
+    val title: TextStyle @Composable get() = LocalMangoType.current.title
+    val bodyStrong: TextStyle @Composable get() = LocalMangoType.current.bodyStrong
+    val body: TextStyle @Composable get() = LocalMangoType.current.body
+    val label: TextStyle @Composable get() = LocalMangoType.current.label
+    val caption: TextStyle @Composable get() = LocalMangoType.current.caption
+    val meta: TextStyle @Composable get() = LocalMangoType.current.meta
+    val hint: TextStyle @Composable get() = LocalMangoType.current.hint
+    val microLabel: TextStyle @Composable get() = LocalMangoType.current.microLabel
+    val monoKeycap: TextStyle @Composable get() = LocalMangoType.current.monoKeycap
+    val monoChapter: TextStyle @Composable get() = LocalMangoType.current.monoChapter
 }
 
 /** Padding/gap steps on the 4-dp base grid. */
@@ -150,11 +178,14 @@ val LocalMangoTheme = staticCompositionLocalOf { MangoDark }
  * Provides [theme] to [LocalMangoTheme] for [content] and maps it onto a Material
  * [androidx.compose.material3.ColorScheme] so Material components keep rendering correctly.
  * Screens should prefer [LocalMangoTheme] directly; the Material mapping exists only because
- * Material3 components need one.
+ * Material3 components need one. [fontFamily] becomes the interface font (via [LocalMangoType])
+ * and the ambient text style, so both [MangoType]-styled and raw-`fontSize` `Text` calls inherit
+ * it; null keeps the platform default.
  */
 @Composable
-fun ProvideMangoTheme(theme: MangoTheme, content: @Composable () -> Unit) {
-    CompositionLocalProvider(LocalMangoTheme provides theme) {
+fun ProvideMangoTheme(theme: MangoTheme, fontFamily: FontFamily? = null, content: @Composable () -> Unit) {
+    val typeRamp = remember(fontFamily) { MangoTypeRamp(fontFamily) }
+    CompositionLocalProvider(LocalMangoTheme provides theme, LocalMangoType provides typeRamp) {
         MaterialTheme(
             colorScheme = darkColorScheme(
                 background = theme.bg0,
@@ -173,7 +204,12 @@ fun ProvideMangoTheme(theme: MangoTheme, content: @Composable () -> Unit) {
                 // comes from stepping the bg tokens, never from tinting toward the accent.
                 surfaceTint = theme.bg1,
             ),
-            content = content,
-        )
+        ) {
+            if (fontFamily != null) {
+                ProvideTextStyle(LocalTextStyle.current.copy(fontFamily = fontFamily), content)
+            } else {
+                content()
+            }
+        }
     }
 }

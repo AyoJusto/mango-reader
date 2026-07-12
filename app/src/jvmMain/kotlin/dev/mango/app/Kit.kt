@@ -40,14 +40,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -61,6 +67,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -604,6 +612,89 @@ fun CoverCard(
             text = if (finished) "Completed" else metaLine,
             style = MangoType.meta,
             color = theme.textTertiary,
+        )
+    }
+}
+
+private val KIT_DROPDOWN_MAX_MENU_HEIGHT = 320.dp
+
+/**
+ * The app's single-select dropdown: a kit-styled trigger row showing the current value, opening
+ * a scrollable menu of [options]. The menu is at least as wide as the trigger (wider when an
+ * option needs it); the selected option renders in accent color. Selection is by value, not
+ * index — [onSelect] receives the clicked option string.
+ */
+@Composable
+fun KitDropdown(
+    selected: String,
+    options: List<String>,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val theme = LocalMangoTheme.current
+    var expanded by remember { mutableStateOf(false) }
+    var triggerWidthPx by remember { mutableIntStateOf(0) }
+    val hover = rememberHoverFill(rest = theme.surface, hover = theme.bg2)
+    Box(modifier = modifier) {
+        Row(
+            modifier = Modifier
+                .onSizeChanged { triggerWidthPx = it.width }
+                .height(38.dp)
+                .clip(RoundedCornerShape(MangoRadius.control))
+                .background(hover.fill)
+                .hoverable(hover.interaction)
+                .clickable(interactionSource = hover.interaction, indication = null) { expanded = true }
+                .padding(horizontal = MangoSpace.sm),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs),
+        ) {
+            Text(text = selected, style = MangoType.body, color = theme.textPrimary)
+            Text(text = "▾", style = MangoType.body, color = theme.textTertiary)
+        }
+        val triggerWidth = with(LocalDensity.current) { triggerWidthPx.toDp() }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            scrollState = rememberScrollState(),
+            shape = RoundedCornerShape(MangoRadius.panel),
+            containerColor = theme.bg2,
+            modifier = Modifier
+                .widthIn(min = triggerWidth)
+                .heightIn(max = KIT_DROPDOWN_MAX_MENU_HEIGHT),
+        ) {
+            options.forEach { option ->
+                KitDropdownItem(
+                    text = option,
+                    selected = option == selected,
+                    onClick = {
+                        expanded = false
+                        onSelect(option)
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun KitDropdownItem(text: String, selected: Boolean, onClick: () -> Unit) {
+    val theme = LocalMangoTheme.current
+    val hover = rememberHoverFill(rest = theme.bg1.copy(alpha = 0f), hover = theme.bg1)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(hover.fill)
+            .hoverable(hover.interaction)
+            .clickable(interactionSource = hover.interaction, indication = null, onClick = onClick)
+            .padding(horizontal = MangoSpace.sm, vertical = MangoSpace.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = text,
+            style = MangoType.body,
+            color = if (selected) theme.accent else theme.textPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

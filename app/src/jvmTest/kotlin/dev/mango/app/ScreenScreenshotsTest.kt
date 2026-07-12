@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.ExperimentalTextApi
+import androidx.compose.ui.text.font.FontFamily
 import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.HomeSection
 import dev.mango.core.domain.LibraryItem
@@ -223,6 +225,24 @@ class ScreenScreenshotsTest {
         val file = Screenshots.render("settings") {
             ProvideMangoTheme(MangoDark) {
                 SettingsScreenContent(theme = MangoDark, onThemeChange = {})
+            }
+        }
+        assertTrue(Files.size(file) > 0, "expected a non-empty PNG at $file")
+    }
+
+    // Georgia ships with Windows, so this render proves the chosen family flows end-to-end:
+    // resolveAppFontFamily's output through ProvideMangoTheme into every MangoType style.
+    @OptIn(ExperimentalTextApi::class)
+    @Test
+    fun settingsFontGeorgia() {
+        val file = Screenshots.render("settings-font-georgia") {
+            ProvideMangoTheme(MangoDark, fontFamily = FontFamily("Georgia")) {
+                SettingsScreenContent(
+                    theme = MangoDark,
+                    onThemeChange = {},
+                    fontFamilyName = "Georgia",
+                    installedFonts = listOf("Georgia"),
+                )
             }
         }
         assertTrue(Files.size(file) > 0, "expected a non-empty PNG at $file")

@@ -378,8 +378,10 @@ fun PaletteContent(
 @Composable
 private fun PaletteInputRow(query: String, onQueryChange: (String) -> Unit, focusRequester: FocusRequester) {
     val theme = LocalMangoTheme.current
+    // The 19sp input size is palette-specific, but the face must follow the app font choice.
+    val inputType = PALETTE_INPUT_TYPE.copy(fontFamily = MangoType.body.fontFamily)
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
-        Text(text = "⌕", style = PALETTE_INPUT_TYPE, color = theme.textTertiary)
+        Text(text = "⌕", style = inputType, color = theme.textTertiary)
         BasicTextField(
             value = query,
             onValueChange = onQueryChange,
@@ -387,11 +389,11 @@ private fun PaletteInputRow(query: String, onQueryChange: (String) -> Unit, focu
                 .weight(1f)
                 .focusRequester(focusRequester),
             singleLine = true,
-            textStyle = PALETTE_INPUT_TYPE.copy(color = theme.textPrimary),
+            textStyle = inputType.copy(color = theme.textPrimary),
             cursorBrush = SolidColor(theme.accent),
             decorationBox = { innerTextField ->
                 if (query.isEmpty()) {
-                    Text(text = "Search everywhere…", style = PALETTE_INPUT_TYPE, color = theme.textTertiary)
+                    Text(text = "Search everywhere…", style = inputType, color = theme.textTertiary)
                 }
                 innerTextField()
             },
