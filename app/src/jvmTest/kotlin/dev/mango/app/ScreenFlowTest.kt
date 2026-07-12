@@ -665,6 +665,103 @@ class ScreenFlowTest {
         assertEquals("c1", opened?.chapterId)
     }
 
+    // An auto-continue pass-through is headless: the veil renders, never the Details content,
+    // and the jump still fires off the cached chapter list.
+    @Test
+    fun autoContinuePassThroughNeverRendersDetailsContent() {
+        val library = FakeLibraryRepository()
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        val chapters = listOf(
+            Chapter(chapterId = "c1", number = 1.0, title = null, publishedAt = null),
+            Chapter(chapterId = "c2", number = 2.0, title = null, publishedAt = null),
+        )
+        val catalogCache = FakeCatalogCache(mapOf(("FlameComics" to "manga-1") to CachedManga(details, chapters)))
+        val catalog = SuspendingCatalogRepository(FakeCatalogRepository())
+        runBlocking { library.setProgress("FlameComics", "manga-1", "c1", page = 2, finished = false) }
+        var opened: Chapter? = null
+
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                DetailsScreen(
+                    sourceId = "FlameComics",
+                    mangaId = "manga-1",
+                    catalog = catalog,
+                    library = library,
+                    downloads = FakeDownloadManager(),
+                    challengeSolver = FakeChallengeSolver(),
+                    catalogCache = catalogCache,
+                    autoContinue = true,
+                    onOpenChapter = { chapter, _ -> opened = chapter },
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        assertEquals("c1", opened?.chapterId)
+        rule.onNodeWithText("Solo Leveling").assertDoesNotExist()
+    }
+
+    // The veil must not strand the user when there is nothing to continue into: once the
+    // chapter list settles without a target, the normal Details render takes over.
+    @Test
+    fun autoContinueVeilFallsBackToDetailsWhenThereIsNothingToContinueInto() {
+        val library = FakeLibraryRepository()
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        val chapters = listOf(Chapter(chapterId = "c1", number = 1.0, title = null, publishedAt = null))
+        val catalogCache = FakeCatalogCache(mapOf(("FlameComics" to "manga-1") to CachedManga(details, chapters)))
+        val catalog = SuspendingCatalogRepository(FakeCatalogRepository())
+        var opened: Chapter? = null
+
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                DetailsScreen(
+                    sourceId = "FlameComics",
+                    mangaId = "manga-1",
+                    catalog = catalog,
+                    library = library,
+                    downloads = FakeDownloadManager(),
+                    challengeSolver = FakeChallengeSolver(),
+                    catalogCache = catalogCache,
+                    autoContinue = true,
+                    onOpenChapter = { chapter, _ -> opened = chapter },
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        assertEquals(null, opened)
+        rule.onNodeWithText("Solo Leveling").assertExists()
+    }
+
+    // A cold-cache auto-continue that fails must surface the error card, not hold the veil.
+    @Test
+    fun coldCacheAutoContinueFailureShowsTheErrorCardNotTheVeil() {
+        val library = FakeLibraryRepository()
+        val catalogCache = FakeCatalogCache()
+        val catalog = ThrowingCatalogRepository(FakeCatalogRepository(), RuntimeException("boom"))
+
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                DetailsScreen(
+                    sourceId = "FlameComics",
+                    mangaId = "manga-1",
+                    catalog = catalog,
+                    library = library,
+                    downloads = FakeDownloadManager(),
+                    challengeSolver = FakeChallengeSolver(),
+                    catalogCache = catalogCache,
+                    autoContinue = true,
+                    onOpenChapter = { _, _ -> },
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        rule.onNodeWithText("boom").assertExists()
+    }
+
     // Guards that the pre-cache path is untouched: nothing cached means a fetch failure still
     // surfaces the error card instead of being swallowed.
     @Test

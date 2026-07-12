@@ -590,6 +590,10 @@ fun DetailsScreen(
     val hasDownloads = mangaDownloads.isNotEmpty()
     val inLibrary = libraryItems.any { it.entry.sourceId == sourceId && it.entry.mangaId == mangaId }
 
+    // True once a usable chapter list + progress pair is in state: immediately after a cache
+    // hit, or after the live fetch resolves (either way) on a cold open. The auto-continue
+    // fallback below must not conclude "nothing to continue into" before this point.
+    var chaptersSettled by remember(sourceId, mangaId) { mutableStateOf(false) }
     LaunchedEffect(sourceId, mangaId, reloadKey) {
         error = null
         challengeUrl = null
@@ -602,6 +606,7 @@ fun DetailsScreen(
             library.setChapterCount(sourceId, mangaId, chapters.size)
             finishedChapterIds = library.finishedChapterIds(sourceId, mangaId)
             latestProgress = library.latestProgress(sourceId, mangaId)
+            chaptersSettled = true
         }
         // Always revalidate live. A cached copy already on screen makes failure here silent —
         // the stale render stays instead of being replaced by an error or challenge card. Once
@@ -631,18 +636,31 @@ fun DetailsScreen(
                 error = e.message ?: "Failed to load"
             }
         }
+        chaptersSettled = true
     }
 
+    // While an auto-continue is pending, Details acts as a headless loader: a neutral veil
+    // renders instead of the screen, so the pass-through reads sidebar -> reader with no
+    // intermediate content flash. The veil drops only when continuing turns out impossible
+    // (no progress row, its chapter gone from the list, or nothing after the latest chapter),
+    // decided strictly after [chaptersSettled] so a slow load isn't mistaken for a dead end.
+    val passThrough = remember(sourceId, mangaId) { mutableStateOf(autoContinue) }
     // Exactly-once guard: recompositions and progress refreshes after the jump must not
     // re-fire the auto-continue, or backing out of the Reader would bounce straight back in.
     val autoContinueFired = remember { mutableStateOf(false) }
-    LaunchedEffect(autoContinue, chapters, latestProgress) {
+    LaunchedEffect(autoContinue, chapters, latestProgress, chaptersSettled) {
         if (!autoContinue || autoContinueFired.value) return@LaunchedEffect
-        val progress = latestProgress ?: return@LaunchedEffect
-        if (chapters.none { it.chapterId == progress.chapterId }) return@LaunchedEffect
-        val target = continueTarget(chapters, progress) ?: return@LaunchedEffect
-        autoContinueFired.value = true
-        onOpenChapter(target.first, chapters)
+        val progress = latestProgress
+        val target = progress
+            ?.takeIf { p -> chapters.any { it.chapterId == p.chapterId } }
+            ?.let { continueTarget(chapters, it) }
+        when {
+            target != null -> {
+                autoContinueFired.value = true
+                onOpenChapter(target.first, chapters)
+            }
+            chaptersSettled -> passThrough.value = false
+        }
     }
 
     val currentDetails = details
@@ -669,6 +687,11 @@ fun DetailsScreen(
                         }
                     },
                 )
+            }
+        }
+        passThrough.value -> Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
             }
         }
         currentDetails == null -> DetailsSkeleton()
