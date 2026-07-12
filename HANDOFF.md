@@ -1,143 +1,80 @@
-# Handoff — 2026-07-11 (night)
+# Handoff — 2026-07-11 (late night)
 
-Session summary for the next pickup. Both owner-reported reader bugs are fixed, M6(b) is
-DONE (M6 complete), the palette-completeness invariant landed, and refinement chunk R4
-(app-wide solve gate + reader polish) shipped. Both suites green after every commit;
-core 101 tests + app 87 tests, all verified via forced rerun + JUnit XML.
+Session summary for the next pickup. R9 shipped: a project-wide quality/readability/
+performance review (owner-requested neckbeard pass) followed by fixing all nine findings.
+Both suites green after the commit: core 109 + app 103, forced rerun, JUnit XML verified.
 
-## R4 shipped (1329972) + next up
+## R9 shipped (58d41c5)
 
-- `1329972` — SingleFlightChallengeSolver (Mutex.tryLock decorator around
-  JcefChallengeSolver in AppGraph: concurrent solve() returns false, gate releases under
-  cancellation/exceptions); reader listState keyed on the anchor (P's one-frame stale-
-  offset jump gone); auto-scroll pauses under the open palette and auto-resumes.
-  Implemented as TWO PARALLEL disjoint-file dispatches (Haiku: gate; Sonnet: reader) —
-  owner corrected the loop: implementation may fan out across Sonnet/Haiku agents when
-  file sets are disjoint (auto-memory `parallel-cheap-implementers`; CLAUDE.md updated).
-  Opus review found one real SHOULD-FIX (overlay Prev button re-anchored without stopping
-  auto-scroll → drive loop stranded on the detached listState); fixed at altitude — the
-  nav helpers stop auto-scroll themselves — with a regression test. fuzzyScore full-DP
-  DEFERRED (owner call; ceiling stays).
-- `f0deed4` — R5 SHIPPED: Details shows download state (disabled ✓ on downloaded rows,
-  bulk actions skip what's on disk, all derived live from observeDownloads()) + owner
-  addition: "Clear storage" button on Details (visible only with downloads, one confirm
-  dialog) backed by DownloadManager.clearDownloads — rows deleted first, then a
-  best-effort deepest-first file sweep through the same safeSegment mapping as the write
-  path (Opus review confirmed the delete can't escape the downloads root; symlinks are
-  removed as links, not followed). Ceilings: clear-during-active-download orphans that
-  one chapter's files (next clear removes them); DONE rows with hand-deleted files read
-  as downloaded until cleared.
-- `45f7132` — R8 SHIPPED: comment scrub + NEW OWNER RULE (codified in CLAUDE.md "Code
-  documentation" section, auto-memory `timeless-code-comments`): comments never reference
-  project history — no milestone/chunk tags, dates, "owner call", "review finding",
-  planning-doc citations. Constraints stated timelessly or not at all; KDoc = what a
-  thing guarantees, never how it came to be; ponytail markers stay, timeless. 46 files
-  scrubbed by two parallel Sonnet agents (app/ and core/ halves), verified by grep sweep
-  (zero remaining refs in .kt and .sq/.sqm) + forced rerun (core 107, app 97, 0 failures).
-  EVERY future brief and review enforces this rule.
-- `442e5c1` — R7 SHIPPED: finished-chapter tracking. Owner decision: in-progress ≠ read —
-  only FULLY read chapters dim. Sticky `read_progress.finished` (3.sqm; upsert MAX keeps
-  it set), `finishedChapterIds` replaces `readChapterIds` app-wide, `latestProgress`
-  backs a Details Continue button ("Start reading" / "Continue — Ch. X · p. N" /
-  next-after-finished / nothing when caught up). Completion detection: last visible row
-  ≥ the chapter's last page row, written by a DEDICATED immediate collector — the Opus
-  review caught that riding the 500ms-debounced page writer would coalesce the finished
-  signal away during a continuous binge-scroll (the exact target flow). "Download unread"
-  = not-finished now (in-progress still downloads; test proves that direction). Ceilings:
-  no backfill (old rows start finished=0 until re-read to the end); a chapter shorter
-  than the viewport counts finished on open (accepted leniency); library-grid unread
-  badges and a per-manhwa "Continue reading" palette hit remain future work.
-- `b349f0c` — R6 SHIPPED: extension removal. CatalogRepository.uninstall(sourceId) —
-  requireSafeSourceId, row delete, engine eviction, bundle-file delete LAST (Opus review
-  finding: the file delete can throw on a Windows lock, and a removed source must stop
-  executing even then; the bin-lock argument only needs row-delete-before-evict).
-  "Remove" on installed/update Extensions rows, install's busy-guard shared, no confirm
-  dialog (deliberate: reinstall is one click; only real loss is a pinned UA). Source's
-  library/progress/downloads KEPT — purge-source-data cascade recorded in PLANNING §12.
-  The core eviction test is constructed to fail unless the cache actually evicts.
-  Suites after commit: core 105, app 92, forced rerun, 0 failures.
+Review verdict first: the codebase was healthy — no architectural problems, boundaries
+hold, the recorded ceilings were left alone. Nine targeted findings, all fixed:
 
-## New owner invariant (2026-07-11): search-everywhere completeness
+- **Details session cache** (`DetailsCache` in DetailsScreen.kt, hoisted in AppShell):
+  Reader→Details back-nav no longer refetches details+chapters (was: spinner + two fresh
+  JS contexts + politeness delay on every chapter exit). Freshness semantics unchanged —
+  every fresh open (Library/Search/Browse lambdas AND the palette's navigate, per an Opus
+  review finding) invalidates first; only Reader-back reuses. finished/latestProgress
+  always re-read live.
+- **Reader page prefetch** (`pagesToPrefetch` + effect in ReaderScreen.kt): next 5 network
+  pages enqueue into Coil before they scroll into view; offline segments and custom
+  pageContent (tests/harness) never prefetch. Pure helper unit-tested (ReaderPrefetchTest).
+- **Shared-engine bundle cache** (ExtensionRuntime/PaperbackExtension): one polyglot
+  Engine + cached Source per runtime, one runtime per extension instance; contexts stay
+  fresh per call. MEASURED first (owner threshold ~100ms): 300KB Toonily bundle eval was
+  81–174ms per call, now 23–35ms (~4x). Opus sandbox review: 0 blockers — shared Engine
+  shares compiled code only, never guest state (verified against GraalVM docs); Engine is
+  thread-safe for concurrent contexts; SandboxTest now pins denials on BOTH context paths
+  (standalone and shared-engine, closing the review's coverage-gap finding).
+- **Streaming bundle cap** (InkdexRepo): prepareGet+execute (implementer discovery: Ktor
+  3.5's default SaveBody plugin eagerly buffers the WHOLE body inside http.get before
+  caller code runs — execute{} is what actually keeps it a stream), Content-Length
+  pre-reject, capped readRemaining(MAX+1). Chunked encoding is caught by the capped read.
+- **Explicit HTTP timeouts** (AppGraph): HttpTimeout connect 10s / request 120s / socket
+  30s, CIO engine requestTimeout disabled (its implicit 15s default silently governed —
+  and could abort — large image downloads). scheduleRequest keeps its own 30s cap.
+- **Extensions action-error containment**: a failed install/remove now shows a banner
+  above the still-visible list instead of blanking the screen (was: action failures wrote
+  the load-error state). Test proves the list survives.
+- **Shared challenge-solve UI** (new ChallengeUi.kt): ChallengeErrorContent +
+  SolveProgressHint, replacing near-identical blocks in Reader/Details/Browse and the
+  duplicated hint in Search. Url-capture semantics preserved (review-verified).
+- **Cookie purge**: deleteExpiredCookies (<= now, matching the read filter) at AppGraph
+  init; expired rows no longer accumulate forever.
+- **Details sort memoization**: both chapter sorts behind remember(chapters).
 
-Owner asked why the new auto-scroll setting wasn't in the palette and set the rule: ALL
-user-facing actions and settings must be reachable from double-Shift. Now enforced three
-ways (recorded in CLAUDE.md invariants): (1) `SETTINGS_ENTRIES` in SettingsScreen.kt is
-the single settings registry — a `settingsProvider` in Palette.kt derives "Setting: X →
-open Settings" hits from it; (2) completeness tests in PaletteFlowTest/SettingsScreenTest
-iterate the registry, so an unregistered setting fails the build; (3) one-off actions
-(which have no registry) are covered by the CLAUDE.md invariant in every brief/review:
-"a feature that can't be found from double-Shift is not done." Palette hits navigate to
-Settings — inline value editing in the palette was deliberately NOT built (text-only
-palette invariant); owner was offered it as a future chunk.
+Reviews: two guided single Opus dispatches (app diff; core/engine diff — mandatory,
+sandbox-adjacent). App review: 0 blockers, 1 SHOULD-FIX (palette navigate skipped cache
+invalidation — fixed at the shared lambda). Core review: 0 blockers, sandbox invariant
+confirmed; accepted NITs fixed (SandboxTest engine-path probe, expiry <=, bundleSource
+rename); rejected as fine: unclosed Engine (GC-sound on JVM, documented in-code),
+cached(true) (explicit-of-default).
 
-## What shipped (all on master)
+Execution followed the loop: 3 parallel disjoint-file implementers (chunk 1), then two
+sequenced single dispatches (chunks 2–3), engine change inline by the decision maker
+after measurement. All briefs enforced timeless comments.
 
-- `36d3a74` — Reader infinite scroll (owner-reported P1: no way to reach the next
-  chapter). Owner's call: true infinite scroll, not chapter navigation. `Screen.Reader`
-  carries the sorted chapter list from Details; chapters load as segments (downloads-first
-  per segment, divider rows between chapters, end-of-series footer); the next chapter
-  auto-appends near the strip end (single in-flight load gated by a NextLoadState machine,
-  inline Retry/Solve row on append failure; the initial chapter keeps the full-screen
-  error/challenge flow); progress writes are per-current-segment with divider/tail rows
-  attributed to the PRECEDING chapter (a chapter is never marked read by its divider);
-  N/Next jump forward (loading if needed), P/Prev re-anchor like a fresh open.
-- `7e4ee09` — Controls overlay threshold (owner-reported bug: appeared on any mouse move;
-  now only on hover within 80dp of the top edge — CONTROLS_REVEAL_BAND — or click) +
-  M6(b) auto-scroll: A toggles a frame-clock drive loop (dt × speed, suspend scrollBy);
-  speed = `Settings.autoScrollSpeed` (Float dp/s, default 120), Settings-screen slider
-  30–600 persisted only on drag-finish, hoisted Main → AppShell exactly like the theme.
-  Manual paging/N/P/Escape stop it. At the hard end of loaded content it WAITS while the
-  next chapter is loading (resumes on append — infinite reading) and stops for real only
-  at the last chapter or a failed append.
+## Ledger updates
 
-## Process correction #2 (owner-flagged, supersedes part of the previous one)
-
-Owner killed the multi-agent code-review Workflow mid-run: **"You are using too many
-subagents for reviews on tiny changes. Guide them instead of using the built in token
-waster."** New standing rule (recorded in auto-memory `guided-single-agent-reviews`,
-cross-linked from `code-review-must-run-on-opus`): chunk reviews are ONE direct Agent
-dispatch with `model: opus`, briefed by the decision maker with the diff command, the
-CLAUDE.md invariants, and the specific hotspots it flagged while reading the diff itself.
-The Opus pin stays (that part of the earlier correction holds); the workflow fan-out is
-retired unless the owner explicitly approves one. Both R1 and R2 reviews this session ran
-this way: 0 blockers each, and the findings were real (R1: nav-handler dedup + a test
-assertion tightened; R2: the wait-while-loading stop condition + named band constant).
-
-## Decisions taken (owner-visible)
-
-- Infinite scroll is the reading model (owner picked it over plain next-chapter nav);
-  N/P and Prev/Next buttons ride on top of it.
-- Auto-scroll setting is the SPEED; the runtime toggle is the A key (not a Settings
-  switch). Slider, not presets (owner picked).
-- Auto-scroll does not stop at an in-flight chapter boundary (arbitrated from the R2
-  review's F1): it idles at the loaded end and resumes when the append lands.
-
-## Ceilings recorded in PLANNING (refinement-phase backlog)
-
-- No upward prepend: P re-anchors instead (LazyColumn prepend scroll-anchoring is the
-  escape hatch; also a possible one-frame jump on P since listState isn't keyed on the
-  anchor).
-- The progress snapshotFlow rebuilds the flattened row list every scroll frame (O(loaded
-  pages)); emit the raw index and compute post-debounce if huge strips appear.
-- Auto-scroll keeps running (hidden) while the palette overlay is open (reader loses
-  focus so A can't reach it); pause-on-palette if it ever matters.
-- Cursor parked in the top band re-reveals controls on each auto-hide (emergent from
-  synthetic hover moves; reads as intended hover-to-pin).
-- Plus the pre-existing ones: fuzzyScore greedy matching, palette online tab fetch
-  policy, palette/Search Details back-nav origin, Browse blank-submit-only return,
-  FlameComics fixture rotation.
+- PLANNING §10: reader page images share the downloads host-policy-bypass ceiling family
+  (Coil sends no jar cookies / pinned UA → CF-walled pages can 403 in the reader even
+  after a solve). Route image fetches through host policy when that layer lands.
+- Details cache is session-lifetime; palette/list opens always refetch, so "new chapters"
+  behavior is unchanged. Reader-back is the only cached path.
+- Prefetch dedup key is page.url (unique per resource; re-enqueue after re-anchor is a
+  harmless cache hit).
 
 ## Next steps
 
-1. M6 is DONE. Next: UI/functionality refinement phase (owner call on scope) — the
-   ceilings list above is the natural backlog.
-2. Owner should run the app and feel out the new reader: scroll across a chapter
-   boundary, try A at different slider speeds, check the top-edge controls reveal.
+1. Owner should feel out the reader: back-nav from a chapter should be instant now,
+   binge-scroll and auto-scroll should hit far fewer loading boxes.
+2. Refinement backlog unchanged (PLANNING §12 + recorded ceilings): nav-origin back-stack,
+   fuzzyScore full-DP, purge-source-data, library unread badges, per-manhwa Continue
+   palette hit.
 
-## The working loop (updated, for a fresh session)
+## The working loop (unchanged, for a fresh session)
 
 Fable/session model = decision maker (briefs, arbitration, commits); implementation goes
-to Sonnet subagents with verified-delegation briefs (locked decisions, STOP rule, pasted
-evidence); review at every chunk boundary = ONE guided Opus Agent dispatch (see process
-correction #2 — never the review workflow); independent verification (forced
-`--rerun-tasks`, JUnit XML check) before every commit.
+to Sonnet/Haiku subagents with verified-delegation briefs (locked decisions, STOP rule,
+pasted evidence); parallel dispatches only on disjoint file sets; review at every chunk
+boundary = ONE guided Opus Agent dispatch (never the review workflow); independent
+verification (forced --rerun-tasks, JUnit XML check) before every commit.
