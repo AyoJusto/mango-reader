@@ -1,6 +1,8 @@
 package dev.mango.app
 
 import dev.mango.core.domain.AvailableSource
+import dev.mango.core.domain.CachedManga
+import dev.mango.core.domain.CatalogCache
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.ChallengeSolver
 import dev.mango.core.domain.Chapter
@@ -211,6 +213,24 @@ class FakeDownloadManager(
             val parts = key.split("/", limit = 3)
             !(parts[0] == sourceId && parts[1] == mangaId)
         }
+    }
+}
+
+/**
+ * In-memory [CatalogCache] for tests, seeded with [initial] entries. [put] overwrites wholesale,
+ * same contract as the real cache, and is counted so tests can assert a revalidation wrote through.
+ */
+class FakeCatalogCache(initial: Map<Pair<String, String>, CachedManga> = emptyMap()) : CatalogCache {
+    private val entries = initial.toMutableMap()
+
+    var putCount: Int = 0
+        private set
+
+    override suspend fun get(sourceId: String, mangaId: String): CachedManga? = entries[sourceId to mangaId]
+
+    override suspend fun put(sourceId: String, mangaId: String, details: MangaDetails, chapters: List<Chapter>) {
+        putCount++
+        entries[sourceId to mangaId] = CachedManga(details, chapters)
     }
 }
 

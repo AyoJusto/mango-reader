@@ -113,6 +113,7 @@ fun main() {
                     graph.downloads,
                     graph.extensions,
                     graph.challengeSolver,
+                    graph.catalogCache,
                     theme = theme,
                     onThemeChange = { theme = it; themeStore.save(it) },
                     autoScrollSpeed = autoScrollSpeed,

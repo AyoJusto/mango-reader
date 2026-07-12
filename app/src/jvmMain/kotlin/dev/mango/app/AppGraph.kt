@@ -5,12 +5,14 @@ import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import dev.mango.core.data.FileDownloadManager
 import dev.mango.core.data.InkdexRepo
 import dev.mango.core.data.PaperbackCatalogRepository
+import dev.mango.core.data.SqlCatalogCache
 import dev.mango.core.data.SqlCookieStore
 import dev.mango.core.data.SqlLibraryRepository
 import dev.mango.core.db.MangoDatabase
 import dev.mango.app.webview.JcefChallengeSolver
 import dev.mango.app.webview.JcefManager
 import dev.mango.app.webview.SingleFlightChallengeSolver
+import dev.mango.core.domain.CatalogCache
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.ChallengeSolver
 import dev.mango.core.domain.DownloadManager
@@ -50,6 +52,7 @@ class AppGraph(dataDir: Path = defaultDataDir()) {
     }
     val library: LibraryRepository
     val catalog: CatalogRepository
+    val catalogCache: CatalogCache
     val downloads: DownloadManager
     val extensions: ExtensionRepo
     val challengeSolver: ChallengeSolver
@@ -110,6 +113,7 @@ class AppGraph(dataDir: Path = defaultDataDir()) {
                 )
             },
         )
+        catalogCache = SqlCatalogCache(db)
         downloads = FileDownloadManager(db = db, catalog = catalog, http = http, root = downloadsDir)
         extensions = InkdexRepo(http = http, bundleDir = bundleDir, catalog = catalog)
 

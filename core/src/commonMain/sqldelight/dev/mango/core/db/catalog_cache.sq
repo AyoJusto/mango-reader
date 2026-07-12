@@ -1,0 +1,58 @@
+-- Persistent details-screen render cache. Timestamps are epoch millis.
+--
+-- authors/tags are delimited text rather than join tables: both are opaque display lists
+-- (rendered as-is, never filtered or joined on), so normalizing them would add tables without
+-- adding capability. The delimiter is the ASCII unit separator (0x1F), chosen because it cannot
+-- occur in extension-supplied author/tag text and needs no escaping.
+--
+-- chapter_cache.position preserves the source's chapter ordering independently of number: number
+-- is a display value, not guaranteed unique or monotonic across every source.
+
+CREATE TABLE details_cache (
+  source_id TEXT NOT NULL,
+  manga_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  cover TEXT,
+  description TEXT,
+  status TEXT NOT NULL,
+  authors TEXT NOT NULL,
+  tags TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (source_id, manga_id)
+);
+
+CREATE TABLE chapter_cache (
+  source_id TEXT NOT NULL,
+  manga_id TEXT NOT NULL,
+  chapter_id TEXT NOT NULL,
+  number REAL NOT NULL,
+  title TEXT,
+  published_at INTEGER,
+  position INTEGER NOT NULL,
+  PRIMARY KEY (source_id, manga_id, chapter_id)
+);
+
+selectDetailsCache:
+SELECT * FROM details_cache WHERE source_id = ? AND manga_id = ?;
+
+upsertDetailsCache:
+INSERT INTO details_cache(source_id, manga_id, title, cover, description, status, authors, tags, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(source_id, manga_id) DO UPDATE SET
+  title = excluded.title,
+  cover = excluded.cover,
+  description = excluded.description,
+  status = excluded.status,
+  authors = excluded.authors,
+  tags = excluded.tags,
+  updated_at = excluded.updated_at;
+
+selectChapterCache:
+SELECT * FROM chapter_cache WHERE source_id = ? AND manga_id = ? ORDER BY position ASC;
+
+insertChapterCache:
+INSERT INTO chapter_cache(source_id, manga_id, chapter_id, number, title, published_at, position)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+deleteChapterCache:
+DELETE FROM chapter_cache WHERE source_id = ? AND manga_id = ?;

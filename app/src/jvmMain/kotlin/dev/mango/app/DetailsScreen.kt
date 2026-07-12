@@ -32,7 +32,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -48,6 +47,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import dev.mango.core.domain.CatalogCache
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.ChallengeRequiredException
@@ -552,28 +552,10 @@ internal fun continueTarget(chapters: List<Chapter>, latestProgress: ReadProgres
 }
 
 /**
- * Session cache of loaded manga details, keyed by (sourceId, mangaId) — reused only when
- * returning from the Reader; every fresh open from a list screen invalidates the entry first, so
- * freshness is unchanged on normal navigation.
- */
-class DetailsCache {
-    private val entries = mutableStateMapOf<Pair<String, String>, Pair<MangaDetails, List<Chapter>>>()
-
-    fun get(sourceId: String, mangaId: String): Pair<MangaDetails, List<Chapter>>? = entries[sourceId to mangaId]
-
-    fun put(sourceId: String, mangaId: String, details: MangaDetails, chapters: List<Chapter>) {
-        entries[sourceId to mangaId] = details to chapters
-    }
-
-    fun invalidate(sourceId: String, mangaId: String) {
-        entries.remove(sourceId to mangaId)
-    }
-}
-
-/**
- * Stateful loader: loads details + chapters once, tracks library membership. With
- * [autoContinue] set, fires the Continue action exactly once when the chapter list has loaded
- * and the latest-progress chapter is available in it.
+ * Stateful loader: paints the persisted [catalogCache] entry immediately when present, then
+ * always revalidates live and tracks library membership. With [autoContinue] set, fires the
+ * Continue action exactly once when the chapter list has loaded and the latest-progress chapter
+ * is available in it.
  */
 @Composable
 fun DetailsScreen(
@@ -583,10 +565,10 @@ fun DetailsScreen(
     library: LibraryRepository,
     downloads: DownloadManager,
     challengeSolver: ChallengeSolver,
+    catalogCache: CatalogCache,
     onOpenChapter: (Chapter, List<Chapter>) -> Unit,
     onDownloadChapter: (MangaEntry, Chapter) -> Unit = { _, _ -> },
     onDownloadAll: (MangaEntry, List<Chapter>) -> Unit = { _, _ -> },
-    cache: DetailsCache = remember { DetailsCache() },
     autoContinue: Boolean = false,
 ) {
     val theme = LocalMangoTheme.current
@@ -611,32 +593,43 @@ fun DetailsScreen(
     LaunchedEffect(sourceId, mangaId, reloadKey) {
         error = null
         challengeUrl = null
-        try {
-            val cached = cache.get(sourceId, mangaId)
-            if (cached != null) {
-                details = cached.first
-                chapters = cached.second
-            } else {
-                val loadedDetails = catalog.details(sourceId, mangaId)
-                val loadedChapters = catalog.chapters(sourceId, mangaId)
-                cache.put(sourceId, mangaId, loadedDetails, loadedChapters)
-                details = loadedDetails
-                chapters = loadedChapters
-            }
+        val cached = catalogCache.get(sourceId, mangaId)
+        if (cached != null) {
+            details = cached.details
+            chapters = cached.chapters
             // Unconditional: a manga not in the library has no library_item row, so the UPDATE
             // simply no-ops rather than needing a membership check here.
             library.setChapterCount(sourceId, mangaId, chapters.size)
-            // Cheap local reads: always fresh, so reading just finished in the Reader shows up
-            // immediately even when details/chapters were served from the cache above.
             finishedChapterIds = library.finishedChapterIds(sourceId, mangaId)
             latestProgress = library.latestProgress(sourceId, mangaId)
+        }
+        // Always revalidate live. A cached copy already on screen makes failure here silent —
+        // the stale render stays instead of being replaced by an error or challenge card. Once
+        // a manga is cached, no Details open surfaces a challenge for it; the Reader's Solve
+        // button (live page fetches still throw there) is the path that refreshes clearance.
+        try {
+            val loadedDetails = catalog.details(sourceId, mangaId)
+            val loadedChapters = catalog.chapters(sourceId, mangaId)
+            catalogCache.put(sourceId, mangaId, loadedDetails, loadedChapters)
+            details = loadedDetails
+            chapters = loadedChapters
+            // Unconditional: revalidation may have changed the chapter count.
+            library.setChapterCount(sourceId, mangaId, chapters.size)
+            if (cached == null) {
+                finishedChapterIds = library.finishedChapterIds(sourceId, mangaId)
+                latestProgress = library.latestProgress(sourceId, mangaId)
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: ChallengeRequiredException) {
-            error = "This source is protected by Cloudflare"
-            challengeUrl = e.url
+            if (cached == null) {
+                error = "This source is protected by Cloudflare"
+                challengeUrl = e.url
+            }
         } catch (e: Exception) {
-            error = e.message ?: "Failed to load"
+            if (cached == null) {
+                error = e.message ?: "Failed to load"
+            }
         }
     }
 

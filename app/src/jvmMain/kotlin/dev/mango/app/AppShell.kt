@@ -26,6 +26,8 @@ import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import dev.mango.core.domain.AvailableSource
+import dev.mango.core.domain.CachedManga
+import dev.mango.core.domain.CatalogCache
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.ChallengeSolver
 import dev.mango.core.domain.Chapter
@@ -33,6 +35,7 @@ import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.DownloadStatus
 import dev.mango.core.domain.ExtensionRepo
 import dev.mango.core.domain.LibraryRepository
+import dev.mango.core.domain.MangaDetails
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -45,6 +48,12 @@ private object NoOpExtensionRepo : ExtensionRepo {
 /** Used only when a caller doesn't wire the real solver (tests exercising non-challenge flows). */
 private object NoOpChallengeSolver : ChallengeSolver {
     override suspend fun solve(sourceId: String, url: String): Boolean = false
+}
+
+/** Used only when a caller doesn't wire the real cache (tests exercising other tabs): every read misses. */
+private object NoOpCatalogCache : CatalogCache {
+    override suspend fun get(sourceId: String, mangaId: String): CachedManga? = null
+    override suspend fun put(sourceId: String, mangaId: String, details: MangaDetails, chapters: List<Chapter>) = Unit
 }
 
 /**
@@ -92,6 +101,7 @@ fun AppShell(
     downloads: DownloadManager,
     extensions: ExtensionRepo = NoOpExtensionRepo,
     challengeSolver: ChallengeSolver = NoOpChallengeSolver,
+    catalogCache: CatalogCache = NoOpCatalogCache,
     theme: MangoTheme = MangoDark,
     onThemeChange: (MangoTheme) -> Unit = {},
     autoScrollSpeed: Float = 120f,
@@ -122,7 +132,6 @@ fun AppShell(
     // Same rationale as browseState: Search's query/results/enabled-sources must survive
     // switching to another tab and back.
     val searchState = remember { SearchState() }
-    val detailsCache = remember { DetailsCache() }
     val scope = rememberCoroutineScope()
 
     // Continue cards are loaded once per sidebar open — the panel is transient, so a snapshot
@@ -210,7 +219,6 @@ fun AppShell(
                                 onLibraryViewChange = onLibraryViewChange,
                                 onBrowse = { screen = Screen.Browse },
                                 onOpenDetails = { entry ->
-                                    detailsCache.invalidate(entry.sourceId, entry.mangaId)
                                     screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = false)
                                 },
                             )
@@ -218,11 +226,9 @@ fun AppShell(
                                 // Details has no fromSearch case yet: back from a Search-opened
                                 // Details returns to Library, same as fromBrowse = false
                                 // everywhere else that isn't Browse itself.
-                                detailsCache.invalidate(entry.sourceId, entry.mangaId)
                                 screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = false)
                             }
                             Screen.Browse -> BrowseScreen(catalog, challengeSolver, browseState) { entry ->
-                                detailsCache.invalidate(entry.sourceId, entry.mangaId)
                                 screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = true)
                             }
                             Screen.Downloads -> DownloadsScreen(downloads)
@@ -252,7 +258,7 @@ fun AppShell(
                                         library = library,
                                         downloads = downloads,
                                         challengeSolver = challengeSolver,
-                                        cache = detailsCache,
+                                        catalogCache = catalogCache,
                                         autoContinue = current.autoContinue,
                                         onOpenChapter = { chapter, chapters ->
                                             screen = Screen.Reader(
@@ -309,9 +315,6 @@ fun AppShell(
                     onSidebarChange(false)
                 },
                 onContinue = { item ->
-                    // a Continue card is a fresh open, same as a list tap: invalidate so the
-                    // session cache can't serve stale details/chapters on this path
-                    detailsCache.invalidate(item.sourceId, item.mangaId)
                     screen = Screen.Details(item.sourceId, item.mangaId, fromBrowse = false, autoContinue = true)
                     onSidebarChange(false)
                 },
@@ -328,12 +331,7 @@ fun AppShell(
             val tabs = remember(theme) {
                 paletteTabs(
                     library = library,
-                    navigate = { target ->
-                        // a palette hit is a fresh open, same as a list tap: invalidate so the
-                        // session cache can't serve stale details/chapters on this path
-                        if (target is Screen.Details) detailsCache.invalidate(target.sourceId, target.mangaId)
-                        screen = target
-                    },
+                    navigate = { target -> screen = target },
                     theme = theme,
                     onThemeChange = onThemeChange,
                     onToggleSidebar = { onSidebarChange(!currentSidebarOpen) },

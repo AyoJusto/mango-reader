@@ -8,7 +8,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextInput
+import dev.mango.core.domain.CachedManga
 import dev.mango.core.domain.CatalogRepository
+import dev.mango.core.domain.ChallengeRequiredException
 import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.HomeSection
 import dev.mango.core.domain.MangaDetails
@@ -19,6 +21,7 @@ import dev.mango.core.domain.ReadProgress
 import dev.mango.core.domain.SourceInfo
 import kotlin.test.assertEquals
 import kotlin.time.Clock
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -56,6 +59,19 @@ private class CountingCatalogRepository(private val delegate: CatalogRepository)
         delegate.setUserAgent(sourceId, userAgent)
 
     override suspend fun uninstall(sourceId: String) = delegate.uninstall(sourceId)
+}
+
+/** A [details] fetch that never completes — proves a cached render doesn't wait on it. */
+private class SuspendingCatalogRepository(private val delegate: CatalogRepository) : CatalogRepository by delegate {
+    override suspend fun details(sourceId: String, mangaId: String): MangaDetails = awaitCancellation()
+}
+
+/** A [details] fetch that always fails with [exception] — proves stale content survives a bad revalidation. */
+private class ThrowingCatalogRepository(
+    private val delegate: CatalogRepository,
+    private val exception: Exception,
+) : CatalogRepository by delegate {
+    override suspend fun details(sourceId: String, mangaId: String): MangaDetails = throw exception
 }
 
 /**
@@ -150,6 +166,7 @@ class ScreenFlowTest {
                     library = library,
                     downloads = FakeDownloadManager(),
                     challengeSolver = FakeChallengeSolver(),
+                    catalogCache = FakeCatalogCache(),
                     onOpenChapter = { _, _ -> },
                 )
             }
@@ -196,6 +213,7 @@ class ScreenFlowTest {
                     library = library,
                     downloads = FakeDownloadManager(),
                     challengeSolver = FakeChallengeSolver(),
+                    catalogCache = FakeCatalogCache(),
                     onOpenChapter = { _, _ -> },
                     onDownloadAll = { _, chs -> downloaded = chs },
                 )
@@ -232,6 +250,7 @@ class ScreenFlowTest {
                     library = library,
                     downloads = FakeDownloadManager(),
                     challengeSolver = FakeChallengeSolver(),
+                    catalogCache = FakeCatalogCache(),
                     onOpenChapter = { _, _ -> },
                     onDownloadAll = { _, chs -> downloaded = chs },
                 )
@@ -273,6 +292,7 @@ class ScreenFlowTest {
                     library = library,
                     downloads = FakeDownloadManager(),
                     challengeSolver = FakeChallengeSolver(),
+                    catalogCache = FakeCatalogCache(),
                     onOpenChapter = { _, _ -> },
                     onDownloadAll = { _, chs -> downloaded = chs },
                 )
@@ -485,58 +505,190 @@ class ScreenFlowTest {
         assertEquals("c2", opened?.chapterId)
     }
 
-    // Simulates the Reader's back-nav returning to Details: the screen leaves and re-enters
-    // composition with the same DetailsCache instance and no invalidation in between.
+    // Warm-cache stale-while-revalidate: a hit paints the persisted copy immediately, then a
+    // live fetch always runs in the background and only ever improves or is silently ignored.
     @Test
-    fun reenteringDetailsWithTheSameCacheSkipsRefetchUntilInvalidated() {
+    fun warmCacheRendersImmediatelyWhileTheLiveFetchNeverCompletes() {
         val library = FakeLibraryRepository()
         val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
         val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
         val chapters = listOf(Chapter(chapterId = "c1", number = 1.0, title = null, publishedAt = null))
-        val catalog = FakeCatalogRepository(
-            details = mapOf(("FlameComics" to "manga-1") to details),
-            chapters = mapOf(("FlameComics" to "manga-1") to chapters),
-        )
-        val cache = DetailsCache()
-        var showDetails by mutableStateOf(true)
+        val catalogCache = FakeCatalogCache(mapOf(("FlameComics" to "manga-1") to CachedManga(details, chapters)))
+        val catalog = SuspendingCatalogRepository(FakeCatalogRepository())
 
         rule.setContent {
             ProvideMangoTheme(MangoDark) {
-                if (showDetails) {
-                    DetailsScreen(
-                        sourceId = "FlameComics",
-                        mangaId = "manga-1",
-                        catalog = catalog,
-                        library = library,
-                        downloads = FakeDownloadManager(),
-                        challengeSolver = FakeChallengeSolver(),
-                        cache = cache,
-                        onOpenChapter = { _, _ -> },
-                    )
-                }
+                DetailsScreen(
+                    sourceId = "FlameComics",
+                    mangaId = "manga-1",
+                    catalog = catalog,
+                    library = library,
+                    downloads = FakeDownloadManager(),
+                    challengeSolver = FakeChallengeSolver(),
+                    catalogCache = catalogCache,
+                    onOpenChapter = { _, _ -> },
+                )
             }
         }
         rule.waitForIdle()
-        assertEquals(1, catalog.detailsCallCount)
-        assertEquals(1, catalog.chaptersCallCount)
 
-        // Leave (as if the Reader opened) and come back — same cache, no invalidation.
-        showDetails = false
-        rule.waitForIdle()
-        showDetails = true
+        rule.onNodeWithText("Solo Leveling").assertExists()
+        rule.onNodeWithText("1 chapters").assertExists()
+    }
+
+    @Test
+    fun backgroundRevalidationReplacesTheStaleChapterListAndWritesThroughToTheCache() {
+        val library = FakeLibraryRepository()
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        val staleChapters = listOf(Chapter(chapterId = "c1", number = 1.0, title = null, publishedAt = null))
+        val freshChapters = staleChapters + Chapter(chapterId = "c2", number = 2.0, title = null, publishedAt = null)
+        val catalogCache = FakeCatalogCache(mapOf(("FlameComics" to "manga-1") to CachedManga(details, staleChapters)))
+        val catalog = FakeCatalogRepository(
+            details = mapOf(("FlameComics" to "manga-1") to details),
+            chapters = mapOf(("FlameComics" to "manga-1") to freshChapters),
+        )
+
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                DetailsScreen(
+                    sourceId = "FlameComics",
+                    mangaId = "manga-1",
+                    catalog = catalog,
+                    library = library,
+                    downloads = FakeDownloadManager(),
+                    challengeSolver = FakeChallengeSolver(),
+                    catalogCache = catalogCache,
+                    onOpenChapter = { _, _ -> },
+                )
+            }
+        }
         rule.waitForIdle()
 
-        assertEquals(1, catalog.detailsCallCount)
-        assertEquals(1, catalog.chaptersCallCount)
+        rule.onNodeWithText("2 chapters").assertExists()
+        assertEquals(1, catalogCache.putCount)
+    }
 
-        // A fresh open from a list screen invalidates first — the next entry refetches.
-        cache.invalidate("FlameComics", "manga-1")
-        showDetails = false
-        rule.waitForIdle()
-        showDetails = true
+    @Test
+    fun warmCacheSwallowsARevalidationFailureAndKeepsTheStaleContent() {
+        val library = FakeLibraryRepository()
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        val chapters = listOf(Chapter(chapterId = "c1", number = 1.0, title = null, publishedAt = null))
+        val catalogCache = FakeCatalogCache(mapOf(("FlameComics" to "manga-1") to CachedManga(details, chapters)))
+        val catalog = ThrowingCatalogRepository(FakeCatalogRepository(), RuntimeException("boom"))
+
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                DetailsScreen(
+                    sourceId = "FlameComics",
+                    mangaId = "manga-1",
+                    catalog = catalog,
+                    library = library,
+                    downloads = FakeDownloadManager(),
+                    challengeSolver = FakeChallengeSolver(),
+                    catalogCache = catalogCache,
+                    onOpenChapter = { _, _ -> },
+                )
+            }
+        }
         rule.waitForIdle()
 
-        assertEquals(2, catalog.detailsCallCount)
-        assertEquals(2, catalog.chaptersCallCount)
+        rule.onNodeWithText("Solo Leveling").assertExists()
+        rule.onNodeWithText("boom").assertDoesNotExist()
+    }
+
+    @Test
+    fun warmCacheSwallowsAChallengeFailureAndShowsNoChallengeCard() {
+        val library = FakeLibraryRepository()
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        val chapters = listOf(Chapter(chapterId = "c1", number = 1.0, title = null, publishedAt = null))
+        val catalogCache = FakeCatalogCache(mapOf(("FlameComics" to "manga-1") to CachedManga(details, chapters)))
+        val catalog = ThrowingCatalogRepository(
+            FakeCatalogRepository(),
+            ChallengeRequiredException(sourceId = "FlameComics", url = "https://example.com"),
+        )
+
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                DetailsScreen(
+                    sourceId = "FlameComics",
+                    mangaId = "manga-1",
+                    catalog = catalog,
+                    library = library,
+                    downloads = FakeDownloadManager(),
+                    challengeSolver = FakeChallengeSolver(),
+                    catalogCache = catalogCache,
+                    onOpenChapter = { _, _ -> },
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Solo Leveling").assertExists()
+        rule.onNodeWithText("Solve challenge").assertDoesNotExist()
+    }
+
+    @Test
+    fun warmCacheFiresAutoContinueWithoutTheLiveFetchCompleting() {
+        val library = FakeLibraryRepository()
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        val chapters = listOf(
+            Chapter(chapterId = "c1", number = 1.0, title = null, publishedAt = null),
+            Chapter(chapterId = "c2", number = 2.0, title = null, publishedAt = null),
+        )
+        val catalogCache = FakeCatalogCache(mapOf(("FlameComics" to "manga-1") to CachedManga(details, chapters)))
+        val catalog = SuspendingCatalogRepository(FakeCatalogRepository())
+        // autoContinue only ever resumes existing progress — nothing to continue without it.
+        runBlocking { library.setProgress("FlameComics", "manga-1", "c1", page = 2, finished = false) }
+        var opened: Chapter? = null
+
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                DetailsScreen(
+                    sourceId = "FlameComics",
+                    mangaId = "manga-1",
+                    catalog = catalog,
+                    library = library,
+                    downloads = FakeDownloadManager(),
+                    challengeSolver = FakeChallengeSolver(),
+                    catalogCache = catalogCache,
+                    autoContinue = true,
+                    onOpenChapter = { chapter, _ -> opened = chapter },
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        assertEquals("c1", opened?.chapterId)
+    }
+
+    // Guards that the pre-cache path is untouched: nothing cached means a fetch failure still
+    // surfaces the error card instead of being swallowed.
+    @Test
+    fun emptyCacheFailureStillShowsTheErrorCard() {
+        val library = FakeLibraryRepository()
+        val catalogCache = FakeCatalogCache()
+        val catalog = ThrowingCatalogRepository(FakeCatalogRepository(), RuntimeException("boom"))
+
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                DetailsScreen(
+                    sourceId = "FlameComics",
+                    mangaId = "manga-1",
+                    catalog = catalog,
+                    library = library,
+                    downloads = FakeDownloadManager(),
+                    challengeSolver = FakeChallengeSolver(),
+                    catalogCache = catalogCache,
+                    onOpenChapter = { _, _ -> },
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        rule.onNodeWithText("boom").assertExists()
     }
 }

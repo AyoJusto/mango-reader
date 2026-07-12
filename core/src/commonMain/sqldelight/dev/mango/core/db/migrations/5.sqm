@@ -1,0 +1,26 @@
+-- v5 -> v6: persistent catalog cache (see catalog_cache.sq for column notes). Brand-new
+-- tables, so the migration is a plain create rather than an alter.
+
+CREATE TABLE details_cache (
+  source_id TEXT NOT NULL,
+  manga_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  cover TEXT,
+  description TEXT,
+  status TEXT NOT NULL,
+  authors TEXT NOT NULL,
+  tags TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (source_id, manga_id)
+);
+
+CREATE TABLE chapter_cache (
+  source_id TEXT NOT NULL,
+  manga_id TEXT NOT NULL,
+  chapter_id TEXT NOT NULL,
+  number REAL NOT NULL,
+  title TEXT,
+  published_at INTEGER,
+  position INTEGER NOT NULL,
+  PRIMARY KEY (source_id, manga_id, chapter_id)
+);
