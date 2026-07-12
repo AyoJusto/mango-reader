@@ -187,6 +187,7 @@ fun AppShell(
                                         mangaId = current.mangaId,
                                         catalog = catalog,
                                         library = library,
+                                        downloads = downloads,
                                         challengeSolver = challengeSolver,
                                         onOpenChapter = { chapter, chapters ->
                                             screen = Screen.Reader(

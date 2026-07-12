@@ -44,10 +44,13 @@ import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.ChallengeRequiredException
 import dev.mango.core.domain.ChallengeSolver
+import dev.mango.core.domain.DownloadManager
+import dev.mango.core.domain.DownloadStatus
 import dev.mango.core.domain.LibraryRepository
 import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /** Pure, data-driven content — the screenshot harness renders this directly. */
@@ -57,15 +60,19 @@ fun DetailsScreenContent(
     chapters: List<Chapter>,
     inLibrary: Boolean,
     readChapterIds: Set<String> = emptySet(),
+    downloadedChapterIds: Set<String> = emptySet(),
+    hasDownloads: Boolean = false,
     onToggleLibrary: () -> Unit,
     onOpenChapter: (Chapter, List<Chapter>) -> Unit,
     onDownloadChapter: (MangaEntry, Chapter) -> Unit,
     onDownloadAll: (MangaEntry, List<Chapter>) -> Unit,
+    onClearStorage: () -> Unit = {},
 ) {
     // Local UI state for the range dialog — presentation-only, never leaves this composable.
     var showRangeDialog by remember { mutableStateOf(false) }
     var fromText by remember { mutableStateOf("") }
     var toText by remember { mutableStateOf("") }
+    var showClearStorageDialog by remember { mutableStateOf(false) }
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(modifier = Modifier.padding(24.dp)) {
@@ -123,16 +130,26 @@ fun DetailsScreenContent(
                         } else {
                             Button(onClick = onToggleLibrary) { Text("Add to library") }
                         }
-                        TextButton(onClick = { onDownloadAll(details.entry, chapters) }) {
+                        TextButton(onClick = {
+                            onDownloadAll(details.entry, chapters.filter { it.chapterId !in downloadedChapterIds })
+                        }) {
                             Text("Download all")
                         }
                         TextButton(onClick = {
-                            onDownloadAll(details.entry, chapters.filter { it.chapterId !in readChapterIds })
+                            onDownloadAll(
+                                details.entry,
+                                chapters.filter { it.chapterId !in readChapterIds && it.chapterId !in downloadedChapterIds },
+                            )
                         }) {
                             Text("Download unread")
                         }
                         TextButton(onClick = { showRangeDialog = true }) {
                             Text("Download range…")
+                        }
+                        if (hasDownloads) {
+                            TextButton(onClick = { showClearStorageDialog = true }) {
+                                Text("Clear storage")
+                            }
                         }
                     }
                 }
@@ -170,8 +187,14 @@ fun DetailsScreenContent(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            TextButton(onClick = { onDownloadChapter(details.entry, chapter) }) {
-                                Text("↓")
+                            if (chapter.chapterId in downloadedChapterIds) {
+                                TextButton(onClick = {}, enabled = false) {
+                                    Text("✓")
+                                }
+                            } else {
+                                TextButton(onClick = { onDownloadChapter(details.entry, chapter) }) {
+                                    Text("↓")
+                                }
                             }
                         }
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
@@ -209,7 +232,10 @@ fun DetailsScreenContent(
                             // normalize: From=10 To=5 means 5..10, not an empty range that
                             // silently downloads nothing
                             val range = minOf(from, to)..maxOf(from, to)
-                            onDownloadAll(details.entry, chapters.filter { it.number in range })
+                            onDownloadAll(
+                                details.entry,
+                                chapters.filter { it.number in range && it.chapterId !in downloadedChapterIds },
+                            )
                             showRangeDialog = false
                         }
                     },
@@ -218,6 +244,22 @@ fun DetailsScreenContent(
             },
             dismissButton = {
                 TextButton(onClick = { showRangeDialog = false }) { Text("Cancel") }
+            },
+        )
+    }
+    if (showClearStorageDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearStorageDialog = false },
+            title = { Text("Clear storage") },
+            text = { Text("Delete all downloaded chapters of this series from disk?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onClearStorage()
+                    showClearStorageDialog = false
+                }) { Text("Clear") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearStorageDialog = false }) { Text("Cancel") }
             },
         )
     }
@@ -234,6 +276,7 @@ fun DetailsScreen(
     mangaId: String,
     catalog: CatalogRepository,
     library: LibraryRepository,
+    downloads: DownloadManager,
     challengeSolver: ChallengeSolver,
     onOpenChapter: (Chapter, List<Chapter>) -> Unit,
     onDownloadChapter: (MangaEntry, Chapter) -> Unit = { _, _ -> },
@@ -248,6 +291,11 @@ fun DetailsScreen(
     var reloadKey by remember(sourceId, mangaId) { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
     val libraryItems by library.observeLibrary().collectAsState(initial = emptyList())
+    val mangaDownloads by remember(sourceId, mangaId) {
+        downloads.observeDownloads().map { rows -> rows.filter { it.sourceId == sourceId && it.mangaId == mangaId } }
+    }.collectAsState(initial = emptyList())
+    val downloadedChapterIds = mangaDownloads.filter { it.status == DownloadStatus.DONE }.map { it.chapterId }.toSet()
+    val hasDownloads = mangaDownloads.isNotEmpty()
     val inLibrary = libraryItems.any { it.entry.sourceId == sourceId && it.entry.mangaId == mangaId }
 
     LaunchedEffect(sourceId, mangaId, reloadKey) {
@@ -314,6 +362,8 @@ fun DetailsScreen(
             chapters = chapters,
             inLibrary = inLibrary,
             readChapterIds = readChapterIds,
+            downloadedChapterIds = downloadedChapterIds,
+            hasDownloads = hasDownloads,
             onToggleLibrary = {
                 scope.launch {
                     if (inLibrary) {
@@ -326,6 +376,7 @@ fun DetailsScreen(
             onOpenChapter = onOpenChapter,
             onDownloadChapter = onDownloadChapter,
             onDownloadAll = onDownloadAll,
+            onClearStorage = { scope.launch { downloads.clearDownloads(sourceId, mangaId) } },
         )
     }
 }

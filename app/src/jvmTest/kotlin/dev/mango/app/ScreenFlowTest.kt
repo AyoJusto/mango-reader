@@ -1,5 +1,8 @@
 package dev.mango.app
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -147,6 +150,7 @@ class ScreenFlowTest {
                     mangaId = "manga-1",
                     catalog = catalog,
                     library = library,
+                    downloads = FakeDownloadManager(),
                     challengeSolver = FakeChallengeSolver(),
                     onOpenChapter = { _, _ -> },
                 )
@@ -184,6 +188,7 @@ class ScreenFlowTest {
                     mangaId = "manga-1",
                     catalog = catalog,
                     library = library,
+                    downloads = FakeDownloadManager(),
                     challengeSolver = FakeChallengeSolver(),
                     onOpenChapter = { _, _ -> },
                     onDownloadAll = { _, chs -> downloaded = chs },
@@ -219,6 +224,7 @@ class ScreenFlowTest {
                     mangaId = "manga-1",
                     catalog = catalog,
                     library = library,
+                    downloads = FakeDownloadManager(),
                     challengeSolver = FakeChallengeSolver(),
                     onOpenChapter = { _, _ -> },
                     onDownloadAll = { _, chs -> downloaded = chs },
@@ -259,6 +265,7 @@ class ScreenFlowTest {
                     mangaId = "manga-1",
                     catalog = catalog,
                     library = library,
+                    downloads = FakeDownloadManager(),
                     challengeSolver = FakeChallengeSolver(),
                     onOpenChapter = { _, _ -> },
                     onDownloadAll = { _, chs -> downloaded = chs },
@@ -276,5 +283,103 @@ class ScreenFlowTest {
         rule.waitForIdle()
 
         assertEquals(listOf("c2", "c3", "c4"), downloaded?.map { it.chapterId })
+    }
+
+    @Test
+    fun downloadedChapterRowShowsACheckmarkAndAnUndownloadedRowShowsTheDownloadArrow() {
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        val chapters = listOf(
+            Chapter(chapterId = "c1", number = 1.0, title = null, publishedAt = null),
+            Chapter(chapterId = "c2", number = 2.0, title = null, publishedAt = null),
+        )
+
+        rule.setContent {
+            MangoTheme {
+                DetailsScreenContent(
+                    details = details,
+                    chapters = chapters,
+                    inLibrary = false,
+                    downloadedChapterIds = setOf("c1"),
+                    onToggleLibrary = {},
+                    onOpenChapter = { _, _ -> },
+                    onDownloadChapter = { _, _ -> },
+                    onDownloadAll = { _, _ -> },
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        rule.onNodeWithText("✓").assertExists()
+        rule.onNodeWithText("↓").assertExists()
+    }
+
+    @Test
+    fun downloadAllSkipsChaptersAlreadyOnDisk() {
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        val chapters = listOf(
+            Chapter(chapterId = "c1", number = 1.0, title = null, publishedAt = null),
+            Chapter(chapterId = "c2", number = 2.0, title = null, publishedAt = null),
+        )
+        var downloaded: List<Chapter>? = null
+
+        rule.setContent {
+            MangoTheme {
+                DetailsScreenContent(
+                    details = details,
+                    chapters = chapters,
+                    inLibrary = false,
+                    downloadedChapterIds = setOf("c1"),
+                    onToggleLibrary = {},
+                    onOpenChapter = { _, _ -> },
+                    onDownloadChapter = { _, _ -> },
+                    onDownloadAll = { _, chs -> downloaded = chs },
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Download all").performClick()
+        rule.waitForIdle()
+
+        assertEquals(listOf("c2"), downloaded?.map { it.chapterId })
+    }
+
+    @Test
+    fun clearStorageIsAbsentWithoutDownloadsAndConfirmingItAfterTheyAppearInvokesTheCallbackOnce() {
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        var clearCount = 0
+        var hasDownloads by mutableStateOf(false)
+
+        rule.setContent {
+            MangoTheme {
+                DetailsScreenContent(
+                    details = details,
+                    chapters = emptyList(),
+                    inLibrary = false,
+                    hasDownloads = hasDownloads,
+                    onToggleLibrary = {},
+                    onOpenChapter = { _, _ -> },
+                    onDownloadChapter = { _, _ -> },
+                    onDownloadAll = { _, _ -> },
+                    onClearStorage = { clearCount++ },
+                )
+            }
+        }
+        rule.waitForIdle()
+        rule.onNodeWithText("Clear storage").assertDoesNotExist()
+
+        hasDownloads = true
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Clear storage").assertExists()
+        rule.onNodeWithText("Clear storage").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("Clear").performClick()
+        rule.waitForIdle()
+
+        assertEquals(1, clearCount)
     }
 }

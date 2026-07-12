@@ -42,4 +42,10 @@ interface DownloadManager {
      * Path: the domain stays infrastructure-free.
      */
     suspend fun localPages(sourceId: String, mangaId: String, chapterId: String): List<String>?
+
+    /**
+     * Deletes every download row AND every downloaded page file for the manga, freeing disk.
+     * Chapters become re-downloadable; the reader falls back to the live catalog for them.
+     */
+    suspend fun clearDownloads(sourceId: String, mangaId: String)
 }

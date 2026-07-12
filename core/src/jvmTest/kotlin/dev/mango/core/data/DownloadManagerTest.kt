@@ -293,4 +293,49 @@ class DownloadManagerTest {
 
         assertNull(manager.localPages("src", "m1", "c1"))
     }
+
+    @Test
+    fun clearDownloadsRemovesTheMangasRowsAndFiles() = runTest {
+        val root = Files.createTempDirectory("downloads-test")
+        val page = Page(index = 0, url = "https://cdn.example/c1/0.jpg")
+        val manager = newManager(
+            FakeCatalogRepository(mapOf("src/m1/c1" to listOf(page))),
+            mockClient(mapOf(page.url to byteArrayOf(1))),
+            root,
+        )
+
+        manager.enqueue(entry("src", "m1"), chapter("c1"))
+        manager.processQueue()
+        assertEquals(DownloadStatus.DONE, manager.observeDownloads().first().single().status)
+
+        manager.clearDownloads("src", "m1")
+
+        assertNull(manager.localPages("src", "m1", "c1"))
+        assertTrue(manager.observeDownloads().first().isEmpty())
+        assertFalse(Files.exists(root.resolve("src/m1")))
+    }
+
+    @Test
+    fun clearDownloadsOnlyAffectsTheClearedManga() = runTest {
+        val root = Files.createTempDirectory("downloads-test")
+        val pageA = Page(index = 0, url = "https://cdn.example/a/0.jpg")
+        val pageB = Page(index = 0, url = "https://cdn.example/b/0.jpg")
+        val manager = newManager(
+            FakeCatalogRepository(mapOf("src/mangaA/c1" to listOf(pageA), "src/mangaB/c1" to listOf(pageB))),
+            mockClient(mapOf(pageA.url to byteArrayOf(1), pageB.url to byteArrayOf(2))),
+            root,
+        )
+
+        manager.enqueue(entry("src", "mangaA"), chapter("c1"))
+        manager.enqueue(entry("src", "mangaB"), chapter("c1"))
+        manager.processQueue()
+
+        manager.clearDownloads("src", "mangaA")
+
+        assertNull(manager.localPages("src", "mangaA", "c1"))
+        assertEquals(
+            listOf(root.resolve("src/mangaB/c1/0000.jpg").toAbsolutePath().toString()),
+            manager.localPages("src", "mangaB", "c1"),
+        )
+    }
 }

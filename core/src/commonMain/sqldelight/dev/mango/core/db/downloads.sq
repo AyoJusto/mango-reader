@@ -29,3 +29,6 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 updateDownloadProgress:
 UPDATE download SET status = ?, pages_total = ?, pages_done = ?, updated_at = ?
 WHERE source_id = ? AND manga_id = ? AND chapter_id = ?;
+
+deleteDownloadsForManga:
+DELETE FROM download WHERE source_id = ? AND manga_id = ?;

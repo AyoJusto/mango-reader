@@ -19,6 +19,7 @@ import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
+import java.util.Comparator
 import java.util.logging.Level
 import kotlin.coroutines.CoroutineContext
 import kotlin.time.Clock
@@ -171,6 +172,29 @@ class FileDownloadManager(
 
             files.map { it.toAbsolutePath().toString() }
         }
+
+    // ponytail: no queueLock — clearing while a chapter is actively downloading may leave
+    // orphaned files for that one in-flight chapter (its progress updates hit no row, and a
+    // later clear removes the files); blocking the UI on a full queue drain isn't worth it.
+    override suspend fun clearDownloads(sourceId: String, mangaId: String): Unit = withContext(context) {
+        db.downloadsQueries.deleteDownloadsForManga(source_id = sourceId, manga_id = mangaId)
+
+        // Best-effort file sweep: the rows are already gone (no phantom "downloaded" state), so
+        // a locked file (Windows, mid-download) must not crash the caller's fire-and-forget
+        // scope — leftovers are orphans the next clear removes.
+        val mangaDir = root.resolve(safeSegment(sourceId)).resolve(safeSegment(mangaId))
+        try {
+            if (Files.isDirectory(mangaDir)) {
+                Files.walk(mangaDir).use { stream ->
+                    stream.sorted(Comparator.reverseOrder()).forEach { Files.deleteIfExists(it) }
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.log(Level.WARNING, "clearDownloads left orphaned files under $mangaDir", e)
+        }
+    }
 
     private fun markProgress(
         sourceId: String,

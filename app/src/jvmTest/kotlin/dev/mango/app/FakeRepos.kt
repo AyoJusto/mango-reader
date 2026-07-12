@@ -151,6 +151,14 @@ class FakeDownloadManager(
 
     override suspend fun localPages(sourceId: String, mangaId: String, chapterId: String): List<String>? =
         localPagesByKey["$sourceId/$mangaId/$chapterId"]
+
+    override suspend fun clearDownloads(sourceId: String, mangaId: String) {
+        state.value = state.value.filterNot { it.sourceId == sourceId && it.mangaId == mangaId }
+        localPagesByKey = localPagesByKey.filterKeys { key ->
+            val parts = key.split("/", limit = 3)
+            !(parts[0] == sourceId && parts[1] == mangaId)
+        }
+    }
 }
 
 /**
