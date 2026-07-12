@@ -54,17 +54,46 @@ val jcefJvmArgs = buildList {
     }
 }
 
+/**
+ * Major version of the JVM at [home], read from its `release` file — or the Gradle JVM's when
+ * [home] is null. Needed because warning-suppression flags below only exist on newer JDKs and
+ * an unrecognized standard option aborts JVM startup instead of warning.
+ */
+fun javaMajor(home: String?): Int {
+    val fallback = JavaVersion.current().majorVersion.toInt()
+    if (home == null) return fallback
+    val versionLine = File(home, "release").takeIf { it.isFile }
+        ?.readLines()?.firstOrNull { it.startsWith("JAVA_VERSION=") }
+        ?: return fallback
+    val version = versionLine.substringAfter('=').trim('"')
+    return version.removePrefix("1.").substringBefore('.').toIntOrNull() ?: fallback
+}
+
+/**
+ * Silences boot warnings on modern JDKs: sqlite-jdbc loads its native library via the
+ * restricted System::load (warned since JDK 24, needs --enable-native-access), and Truffle
+ * still uses sun.misc.Unsafe field offsets (warned since JDK 24, allowed via a flag that
+ * exists only on JDK 23+). Older JVMs neither warn nor accept the flags, hence the gates.
+ */
+fun quietNativeWarningArgs(major: Int) = buildList {
+    if (major >= 22) add("--enable-native-access=ALL-UNNAMED")
+    if (major >= 23) add("--sun-misc-unsafe-memory-access=allow")
+}
+
+val jbrHome = providers.gradleProperty("mango.jbrHome").orNull
+
 compose.desktop {
     application {
         mainClass = "dev.mango.app.MainKt"
         // Merged window chrome (JBR custom title bar) needs the app to RUN on a
         // JetBrains Runtime: set mango.jbrHome in ~/.gradle/gradle.properties to one.
         // Absent -> stock JVM, and the app falls back to the OS title bar.
-        providers.gradleProperty("mango.jbrHome").orNull?.let { javaHome = it }
+        jbrHome?.let { javaHome = it }
         // stock JDK can't load TruffleAttach (optimized Truffle unavailable — GraalJS runs
         // interpreted; fine, extension calls are network-bound). Silence the boot warning.
         jvmArgs("-Dpolyglotimpl.AttachLibraryFailureAction=ignore")
         jvmArgs(*jcefJvmArgs.toTypedArray())
+        jvmArgs(*quietNativeWarningArgs(javaMajor(jbrHome)).toTypedArray())
     }
 }
 
@@ -76,5 +105,7 @@ tasks.withType<Test> {
     }
     // JCEF needs the same AWT opens in the test JVM when a live test drives it
     jvmArgs(jcefJvmArgs)
+    // Test workers run on the Gradle JVM, not mango.jbrHome
+    jvmArgs(quietNativeWarningArgs(javaMajor(null)))
 }
 
