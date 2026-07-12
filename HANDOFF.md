@@ -27,12 +27,15 @@ core 101 tests + app 87 tests, all verified via forced rerun + JUnit XML.
   removed as links, not followed). Ceilings: clear-during-active-download orphans that
   one chapter's files (next clear removes them); DONE rows with hand-deleted files read
   as downloaded until cleared.
-- **Triaged, awaiting owner go: R6 — extension removal.** No uninstall exists anywhere
-  (plain omission, never specced). Agreed design: CatalogRepository.uninstall(sourceId)
-  (delete source row + bundle file + evict cached engine — eviction machinery exists),
-  "Remove" button on installed Extensions rows, keep library/downloads/progress data
-  (downloads stay readable offline; live loads fail honestly until reinstall; cascade
-  delete recorded as ceiling, not built).
+- `b349f0c` — R6 SHIPPED: extension removal. CatalogRepository.uninstall(sourceId) —
+  requireSafeSourceId, row delete, engine eviction, bundle-file delete LAST (Opus review
+  finding: the file delete can throw on a Windows lock, and a removed source must stop
+  executing even then; the bin-lock argument only needs row-delete-before-evict).
+  "Remove" on installed/update Extensions rows, install's busy-guard shared, no confirm
+  dialog (deliberate: reinstall is one click; only real loss is a pinned UA). Source's
+  library/progress/downloads KEPT — purge-source-data cascade recorded in PLANNING §12.
+  The core eviction test is constructed to fail unless the cache actually evicts.
+  Suites after commit: core 105, app 92, forced rerun, 0 failures.
 
 ## New owner invariant (2026-07-11): search-everywhere completeness
 
