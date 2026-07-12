@@ -1,5 +1,10 @@
 package dev.mango.app
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.HomeSection
 import dev.mango.core.domain.LibraryItem
@@ -193,6 +198,31 @@ class ScreenScreenshotsTest {
         val file = Screenshots.render("settings") {
             ProvideMangoTheme(MangoDark) {
                 SettingsScreenContent(theme = MangoDark, onThemeChange = {})
+            }
+        }
+        assertTrue(Files.size(file) > 0, "expected a non-empty PNG at $file")
+    }
+
+    @Test
+    fun sidebarOpen() {
+        val continueItems = listOf(
+            ContinueItem("FlameComics", "manga-1", "Solo Leveling", null, "p. 42"),
+            ContinueItem("FlameComics", "manga-2", "Omniscient Reader", null, "p. 7"),
+            ContinueItem("FlameComics", "manga-3", "Tower of God", null, "p. 128"),
+        )
+        val file = Screenshots.render("sidebar-open") {
+            ProvideMangoTheme(MangoDark) {
+                Box(modifier = Modifier.fillMaxSize().background(MangoDark.bg0)) {
+                    Sidebar(
+                        visible = true,
+                        continueItems = continueItems,
+                        activeScreen = Screen.Library,
+                        pendingDownloadCount = 2,
+                        onNavigate = {},
+                        onContinue = {},
+                        modifier = Modifier.align(Alignment.CenterStart),
+                    )
+                }
             }
         }
         assertTrue(Files.size(file) > 0, "expected a non-empty PNG at $file")

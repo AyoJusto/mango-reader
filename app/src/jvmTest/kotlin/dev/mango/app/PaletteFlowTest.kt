@@ -10,6 +10,7 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
@@ -259,6 +260,34 @@ class PaletteFlowTest {
         val violet = ACCENT_PRESETS.first { it.first == "Violet" }.second
         assertEquals(violet, appliedTheme.accent)
         assertEquals(MangoDark.bg0, appliedTheme.bg0)
+    }
+
+    // Completeness test for the one-off actions registry: the sidebar toggle must surface a
+    // palette hit, and running it must actually open the sidebar (search-everywhere rule).
+    @Test
+    fun toggleSidebarActionSurfacesAPaletteHitAndRunningItOpensTheSidebar() {
+        val library = FakeLibraryRepository(libraryItems())
+        val palette = PaletteState()
+
+        rule.setContent { TestAppShell(library, FakeCatalogRepository(), FakeDownloadManager(), palette = palette) }
+        rule.waitForIdle()
+
+        palette.visible = true
+        rule.waitForIdle()
+
+        // "sidebar" is a subsequence of no other hit title, so the action is both proven
+        // present and left as the single (selected) hit for Enter below. The query text itself
+        // never equals the full hit title, so the exact-text lookup can't collide with it.
+        rule.onNodeWithText("Search everywhere…").performTextInput("sidebar")
+        rule.waitForIdle()
+
+        rule.onNode(hasText("Toggle sidebar") and inPalette).assertExists()
+
+        rule.onRoot().performKeyInput { pressKey(Key.Enter) }
+        rule.waitForIdle()
+
+        assertFalse(palette.visible)
+        rule.onNodeWithTag(SIDEBAR_TEST_TAG).assertExists()
     }
 
     @Test

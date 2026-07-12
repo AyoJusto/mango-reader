@@ -4,7 +4,6 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextInput
 import dev.mango.core.domain.CatalogRepository
@@ -75,10 +74,9 @@ class SearchFlowTest {
             failuresBySource = mapOf("MangaBat" to RuntimeException("site unreachable")),
         )
 
-        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { TestAppShell(library, catalog, FakeDownloadManager()) }
 
-        rule.onNodeWithText("Search").performClick()
-        rule.waitForIdle()
+        rule.navigateVia("Search")
 
         rule.onNodeWithText("Search all sources…").performTextInput("solo")
         rule.waitForIdle()
@@ -96,10 +94,9 @@ class SearchFlowTest {
             sources = listOf(SourceInfo("FlameComics", "FlameComics"), SourceInfo("MangaBat", "MangaBat")),
         )
 
-        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { TestAppShell(library, catalog, FakeDownloadManager()) }
 
-        rule.onNodeWithText("Search").performClick()
-        rule.waitForIdle()
+        rule.navigateVia("Search")
 
         // Pre-search the screen shows only the idle hint, so each source's name renders
         // exactly once: as its FilterChip label.
@@ -119,10 +116,9 @@ class SearchFlowTest {
             gatesBySource = mapOf("MangaBat" to gate),
         )
 
-        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { TestAppShell(library, catalog, FakeDownloadManager()) }
 
-        rule.onNodeWithText("Search").performClick()
-        rule.waitForIdle()
+        rule.navigateVia("Search")
         rule.onNodeWithText("Search all sources…").performTextInput("solo")
         rule.waitForIdle()
         rule.onNodeWithText("solo").performImeAction()

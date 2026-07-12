@@ -13,6 +13,10 @@ kotlin {
             implementation(project(":core"))
             implementation(compose.desktop.currentOs)
             implementation(compose.material3)
+            implementation(compose.materialIconsExtended)
+            // real backdrop blur (frosted sidebar panel) — Compose has no built-in
+            // way to blur only the region behind an overlay
+            implementation(libs.haze)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.ktor.client.cio)
@@ -50,6 +54,10 @@ val jcefJvmArgs = buildList {
 compose.desktop {
     application {
         mainClass = "dev.mango.app.MainKt"
+        // Merged window chrome (JBR custom title bar) needs the app to RUN on a
+        // JetBrains Runtime: set mango.jbrHome in ~/.gradle/gradle.properties to one.
+        // Absent -> stock JVM, and the app falls back to the OS title bar.
+        providers.gradleProperty("mango.jbrHome").orNull?.let { javaHome = it }
         // stock JDK can't load TruffleAttach (optimized Truffle unavailable — GraalJS runs
         // interpreted; fine, extension calls are network-bound). Silence the boot warning.
         jvmArgs("-Dpolyglotimpl.AttachLibraryFailureAction=ignore")

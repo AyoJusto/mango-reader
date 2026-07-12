@@ -77,25 +77,8 @@ fun DetailsScreenContent(
     var fromText by remember { mutableStateOf("") }
     var toText by remember { mutableStateOf("") }
     var showClearStorageDialog by remember { mutableStateOf(false) }
-    val ascendingChapters = remember(chapters) { chapters.sortedBy { it.number } }
     val descendingChapters = remember(chapters) { chapters.sortedByDescending { it.number } }
-    // The chapter to resume into, plus its button label — computed once here so the header
-    // button and its click handler can't drift. Ascending order (unlike the chapters list
-    // below, which the LazyColumn shows newest-first) so "next after latest" walks forward.
-    val continueTarget: Pair<Chapter, String>? = run {
-        val ascending = ascendingChapters
-        val latest = latestProgress
-        val latestChapter = latest?.let { progress -> ascending.find { it.chapterId == progress.chapterId } }
-        when {
-            latest == null || latestChapter == null -> ascending.firstOrNull()?.let { it to "Start reading" }
-            !latest.finished -> latestChapter to
-                "Continue — Ch. ${formatChapterNumber(latestChapter.number)} · p. ${latest.page + 1}"
-            else -> {
-                val next = ascending.getOrNull(ascending.indexOf(latestChapter) + 1)
-                next?.let { it to "Continue — Ch. ${formatChapterNumber(it.number)}" }
-            }
-        }
-    }
+    val continueTarget = remember(chapters, latestProgress) { continueTarget(chapters, latestProgress) }
     Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(modifier = Modifier.padding(24.dp)) {
@@ -300,6 +283,27 @@ private fun formatDate(instant: kotlin.time.Instant): String =
     instant.toString().substringBefore('T')
 
 /**
+ * The chapter the Continue action resumes into, plus its button label — computed in one place
+ * so the header button and its click handler can't drift. Walks chapters in ascending order
+ * (unlike the chapters list, which shows newest-first) so "next after latest" walks forward.
+ * Null when there is nothing to open (no chapters, or the latest chapter is finished and last).
+ */
+internal fun continueTarget(chapters: List<Chapter>, latestProgress: ReadProgress?): Pair<Chapter, String>? {
+    val ascending = chapters.sortedBy { it.number }
+    val latest = latestProgress
+    val latestChapter = latest?.let { progress -> ascending.find { it.chapterId == progress.chapterId } }
+    return when {
+        latest == null || latestChapter == null -> ascending.firstOrNull()?.let { it to "Start reading" }
+        !latest.finished -> latestChapter to
+            "Continue — Ch. ${formatChapterNumber(latestChapter.number)} · p. ${latest.page + 1}"
+        else -> {
+            val next = ascending.getOrNull(ascending.indexOf(latestChapter) + 1)
+            next?.let { it to "Continue — Ch. ${formatChapterNumber(it.number)}" }
+        }
+    }
+}
+
+/**
  * Session cache of loaded manga details, keyed by (sourceId, mangaId) — reused only when
  * returning from the Reader; every fresh open from a list screen invalidates the entry first, so
  * freshness is unchanged on normal navigation.
@@ -318,7 +322,11 @@ class DetailsCache {
     }
 }
 
-/** Stateful loader: loads details + chapters once, tracks library membership. */
+/**
+ * Stateful loader: loads details + chapters once, tracks library membership. With
+ * [autoContinue] set, fires the Continue action exactly once when the chapter list has loaded
+ * and the latest-progress chapter is available in it.
+ */
 @Composable
 fun DetailsScreen(
     sourceId: String,
@@ -331,6 +339,7 @@ fun DetailsScreen(
     onDownloadChapter: (MangaEntry, Chapter) -> Unit = { _, _ -> },
     onDownloadAll: (MangaEntry, List<Chapter>) -> Unit = { _, _ -> },
     cache: DetailsCache = remember { DetailsCache() },
+    autoContinue: Boolean = false,
 ) {
     val theme = LocalMangoTheme.current
     var details by remember(sourceId, mangaId) { mutableStateOf<MangaDetails?>(null) }
@@ -377,6 +386,18 @@ fun DetailsScreen(
         } catch (e: Exception) {
             error = e.message ?: "Failed to load"
         }
+    }
+
+    // Exactly-once guard: recompositions and progress refreshes after the jump must not
+    // re-fire the auto-continue, or backing out of the Reader would bounce straight back in.
+    val autoContinueFired = remember { mutableStateOf(false) }
+    LaunchedEffect(autoContinue, chapters, latestProgress) {
+        if (!autoContinue || autoContinueFired.value) return@LaunchedEffect
+        val progress = latestProgress ?: return@LaunchedEffect
+        if (chapters.none { it.chapterId == progress.chapterId }) return@LaunchedEffect
+        val target = continueTarget(chapters, progress) ?: return@LaunchedEffect
+        autoContinueFired.value = true
+        onOpenChapter(target.first, chapters)
     }
 
     val currentDetails = details

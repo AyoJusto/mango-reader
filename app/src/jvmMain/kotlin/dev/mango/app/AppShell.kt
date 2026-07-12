@@ -1,31 +1,36 @@
 package dev.mango.app
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 import dev.mango.core.domain.AvailableSource
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.ChallengeSolver
 import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.DownloadManager
+import dev.mango.core.domain.DownloadStatus
 import dev.mango.core.domain.ExtensionRepo
 import dev.mango.core.domain.LibraryRepository
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /** Used only when a caller doesn't wire a real registry (e.g. tests exercising other tabs). */
@@ -50,7 +55,17 @@ sealed interface Screen {
     data object Downloads : Screen
     data object Extensions : Screen
     data object Settings : Screen
-    data class Details(val sourceId: String, val mangaId: String, val fromBrowse: Boolean) : Screen
+    data class Details(
+        val sourceId: String,
+        val mangaId: String,
+        val fromBrowse: Boolean,
+        /**
+         * One-shot: fires the Continue action into the Reader once chapters load. Must be
+         * stripped from [AppShell]'s Reader back-target, or backing out of the Reader would
+         * bounce straight back in.
+         */
+        val autoContinue: Boolean = false,
+    ) : Screen
     data class Reader(
         val sourceId: String,
         val mangaId: String,
@@ -62,9 +77,10 @@ sealed interface Screen {
 }
 
 /**
- * The whole application UI: a left rail for the two top-level tabs (Library, Browse) plus
- * drill-down screens (Details, Reader) that replace the content area. Screens talk only to
- * the repository ports passed in here — never engine or DB types (CLAUDE.md boundary).
+ * The whole application UI: a merged title bar on top, the current screen filling the content
+ * area, an overlay sidebar for top-level navigation, and the command palette above everything.
+ * Screens talk only to the repository ports passed in here — never engine or DB types
+ * (CLAUDE.md boundary).
  */
 @Composable
 fun AppShell(
@@ -79,10 +95,14 @@ fun AppShell(
     onAutoScrollSpeedChange: (Float) -> Unit = {},
     onToggleFullscreen: () -> Unit = {},
     palette: PaletteState = remember { PaletteState() },
+    sidebarOpen: Boolean = false,
+    onSidebarChange: (Boolean) -> Unit = {},
+    jbrBar: JbrBar? = null,
 ) {
     var screen by remember { mutableStateOf<Screen>(Screen.Library) }
     // Reader has no fromBrowse of its own; remember which Details screen led to it so its
-    // back button can return there.
+    // back button can return there. autoContinue is stripped: the back-target must land on
+    // Details, not re-fire the Continue action into the Reader.
     var lastDetails by remember { mutableStateOf<Screen.Details?>(null) }
     // Hoisted here (not inside BrowseScreen) so it survives tab switches: Library -> Browse ->
     // Library -> Browse must show the previous query/results instead of resetting.
@@ -93,68 +113,69 @@ fun AppShell(
     val detailsCache = remember { DetailsCache() }
     val scope = rememberCoroutineScope()
 
-    // Both branches below live in a Box so PaletteOverlay can render on top of either one as a
-    // full-screen layer, regardless of which screen is currently showing.
-    Box(modifier = Modifier.fillMaxSize()) {
-        when (val current = screen) {
-            is Screen.Reader -> {
-                ReaderScreen(
-                    sourceId = current.sourceId,
-                    mangaId = current.mangaId,
-                    chapterId = current.chapterId,
-                    chapters = current.chapters,
-                    catalog = catalog,
-                    downloads = downloads,
-                    library = library,
-                    challengeSolver = challengeSolver,
-                    onBack = { lastDetails?.let { screen = it } ?: run { screen = Screen.Library } },
-                    onToggleFullscreen = onToggleFullscreen,
-                    autoScrollSpeedDpPerSec = autoScrollSpeed,
-                    paletteVisible = palette.visible,
+    // Continue cards are loaded once per sidebar open — the panel is transient, so a snapshot
+    // is enough; no need to observe progress while it is closed.
+    var continueItems by remember { mutableStateOf<List<ContinueItem>>(emptyList()) }
+    LaunchedEffect(sidebarOpen) {
+        if (!sidebarOpen) return@LaunchedEffect
+        val items = library.observeLibrary().first()
+        // ponytail: per-item latestProgress queries, one bulk query if libraries outgrow double digits
+        continueItems = items
+            .mapNotNull { item ->
+                library.latestProgress(item.entry.sourceId, item.entry.mangaId)?.let { item to it }
+            }
+            .sortedByDescending { (_, progress) -> progress.updatedAt }
+            .take(3)
+            .map { (item, progress) ->
+                ContinueItem(
+                    sourceId = item.entry.sourceId,
+                    mangaId = item.entry.mangaId,
+                    title = item.entry.title,
+                    cover = item.entry.cover,
+                    progressLine = "p. ${progress.page + 1}",
                 )
             }
-            else -> {
-                Row(modifier = Modifier.fillMaxSize()) {
-                    NavigationRail {
-                        NavigationRailItem(
-                            selected = current is Screen.Library,
-                            onClick = { screen = Screen.Library },
-                            icon = { Text("L") },
-                            label = { Text("Library") },
-                        )
-                        NavigationRailItem(
-                            selected = current is Screen.Search,
-                            onClick = { screen = Screen.Search },
-                            icon = { Text("⌕") },
-                            label = { Text("Search") },
-                        )
-                        NavigationRailItem(
-                            selected = current is Screen.Browse,
-                            onClick = { screen = Screen.Browse },
-                            icon = { Text("B") },
-                            label = { Text("Browse") },
-                        )
-                        NavigationRailItem(
-                            selected = current is Screen.Downloads,
-                            onClick = { screen = Screen.Downloads },
-                            icon = { Text("D") },
-                            label = { Text("Downloads") },
-                        )
-                        NavigationRailItem(
-                            selected = current is Screen.Extensions,
-                            onClick = { screen = Screen.Extensions },
-                            icon = { Text("E") },
-                            label = { Text("Extensions") },
-                        )
-                        NavigationRailItem(
-                            selected = current is Screen.Settings,
-                            onClick = { screen = Screen.Settings },
-                            icon = { Text("S") },
-                            label = { Text("Settings") },
+    }
+    val downloadRows by downloads.observeDownloads().collectAsState(initial = emptyList())
+    // Pending = still going to happen on its own; FAILED needs a user retry, not a badge.
+    val pendingDownloadCount = downloadRows.count {
+        it.status == DownloadStatus.QUEUED || it.status == DownloadStatus.RUNNING
+    }
+    // The sidebar's frosted panel blurs whatever screen content is behind it; the screen
+    // branches below register as the blur source, the panel samples it.
+    val hazeState = rememberHazeState()
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        MangoTitleBar(
+            jbrBar = jbrBar,
+            sidebarOpen = sidebarOpen,
+            onToggleSidebar = { onSidebarChange(!sidebarOpen) },
+        )
+        // Content, sidebar, and palette live in one Box so the overlays can stack above
+        // whichever screen is showing; the title bar stays visible over all of them.
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            when (val current = screen) {
+                is Screen.Reader -> {
+                    Box(modifier = Modifier.fillMaxSize().hazeSource(hazeState)) {
+                        ReaderScreen(
+                            sourceId = current.sourceId,
+                            mangaId = current.mangaId,
+                            chapterId = current.chapterId,
+                            chapters = current.chapters,
+                            catalog = catalog,
+                            downloads = downloads,
+                            library = library,
+                            challengeSolver = challengeSolver,
+                            onBack = { lastDetails?.let { screen = it } ?: run { screen = Screen.Library } },
+                            onToggleFullscreen = onToggleFullscreen,
+                            autoScrollSpeedDpPerSec = autoScrollSpeed,
+                            paletteVisible = palette.visible,
                         )
                     }
+                }
+                else -> {
                     Surface(
-                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                        modifier = Modifier.fillMaxSize().hazeSource(hazeState),
                         color = theme.bg0,
                     ) {
                         when (current) {
@@ -182,7 +203,7 @@ fun AppShell(
                                 onAutoScrollSpeedChange = onAutoScrollSpeedChange,
                             )
                             is Screen.Details -> {
-                                LaunchedEffect(current) { lastDetails = current }
+                                LaunchedEffect(current) { lastDetails = current.copy(autoContinue = false) }
                                 Box(modifier = Modifier.fillMaxSize()) {
                                     DetailsScreen(
                                         sourceId = current.sourceId,
@@ -192,6 +213,7 @@ fun AppShell(
                                         downloads = downloads,
                                         challengeSolver = challengeSolver,
                                         cache = detailsCache,
+                                        autoContinue = current.autoContinue,
                                         onOpenChapter = { chapter, chapters ->
                                             screen = Screen.Reader(
                                                 sourceId = current.sourceId,
@@ -237,23 +259,46 @@ fun AppShell(
                     }
                 }
             }
-        }
-        // keyed on theme (not plain remember{}): the accent provider closes over the current
-        // theme by value, so a theme change must rebuild the tab list or its hits would apply
-        // an accent on top of a stale, already-replaced theme
-        val tabs = remember(theme) {
-            paletteTabs(
-                library = library,
-                navigate = { target ->
-                    // a palette hit is a fresh open, same as a list tap: invalidate so the
-                    // session cache can't serve stale details/chapters on this path
-                    if (target is Screen.Details) detailsCache.invalidate(target.sourceId, target.mangaId)
+            Sidebar(
+                visible = sidebarOpen,
+                continueItems = continueItems,
+                activeScreen = screen,
+                pendingDownloadCount = pendingDownloadCount,
+                onNavigate = { target ->
                     screen = target
+                    onSidebarChange(false)
                 },
-                theme = theme,
-                onThemeChange = onThemeChange,
+                onContinue = { item ->
+                    // a Continue card is a fresh open, same as a list tap: invalidate so the
+                    // session cache can't serve stale details/chapters on this path
+                    detailsCache.invalidate(item.sourceId, item.mangaId)
+                    screen = Screen.Details(item.sourceId, item.mangaId, fromBrowse = false, autoContinue = true)
+                    onSidebarChange(false)
+                },
+                modifier = Modifier.align(Alignment.CenterStart),
+                hazeState = hazeState,
             )
+            // The palette's toggle-sidebar hit reads the CURRENT open state at run time, not the
+            // value captured when the tab list was remembered below.
+            val currentSidebarOpen by rememberUpdatedState(sidebarOpen)
+            // keyed on theme (not plain remember{}): the accent provider closes over the current
+            // theme by value, so a theme change must rebuild the tab list or its hits would apply
+            // an accent on top of a stale, already-replaced theme
+            val tabs = remember(theme) {
+                paletteTabs(
+                    library = library,
+                    navigate = { target ->
+                        // a palette hit is a fresh open, same as a list tap: invalidate so the
+                        // session cache can't serve stale details/chapters on this path
+                        if (target is Screen.Details) detailsCache.invalidate(target.sourceId, target.mangaId)
+                        screen = target
+                    },
+                    theme = theme,
+                    onThemeChange = onThemeChange,
+                    onToggleSidebar = { onSidebarChange(!currentSidebarOpen) },
+                )
+            }
+            PaletteOverlay(state = palette, tabs = tabs)
         }
-        PaletteOverlay(state = palette, tabs = tabs)
     }
 }

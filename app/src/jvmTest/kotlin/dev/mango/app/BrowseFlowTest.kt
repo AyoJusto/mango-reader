@@ -112,10 +112,9 @@ class BrowseFlowTest {
             sectionsBySource = mapOf("FlameComics" to listOf(popular)),
         )
 
-        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { TestAppShell(library, catalog, FakeDownloadManager()) }
 
-        rule.onNodeWithText("Browse").performClick()
-        rule.waitForIdle()
+        rule.navigateVia("Browse")
 
         rule.onNodeWithText("Popular").assertExists()
         rule.onNodeWithText("Solo Leveling").assertExists()
@@ -126,10 +125,9 @@ class BrowseFlowTest {
         val library = FakeLibraryRepository()
         val catalog = FakeCatalogRepository(sources = listOf(SourceInfo("FlameComics", "FlameComics")))
 
-        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { TestAppShell(library, catalog, FakeDownloadManager()) }
 
-        rule.onNodeWithText("Browse").performClick()
-        rule.waitForIdle()
+        rule.navigateVia("Browse")
 
         rule.onNodeWithText("No discover sections — search this source instead").assertExists()
     }
@@ -149,10 +147,9 @@ class BrowseFlowTest {
             sectionsBySource = mapOf("MangaBat" to listOf(popular)),
         )
 
-        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { TestAppShell(library, catalog, FakeDownloadManager()) }
 
-        rule.onNodeWithText("Browse").performClick()
-        rule.waitForIdle()
+        rule.navigateVia("Browse")
 
         // search source A (FlameComics, selected by default)
         rule.onNodeWithText("Search…").performTextInput("solo")
@@ -182,10 +179,9 @@ class BrowseFlowTest {
             results = mapOf("solo" to listOf(entry)),
         )
 
-        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { TestAppShell(library, catalog, FakeDownloadManager()) }
 
-        rule.onNodeWithText("Browse").performClick()
-        rule.waitForIdle()
+        rule.navigateVia("Browse")
 
         rule.onNodeWithText("Search…").performTextInput("solo")
         rule.waitForIdle()
@@ -212,10 +208,9 @@ class BrowseFlowTest {
             ),
         )
 
-        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { TestAppShell(library, catalog, FakeDownloadManager()) }
 
-        rule.onNodeWithText("Browse").performClick()
-        rule.waitForIdle()
+        rule.navigateVia("Browse")
 
         rule.onNodeWithText("Protected by Cloudflare").assertExists()
         rule.onNodeWithText("Solve challenge").assertExists()
@@ -236,10 +231,9 @@ class BrowseFlowTest {
             ),
         )
 
-        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { TestAppShell(library, catalog, FakeDownloadManager()) }
 
-        rule.onNodeWithText("Browse").performClick()
-        rule.waitForIdle()
+        rule.navigateVia("Browse")
         rule.onNodeWithText("Popular").assertExists()
 
         rule.onNodeWithText("MangaBat").performClick()
@@ -272,11 +266,10 @@ class BrowseFlowTest {
         )
 
         rule.setContent {
-            ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager(), challengeSolver = solver) }
+            TestAppShell(library, catalog, FakeDownloadManager(), challengeSolver = solver)
         }
 
-        rule.onNodeWithText("Browse").performClick()
-        rule.waitForIdle()
+        rule.navigateVia("Browse")
         rule.onNodeWithText("Protected by Cloudflare").assertExists()
 
         rule.onNodeWithText("Solve challenge").performClick()
@@ -296,10 +289,9 @@ class BrowseFlowTest {
         val library = FakeLibraryRepository()
         val catalog = FakeCatalogRepository()
 
-        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { TestAppShell(library, catalog, FakeDownloadManager()) }
 
-        rule.onNodeWithText("Browse").performClick()
-        rule.waitForIdle()
+        rule.navigateVia("Browse")
 
         rule.onNodeWithText("No sources installed — add one from the Extensions tab").assertExists()
         rule.onNodeWithText("No discover sections — search this source instead").assertDoesNotExist()

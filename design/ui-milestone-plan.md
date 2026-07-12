@@ -148,9 +148,17 @@ keys) unaffected.
   (no new dependency) or `jbr-api` pinned in the catalog — implementer brief locks the
   shim, reflection stays in one file.
 - Blur: measured free (avg 4.17–4.51ms/frame with 24dp blur over animated content, worst
-  12ms). Owner decision: **sidebar is alpha-only (86%); backdrop blur is reserved for
-  the command palette** (and possibly dialogs). The handoff's "blur behind sidebar"
-  line is overridden.
+  12ms). Owner decision REVERSED 2026-07-12 after seeing alpha-only in the running app:
+  the spec's frosted look (86% alpha + 24dp backdrop blur) is restored for the sidebar —
+  alpha without blur reads as see-through, not frosted. Region-limited backdrop blur
+  comes from the `haze` library (pinned in the catalog); the palette's full-backdrop
+  blur (U6) can use plain `Modifier.blur` on the content layer.
+- Hotkey: owner decision 2026-07-12 — the sidebar toggle is **Ctrl+S**, overriding the
+  handoff's Ctrl+B.
+- Dev-run JBR: optional `mango.jbrHome` Gradle property (machine-local
+  `~/.gradle/gradle.properties`) feeds `compose.desktop.application.javaHome`; absent →
+  stock JVM + OS-title-bar fallback. A pinned jbrsdk download is the packaging chunk's
+  job.
 - JCEF: challenge webview lives in its own `JFrame` (JcefManager), so overlays never
   compete with the heavyweight browser. Non-issue.
 - U2 implementer: Sonnet is sufficient — the platform-subtle part is solved and
@@ -173,6 +181,16 @@ Dispatch: one Sonnet — the pieces are small and interlocking; splitting buys n
 Acceptance: a kit screenshot board (one test page rendering every primitive in every
 state — this is the visual contract later chunks build on); Extensions banner flow test
 still green on the swapped component.
+
+Carried from the U2 review (deferred, recorded so they aren't lost):
+- U4: sidebar continue cards show "p. N" (saved page) — chapter numbers need a bulk
+  chapter lookup that belongs with U4's chapter-query work; same work enables filtering
+  fully-finished series out of the Continue list (today their card degrades to opening
+  Details).
+- U5: the merged title bar is always visible, including over the Reader — tension with
+  board 05's "zero chrome while reading" is inherent to merged chrome (native window
+  buttons live in the bar); decide auto-hide vs keep during U5.
+- U6: sidebar contents stagger (20ms/group) not implemented — single slide+fade panel.
 
 ## U4 — Library
 

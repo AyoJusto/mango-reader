@@ -73,10 +73,9 @@ class DownloadsTest {
             chapters = mapOf(("FlameComics" to "manga-1") to listOf(chapter)),
         )
 
-        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, downloads) } }
+        rule.setContent { TestAppShell(library, catalog, downloads) }
 
-        rule.onNodeWithText("Browse").performClick()
-        rule.waitForIdle()
+        rule.navigateVia("Browse")
         rule.onNodeWithText("Search…").performTextInput("solo")
         rule.waitForIdle()
         rule.onNodeWithText("solo").performImeAction()

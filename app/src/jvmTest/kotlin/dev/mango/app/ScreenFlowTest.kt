@@ -68,16 +68,15 @@ class ScreenFlowTest {
     val rule = createComposeRule()
 
     @Test
-    fun appShellStartsOnEmptyLibraryThenRailSwitchesToBrowse() {
+    fun appShellStartsOnEmptyLibraryThenSidebarSwitchesToBrowse() {
         val library = FakeLibraryRepository()
         val catalog = FakeCatalogRepository(sources = listOf(SourceInfo("FlameComics", "FlameComics")))
 
-        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { TestAppShell(library, catalog, FakeDownloadManager()) }
 
         rule.onNodeWithText("Library is empty — browse sources to add manhwa").assertExists()
 
-        rule.onNodeWithText("Browse").performClick()
-        rule.waitForIdle()
+        rule.navigateVia("Browse")
 
         rule.onNodeWithText("Search…").assertExists()
     }
@@ -91,10 +90,9 @@ class ScreenFlowTest {
             results = mapOf("solo" to listOf(entry)),
         )
 
-        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { TestAppShell(library, catalog, FakeDownloadManager()) }
 
-        rule.onNodeWithText("Browse").performClick()
-        rule.waitForIdle()
+        rule.navigateVia("Browse")
 
         rule.onNodeWithText("Search…").performTextInput("solo")
         rule.waitForIdle()
@@ -114,10 +112,9 @@ class ScreenFlowTest {
         )
         val catalog = CountingCatalogRepository(fake)
 
-        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager()) } }
+        rule.setContent { TestAppShell(library, catalog, FakeDownloadManager()) }
 
-        rule.onNodeWithText("Browse").performClick()
-        rule.waitForIdle()
+        rule.navigateVia("Browse")
 
         rule.onNodeWithText("Search…").performTextInput("solo")
         rule.waitForIdle()
@@ -126,10 +123,8 @@ class ScreenFlowTest {
 
         rule.onNodeWithText("Solo Leveling").assertExists()
 
-        rule.onNodeWithText("Library").performClick()
-        rule.waitForIdle()
-        rule.onNodeWithText("Browse").performClick()
-        rule.waitForIdle()
+        rule.navigateVia("Library")
+        rule.navigateVia("Browse")
 
         rule.onNodeWithText("solo").assertExists()
         rule.onNodeWithText("Solo Leveling").assertExists()

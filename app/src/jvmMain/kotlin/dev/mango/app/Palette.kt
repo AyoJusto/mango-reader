@@ -403,6 +403,11 @@ private fun accentProvider(theme: MangoTheme, onThemeChange: (MangoTheme) -> Uni
         }
     }
 
+/** One-off app actions as palette hits; run invokes the callback threaded from the shell. */
+private fun actionsProvider(onToggleSidebar: () -> Unit): PaletteProvider = PaletteProvider { _ ->
+    listOf(PaletteHit(category = "Actions", title = "Toggle sidebar", run = onToggleSidebar))
+}
+
 /** Every registered settings entry as a palette hit; run opens the Settings screen. */
 private fun settingsProvider(navigate: (Screen) -> Unit): PaletteProvider = PaletteProvider { _ ->
     SETTINGS_ENTRIES.map { title ->
@@ -425,22 +430,24 @@ private fun libraryProvider(library: LibraryRepository, navigate: (Screen) -> Un
 
 /**
  * The tab set: "All" fans out to every provider, "Manhwa" is just the library provider,
- * "Actions" is screens + accents + settings. A tab-bar from day one so a future online-search
- * tab slots in later without rework.
+ * "Actions" is screens + accents + settings + one-off actions. A tab-bar from day one so a
+ * future online-search tab slots in later without rework.
  */
 fun paletteTabs(
     library: LibraryRepository,
     navigate: (Screen) -> Unit,
     theme: MangoTheme,
     onThemeChange: (MangoTheme) -> Unit,
+    onToggleSidebar: () -> Unit = {},
 ): List<PaletteTab> {
     val screens = screenProvider(navigate)
     val accents = accentProvider(theme, onThemeChange)
     val manhwa = libraryProvider(library, navigate)
     val settings = settingsProvider(navigate)
+    val actions = actionsProvider(onToggleSidebar)
     return listOf(
-        PaletteTab("All", listOf(screens, accents, manhwa, settings)),
+        PaletteTab("All", listOf(screens, accents, manhwa, settings, actions)),
         PaletteTab("Manhwa", listOf(manhwa)),
-        PaletteTab("Actions", listOf(screens, accents, settings)),
+        PaletteTab("Actions", listOf(screens, accents, settings, actions)),
     )
 }
