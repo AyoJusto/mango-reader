@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -51,6 +52,7 @@ import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.ChallengeRequiredException
 import dev.mango.core.domain.ChallengeSolver
+import dev.mango.core.domain.Download
 import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.DownloadStatus
 import dev.mango.core.domain.LibraryRepository
@@ -75,6 +77,7 @@ fun DetailsScreenContent(
     inLibrary: Boolean,
     finishedChapterIds: Set<String> = emptySet(),
     downloadedChapterIds: Set<String> = emptySet(),
+    downloadsByChapterId: Map<String, Download> = emptyMap(),
     hasDownloads: Boolean = false,
     latestProgress: ReadProgress? = null,
     onToggleLibrary: () -> Unit,
@@ -91,6 +94,12 @@ fun DetailsScreenContent(
     var toText by remember { mutableStateOf("") }
     var showClearStorageDialog by remember { mutableStateOf(false) }
     val descendingChapters = remember(chapters) { chapters.sortedByDescending { it.number } }
+    // Chapters already moving through the queue must not be re-enqueued by the bulk actions.
+    val activeDownloadIds = remember(downloadsByChapterId) {
+        downloadsByChapterId.filterValues {
+            it.status == DownloadStatus.QUEUED || it.status == DownloadStatus.RUNNING
+        }.keys
+    }
     val continueTarget = remember(chapters, latestProgress) { continueTarget(chapters, latestProgress) }
     Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
         ContentColumn(max = MangoSpace.gridMaxWidth) {
@@ -148,7 +157,12 @@ fun DetailsScreenContent(
                     )
                     KitButton(
                         label = "Download all",
-                        onClick = { onDownloadAll(details.entry, chapters.filter { it.chapterId !in downloadedChapterIds }) },
+                        onClick = {
+                            onDownloadAll(
+                                details.entry,
+                                chapters.filter { it.chapterId !in downloadedChapterIds && it.chapterId !in activeDownloadIds },
+                            )
+                        },
                         style = KitButtonStyle.GHOST,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -157,7 +171,11 @@ fun DetailsScreenContent(
                         onClick = {
                             onDownloadAll(
                                 details.entry,
-                                chapters.filter { it.chapterId !in finishedChapterIds && it.chapterId !in downloadedChapterIds },
+                                chapters.filter {
+                                    it.chapterId !in finishedChapterIds &&
+                                        it.chapterId !in downloadedChapterIds &&
+                                        it.chapterId !in activeDownloadIds
+                                },
                             )
                         },
                         style = KitButtonStyle.GHOST,
@@ -235,6 +253,7 @@ fun DetailsScreenContent(
                                 chapter = chapter,
                                 finished = chapter.chapterId in finishedChapterIds,
                                 downloaded = chapter.chapterId in downloadedChapterIds,
+                                download = downloadsByChapterId[chapter.chapterId],
                                 inProgress = latestProgress?.takeIf { it.chapterId == chapter.chapterId && !it.finished },
                                 onOpen = { onOpenChapter(chapter, chapters) },
                                 onDownload = { onDownloadChapter(details.entry, chapter) },
@@ -276,7 +295,11 @@ fun DetailsScreenContent(
                             val range = minOf(from, to)..maxOf(from, to)
                             onDownloadAll(
                                 details.entry,
-                                chapters.filter { it.number in range && it.chapterId !in downloadedChapterIds },
+                                chapters.filter {
+                                    it.number in range &&
+                                        it.chapterId !in downloadedChapterIds &&
+                                        it.chapterId !in activeDownloadIds
+                                },
                             )
                             showRangeDialog = false
                         }
@@ -351,6 +374,7 @@ private fun ChapterRow(
     chapter: Chapter,
     finished: Boolean,
     downloaded: Boolean,
+    download: Download?,
     inProgress: ReadProgress?,
     onOpen: () -> Unit,
     onDownload: () -> Unit,
@@ -397,6 +421,21 @@ private fun ChapterRow(
                 style = MangoType.caption,
                 color = theme.accent,
             )
+            download?.status == DownloadStatus.RUNNING && download.pagesTotal > 0 -> Text(
+                text = "${download.pagesDone}/${download.pagesTotal}",
+                style = MangoType.monoChapter,
+                color = theme.accent,
+            )
+            download?.status == DownloadStatus.QUEUED -> Text(
+                text = "queued",
+                style = MangoType.caption,
+                color = theme.textTertiary,
+            )
+            download?.status == DownloadStatus.FAILED -> Text(
+                text = "failed",
+                style = MangoType.caption,
+                color = theme.danger,
+            )
             downloaded && !finished -> Text(text = "downloaded", style = MangoType.caption, color = theme.success)
         }
         Text(
@@ -406,10 +445,17 @@ private fun ChapterRow(
             textAlign = TextAlign.End,
             modifier = Modifier.width(90.dp),
         )
-        if (downloaded) {
-            Text(text = "✓", style = MangoType.caption, color = theme.success)
-        } else {
-            ChapterDownloadGlyph(onClick = onDownload)
+        when {
+            downloaded -> Text(text = "✓", style = MangoType.caption, color = theme.success)
+            download?.status == DownloadStatus.RUNNING -> CircularProgressIndicator(
+                modifier = Modifier.size(12.dp),
+                strokeWidth = 1.5.dp,
+                color = theme.accent,
+            )
+            // A queued chapter has no action: it is already on its way, and re-enqueueing is
+            // the only thing the glyph could do.
+            download?.status == DownloadStatus.QUEUED -> Spacer(modifier = Modifier.size(12.dp))
+            else -> ChapterDownloadGlyph(onClick = onDownload)
         }
     }
 }
@@ -558,6 +604,7 @@ fun DetailsScreen(
         downloads.observeDownloads().map { rows -> rows.filter { it.sourceId == sourceId && it.mangaId == mangaId } }
     }.collectAsState(initial = emptyList())
     val downloadedChapterIds = mangaDownloads.filter { it.status == DownloadStatus.DONE }.map { it.chapterId }.toSet()
+    val downloadsByChapterId = mangaDownloads.associateBy { it.chapterId }
     val hasDownloads = mangaDownloads.isNotEmpty()
     val inLibrary = libraryItems.any { it.entry.sourceId == sourceId && it.entry.mangaId == mangaId }
 
@@ -638,6 +685,7 @@ fun DetailsScreen(
             inLibrary = inLibrary,
             finishedChapterIds = finishedChapterIds,
             downloadedChapterIds = downloadedChapterIds,
+            downloadsByChapterId = downloadsByChapterId,
             hasDownloads = hasDownloads,
             latestProgress = latestProgress,
             onToggleLibrary = {

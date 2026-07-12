@@ -8,6 +8,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.font.FontFamily
 import dev.mango.core.domain.Chapter
+import dev.mango.core.domain.Download
+import dev.mango.core.domain.DownloadStatus
 import dev.mango.core.domain.HomeSection
 import dev.mango.core.domain.LibraryItem
 import dev.mango.core.domain.MangaDetails
@@ -204,12 +206,31 @@ class ScreenScreenshotsTest {
                 publishedAt = Clock.System.now(),
             )
         }
+        // One chapter per download state so the render exercises the whole row vocabulary:
+        // done (✓), running (pages + spinner), queued, failed (retry glyph).
+        fun download(chapterId: String, status: DownloadStatus, done: Int = 0, total: Int = 0) = Download(
+            sourceId = "FlameComics",
+            mangaId = "manga-1",
+            chapterId = chapterId,
+            mangaTitle = "Solo Leveling",
+            chapterNumber = 1.0,
+            status = status,
+            pagesTotal = total,
+            pagesDone = done,
+        )
         val file = Screenshots.render("details") {
             ProvideMangoTheme(MangoDark) {
                 DetailsScreenContent(
                     details = details,
                     chapters = chapters,
                     inLibrary = false,
+                    downloadedChapterIds = setOf("ch-8"),
+                    downloadsByChapterId = mapOf(
+                        "ch-8" to download("ch-8", DownloadStatus.DONE, done = 45, total = 45),
+                        "ch-7" to download("ch-7", DownloadStatus.RUNNING, done = 12, total = 45),
+                        "ch-6" to download("ch-6", DownloadStatus.QUEUED),
+                        "ch-5" to download("ch-5", DownloadStatus.FAILED, done = 3, total = 45),
+                    ),
                     onToggleLibrary = {},
                     onOpenChapter = { _, _ -> },
                     onDownloadChapter = { _, _ -> },
