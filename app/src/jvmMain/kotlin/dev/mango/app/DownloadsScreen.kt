@@ -36,31 +36,33 @@ import dev.mango.core.domain.DownloadStatus
 fun DownloadsScreenContent(items: List<Download>) {
     val theme = LocalMangoTheme.current
     Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Text(
-                text = "Downloads",
-                style = MangoType.display,
-                color = theme.textPrimary,
-                modifier = Modifier.padding(horizontal = MangoSpace.screenGutter, vertical = MangoSpace.lg),
-            )
-            if (items.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    EmptyState(
-                        title = "No downloads yet",
-                        guidance = "Download chapters from Details, or press Shift-Shift to search everywhere.",
-                    )
-                }
-            } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(horizontal = MangoSpace.screenGutter, vertical = MangoSpace.sm),
-                    verticalArrangement = Arrangement.spacedBy(MangoSpace.xs),
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    items(
-                        items,
-                        key = { "${it.sourceId}/${it.mangaId}/${it.chapterId}" },
-                    ) { download ->
-                        DownloadRow(download)
+        ContentColumn(max = MangoSpace.contentMaxWidth) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Text(
+                    text = "Downloads",
+                    style = MangoType.display,
+                    color = theme.textPrimary,
+                    modifier = Modifier.padding(horizontal = MangoSpace.screenGutter, vertical = MangoSpace.lg),
+                )
+                if (items.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        EmptyState(
+                            title = "No downloads yet",
+                            guidance = "Download chapters from Details, or press Shift-Shift to search everywhere.",
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        contentPadding = PaddingValues(horizontal = MangoSpace.screenGutter, vertical = MangoSpace.sm),
+                        verticalArrangement = Arrangement.spacedBy(MangoSpace.xs),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        items(
+                            items,
+                            key = { "${it.sourceId}/${it.mangaId}/${it.chapterId}" },
+                        ) { download ->
+                            DownloadRow(download)
+                        }
                     }
                 }
             }

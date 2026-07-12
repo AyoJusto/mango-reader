@@ -91,147 +91,149 @@ fun DetailsScreenContent(
     val descendingChapters = remember(chapters) { chapters.sortedByDescending { it.number } }
     val continueTarget = remember(chapters, latestProgress) { continueTarget(chapters, latestProgress) }
     Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
-        Row(
-            modifier = Modifier.fillMaxSize().padding(start = 48.dp, end = 48.dp, top = 48.dp),
-            horizontalArrangement = Arrangement.spacedBy(40.dp),
-        ) {
-            Column(
-                modifier = Modifier.width(300.dp),
-                verticalArrangement = Arrangement.spacedBy(MangoSpace.sm),
+        ContentColumn(max = MangoSpace.gridMaxWidth) {
+            Row(
+                modifier = Modifier.fillMaxSize().padding(start = 48.dp, end = 48.dp, top = 48.dp),
+                horizontalArrangement = Arrangement.spacedBy(40.dp),
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(2f / 3f)
-                        .shadow(elevation = 16.dp, shape = RoundedCornerShape(MangoRadius.panel))
-                        .clip(RoundedCornerShape(MangoRadius.panel))
-                        .background(theme.bg2),
+                Column(
+                    modifier = Modifier.width(300.dp),
+                    verticalArrangement = Arrangement.spacedBy(MangoSpace.sm),
                 ) {
-                    val cover = details.entry.cover
-                    if (cover != null) {
-                        AsyncImage(
-                            model = cover,
-                            contentDescription = details.entry.title,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(2f / 3f)
+                            .shadow(elevation = 16.dp, shape = RoundedCornerShape(MangoRadius.panel))
+                            .clip(RoundedCornerShape(MangoRadius.panel))
+                            .background(theme.bg2),
+                    ) {
+                        val cover = details.entry.cover
+                        if (cover != null) {
+                            AsyncImage(
+                                model = cover,
+                                contentDescription = details.entry.title,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    }
+                    continueTarget?.let { (chapter, label) ->
+                        KitButton(
+                            label = label,
+                            onClick = { onOpenChapter(chapter, chapters) },
+                            style = KitButtonStyle.PRIMARY,
+                            modifier = Modifier.fillMaxWidth(),
                         )
                     }
-                }
-                continueTarget?.let { (chapter, label) ->
+                    if (chapters.isNotEmpty()) {
+                        KitButton(
+                            label = "Mark finished",
+                            onClick = onMarkAllFinished,
+                            style = KitButtonStyle.SECONDARY,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                     KitButton(
-                        label = label,
-                        onClick = { onOpenChapter(chapter, chapters) },
-                        style = KitButtonStyle.PRIMARY,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                if (chapters.isNotEmpty()) {
-                    KitButton(
-                        label = "Mark finished",
-                        onClick = onMarkAllFinished,
+                        label = if (inLibrary) "In library — remove" else "Add to library",
+                        onClick = onToggleLibrary,
                         style = KitButtonStyle.SECONDARY,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                }
-                KitButton(
-                    label = if (inLibrary) "In library — remove" else "Add to library",
-                    onClick = onToggleLibrary,
-                    style = KitButtonStyle.SECONDARY,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                KitButton(
-                    label = "Download all",
-                    onClick = { onDownloadAll(details.entry, chapters.filter { it.chapterId !in downloadedChapterIds }) },
-                    style = KitButtonStyle.GHOST,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                KitButton(
-                    label = "Download unread",
-                    onClick = {
-                        onDownloadAll(
-                            details.entry,
-                            chapters.filter { it.chapterId !in finishedChapterIds && it.chapterId !in downloadedChapterIds },
-                        )
-                    },
-                    style = KitButtonStyle.GHOST,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                KitButton(
-                    label = "Download range…",
-                    onClick = { showRangeDialog = true },
-                    style = KitButtonStyle.GHOST,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                if (hasDownloads) {
                     KitButton(
-                        label = "Clear storage",
-                        onClick = { showClearStorageDialog = true },
+                        label = "Download all",
+                        onClick = { onDownloadAll(details.entry, chapters.filter { it.chapterId !in downloadedChapterIds }) },
                         style = KitButtonStyle.GHOST,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                }
-                Spacer(modifier = Modifier.height(MangoSpace.base))
-                MetadataRow(key = "Status", value = details.status.name)
-                if (details.authors.isNotEmpty()) {
-                    MetadataRow(key = "Author", value = details.authors.joinToString(", "))
-                }
-                MetadataRow(key = "Source", value = details.entry.sourceId)
-                if (chapters.isNotEmpty()) {
-                    MetadataRow(
-                        key = "Progress",
-                        value = "${finishedChapterIds.size} of ${chapters.size} read",
-                        accentValue = true,
+                    KitButton(
+                        label = "Download unread",
+                        onClick = {
+                            onDownloadAll(
+                                details.entry,
+                                chapters.filter { it.chapterId !in finishedChapterIds && it.chapterId !in downloadedChapterIds },
+                            )
+                        },
+                        style = KitButtonStyle.GHOST,
+                        modifier = Modifier.fillMaxWidth(),
                     )
-                }
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = details.entry.title,
-                    style = MangoType.display,
-                    color = theme.textPrimary,
-                )
-                if (details.tags.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(MangoSpace.sm))
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs),
-                        verticalArrangement = Arrangement.spacedBy(MangoSpace.xs),
-                    ) {
-                        details.tags.forEach { tag -> GenreChip(tag) }
+                    KitButton(
+                        label = "Download range…",
+                        onClick = { showRangeDialog = true },
+                        style = KitButtonStyle.GHOST,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    if (hasDownloads) {
+                        KitButton(
+                            label = "Clear storage",
+                            onClick = { showClearStorageDialog = true },
+                            style = KitButtonStyle.GHOST,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(MangoSpace.base))
+                    MetadataRow(key = "Status", value = details.status.name)
+                    if (details.authors.isNotEmpty()) {
+                        MetadataRow(key = "Author", value = details.authors.joinToString(", "))
+                    }
+                    MetadataRow(key = "Source", value = details.entry.sourceId)
+                    if (chapters.isNotEmpty()) {
+                        MetadataRow(
+                            key = "Progress",
+                            value = "${finishedChapterIds.size} of ${chapters.size} read",
+                            accentValue = true,
+                        )
                     }
                 }
-                details.description?.let { description ->
-                    Spacer(modifier = Modifier.height(MangoSpace.md))
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = description,
-                        fontSize = 14.sp,
-                        lineHeight = 22.4.sp,
-                        color = theme.textSecondary,
-                        maxLines = 6,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.widthIn(max = 680.dp),
+                        text = details.entry.title,
+                        style = MangoType.display,
+                        color = theme.textPrimary,
                     )
-                }
-                Spacer(modifier = Modifier.height(MangoSpace.lg))
-                Text(
-                    text = "${chapters.size} chapters",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = theme.textPrimary,
-                )
-                Spacer(modifier = Modifier.height(MangoSpace.xs))
-                LazyColumn(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    contentPadding = PaddingValues(bottom = MangoSpace.xl),
-                ) {
-                    items(descendingChapters, key = { it.chapterId }) { chapter ->
-                        ChapterRow(
-                            chapter = chapter,
-                            finished = chapter.chapterId in finishedChapterIds,
-                            downloaded = chapter.chapterId in downloadedChapterIds,
-                            inProgress = latestProgress?.takeIf { it.chapterId == chapter.chapterId && !it.finished },
-                            onOpen = { onOpenChapter(chapter, chapters) },
-                            onDownload = { onDownloadChapter(details.entry, chapter) },
+                    if (details.tags.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(MangoSpace.sm))
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs),
+                            verticalArrangement = Arrangement.spacedBy(MangoSpace.xs),
+                        ) {
+                            details.tags.forEach { tag -> GenreChip(tag) }
+                        }
+                    }
+                    details.description?.let { description ->
+                        Spacer(modifier = Modifier.height(MangoSpace.md))
+                        Text(
+                            text = description,
+                            fontSize = 14.sp,
+                            lineHeight = 22.4.sp,
+                            color = theme.textSecondary,
+                            maxLines = 6,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = 680.dp),
                         )
+                    }
+                    Spacer(modifier = Modifier.height(MangoSpace.lg))
+                    Text(
+                        text = "${chapters.size} chapters",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = theme.textPrimary,
+                    )
+                    Spacer(modifier = Modifier.height(MangoSpace.xs))
+                    LazyColumn(
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        contentPadding = PaddingValues(bottom = MangoSpace.xl),
+                    ) {
+                        items(descendingChapters, key = { it.chapterId }) { chapter ->
+                            ChapterRow(
+                                chapter = chapter,
+                                finished = chapter.chapterId in finishedChapterIds,
+                                downloaded = chapter.chapterId in downloadedChapterIds,
+                                inProgress = latestProgress?.takeIf { it.chapterId == chapter.chapterId && !it.finished },
+                                onOpen = { onOpenChapter(chapter, chapters) },
+                                onDownload = { onDownloadChapter(details.entry, chapter) },
+                            )
+                        }
                     }
                 }
             }
@@ -435,43 +437,45 @@ private fun ChapterDownloadGlyph(onClick: () -> Unit) {
 private fun DetailsSkeleton() {
     val theme = LocalMangoTheme.current
     Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
-        Row(
-            modifier = Modifier.fillMaxSize().padding(start = 48.dp, end = 48.dp, top = 48.dp),
-            horizontalArrangement = Arrangement.spacedBy(40.dp),
-        ) {
-            Column(
-                modifier = Modifier.width(300.dp),
-                verticalArrangement = Arrangement.spacedBy(MangoSpace.sm),
+        ContentColumn(max = MangoSpace.gridMaxWidth) {
+            Row(
+                modifier = Modifier.fillMaxSize().padding(start = 48.dp, end = 48.dp, top = 48.dp),
+                horizontalArrangement = Arrangement.spacedBy(40.dp),
             ) {
-                SkeletonBlock(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(2f / 3f)
-                        .clip(RoundedCornerShape(MangoRadius.panel)),
-                )
-                repeat(2) {
+                Column(
+                    modifier = Modifier.width(300.dp),
+                    verticalArrangement = Arrangement.spacedBy(MangoSpace.sm),
+                ) {
                     SkeletonBlock(
-                        modifier = Modifier.fillMaxWidth().height(38.dp).clip(RoundedCornerShape(MangoRadius.control)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(2f / 3f)
+                            .clip(RoundedCornerShape(MangoRadius.panel)),
                     )
+                    repeat(2) {
+                        SkeletonBlock(
+                            modifier = Modifier.fillMaxWidth().height(38.dp).clip(RoundedCornerShape(MangoRadius.control)),
+                        )
+                    }
                 }
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(MangoSpace.sm),
-            ) {
-                SkeletonBlock(modifier = Modifier.width(320.dp).height(34.dp).clip(RoundedCornerShape(MangoRadius.control)))
-                SkeletonBlock(
-                    modifier = Modifier
-                        .widthIn(max = 680.dp)
-                        .fillMaxWidth()
-                        .height(64.dp)
-                        .clip(RoundedCornerShape(MangoRadius.control)),
-                )
-                Spacer(modifier = Modifier.height(MangoSpace.xs))
-                repeat(6) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(MangoSpace.sm),
+                ) {
+                    SkeletonBlock(modifier = Modifier.width(320.dp).height(34.dp).clip(RoundedCornerShape(MangoRadius.control)))
                     SkeletonBlock(
-                        modifier = Modifier.fillMaxWidth().height(36.dp).clip(RoundedCornerShape(MangoRadius.control)),
+                        modifier = Modifier
+                            .widthIn(max = 680.dp)
+                            .fillMaxWidth()
+                            .height(64.dp)
+                            .clip(RoundedCornerShape(MangoRadius.control)),
                     )
+                    Spacer(modifier = Modifier.height(MangoSpace.xs))
+                    repeat(6) {
+                        SkeletonBlock(
+                            modifier = Modifier.fillMaxWidth().height(36.dp).clip(RoundedCornerShape(MangoRadius.control)),
+                        )
+                    }
                 }
             }
         }

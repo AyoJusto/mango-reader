@@ -52,39 +52,41 @@ fun ExtensionsScreenContent(
 ) {
     val theme = LocalMangoTheme.current
     Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            when {
-                isLoading -> ExtensionsLoadingSkeleton(modifier = Modifier.fillMaxSize())
-                // The initial load has no list to show yet, so its failure takes over the whole
-                // screen; an install/remove failure must not reuse this state or it would blank
-                // an already-loaded list.
-                error != null -> Text(
-                    text = error,
-                    style = MangoType.body,
-                    color = theme.danger,
-                )
-                available.isEmpty() -> EmptyState(
-                    title = "No extensions available",
-                    guidance = "Nothing in the registry right now — press Shift-Shift to search everywhere.",
-                )
-                else -> Column(modifier = Modifier.fillMaxSize()) {
-                    if (actionError != null) {
-                        ErrorBanner(
-                            headline = actionError,
-                            detail = "Your installed sources are untouched below.",
-                            onDismiss = onDismissActionError,
-                            modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        )
-                    }
-                    LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-                        items(available, key = { it.sourceId }) { source ->
-                            ExtensionRow(
-                                source = source,
-                                installedVersion = installed[source.sourceId],
-                                busy = source.sourceId in busy,
-                                onInstall = { onInstall(source) },
-                                onRemove = { onRemove(source) },
+        ContentColumn(max = MangoSpace.contentMaxWidth) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                when {
+                    isLoading -> ExtensionsLoadingSkeleton(modifier = Modifier.fillMaxSize())
+                    // The initial load has no list to show yet, so its failure takes over the whole
+                    // screen; an install/remove failure must not reuse this state or it would blank
+                    // an already-loaded list.
+                    error != null -> Text(
+                        text = error,
+                        style = MangoType.body,
+                        color = theme.danger,
+                    )
+                    available.isEmpty() -> EmptyState(
+                        title = "No extensions available",
+                        guidance = "Nothing in the registry right now — press Shift-Shift to search everywhere.",
+                    )
+                    else -> Column(modifier = Modifier.fillMaxSize()) {
+                        if (actionError != null) {
+                            ErrorBanner(
+                                headline = actionError,
+                                detail = "Your installed sources are untouched below.",
+                                onDismiss = onDismissActionError,
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
                             )
+                        }
+                        LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+                            items(available, key = { it.sourceId }) { source ->
+                                ExtensionRow(
+                                    source = source,
+                                    installedVersion = installed[source.sourceId],
+                                    busy = source.sourceId in busy,
+                                    onInstall = { onInstall(source) },
+                                    onRemove = { onRemove(source) },
+                                )
+                            }
                         }
                     }
                 }

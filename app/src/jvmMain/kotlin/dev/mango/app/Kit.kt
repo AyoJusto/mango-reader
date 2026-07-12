@@ -27,8 +27,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -66,6 +68,23 @@ import coil3.compose.AsyncImage
  * exclusively, never a hardcoded color. Components take data and lambdas only — no
  * screen-specific logic.
  */
+
+/**
+ * Centers screen content in a width-capped column, web-page style. Below [max] the content
+ * fills the window exactly as an unwrapped `fillMaxWidth` would; beyond it, the column stops
+ * growing and centers in the remaining space. Use [MangoSpace.contentMaxWidth] for reading/form
+ * screens and [MangoSpace.gridMaxWidth] for cover grids. The reader never uses this.
+ */
+@Composable
+fun ContentColumn(
+    max: Dp,
+    modifier: Modifier = Modifier,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        Box(modifier = Modifier.widthIn(max = max).fillMaxSize(), content = content)
+    }
+}
 
 /** Shimmer placeholder for a reserved shape whose content is still loading: bg1-bg2-bg1 sweep. */
 @Composable

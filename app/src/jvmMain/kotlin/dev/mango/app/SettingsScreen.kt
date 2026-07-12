@@ -91,163 +91,165 @@ fun SettingsScreenContent(
     var importError by remember { mutableStateOf<String?>(null) }
 
     Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(MangoSpace.screenGutter),
-            verticalArrangement = Arrangement.spacedBy(MangoSpace.xl),
-        ) {
-            Text(text = "Settings", style = MangoType.display, color = theme.textPrimary)
+        ContentColumn(max = MangoSpace.contentMaxWidth) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(MangoSpace.screenGutter),
+                verticalArrangement = Arrangement.spacedBy(MangoSpace.xl),
+            ) {
+                Text(text = "Settings", style = MangoType.display, color = theme.textPrimary)
 
-            SettingsGroup(label = "Appearance") {
-                SettingsRow(
-                    title = "Theme",
-                    subtitle = "${theme.name} · yours to edit",
-                    modifier = Modifier.testTag(settingsEntryTag("Theme")),
-                ) {
-                    Column(horizontalAlignment = Alignment.End) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs)) {
-                            KitButton(
-                                label = "Export .json",
-                                style = KitButtonStyle.SECONDARY,
-                                modifier = Modifier.testTag(settingsEntryTag("Export theme")),
-                                onClick = {
-                                    val chooser = JFileChooser().apply {
-                                        fileFilter = FileNameExtensionFilter("Theme (*.json)", "json")
-                                        selectedFile = File("${theme.name}.json")
-                                    }
-                                    if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
-                                        var target = chooser.selectedFile
-                                        if (!target.name.endsWith(".json")) {
-                                            target = File(target.parentFile, "${target.name}.json")
+                SettingsGroup(label = "Appearance") {
+                    SettingsRow(
+                        title = "Theme",
+                        subtitle = "${theme.name} · yours to edit",
+                        modifier = Modifier.testTag(settingsEntryTag("Theme")),
+                    ) {
+                        Column(horizontalAlignment = Alignment.End) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs)) {
+                                KitButton(
+                                    label = "Export .json",
+                                    style = KitButtonStyle.SECONDARY,
+                                    modifier = Modifier.testTag(settingsEntryTag("Export theme")),
+                                    onClick = {
+                                        val chooser = JFileChooser().apply {
+                                            fileFilter = FileNameExtensionFilter("Theme (*.json)", "json")
+                                            selectedFile = File("${theme.name}.json")
                                         }
-                                        try {
-                                            target.writeText(ThemeJson.encode(theme))
-                                        } catch (e: IOException) {
-                                            settingsLog.log(Level.WARNING, "failed to export theme to $target", e)
-                                        }
-                                    }
-                                },
-                            )
-                            KitButton(
-                                label = "Import…",
-                                style = KitButtonStyle.GHOST,
-                                modifier = Modifier.testTag(settingsEntryTag("Import theme")),
-                                onClick = {
-                                    val chooser = JFileChooser().apply {
-                                        fileFilter = FileNameExtensionFilter("Theme (*.json)", "json")
-                                    }
-                                    if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
-                                        val outcome = try {
-                                            ThemeJson.decode(chooser.selectedFile.readText())
-                                        } catch (e: IOException) {
-                                            ThemeResult.Error("failed to read ${chooser.selectedFile.name}: ${e.message}")
-                                        }
-                                        when (outcome) {
-                                            is ThemeResult.Ok -> {
-                                                importError = null
-                                                onThemeChange(outcome.theme)
+                                        if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
+                                            var target = chooser.selectedFile
+                                            if (!target.name.endsWith(".json")) {
+                                                target = File(target.parentFile, "${target.name}.json")
                                             }
-                                            is ThemeResult.Error -> importError = outcome.message
+                                            try {
+                                                target.writeText(ThemeJson.encode(theme))
+                                            } catch (e: IOException) {
+                                                settingsLog.log(Level.WARNING, "failed to export theme to $target", e)
+                                            }
                                         }
-                                    }
-                                },
-                            )
+                                    },
+                                )
+                                KitButton(
+                                    label = "Import…",
+                                    style = KitButtonStyle.GHOST,
+                                    modifier = Modifier.testTag(settingsEntryTag("Import theme")),
+                                    onClick = {
+                                        val chooser = JFileChooser().apply {
+                                            fileFilter = FileNameExtensionFilter("Theme (*.json)", "json")
+                                        }
+                                        if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+                                            val outcome = try {
+                                                ThemeJson.decode(chooser.selectedFile.readText())
+                                            } catch (e: IOException) {
+                                                ThemeResult.Error("failed to read ${chooser.selectedFile.name}: ${e.message}")
+                                            }
+                                            when (outcome) {
+                                                is ThemeResult.Ok -> {
+                                                    importError = null
+                                                    onThemeChange(outcome.theme)
+                                                }
+                                                is ThemeResult.Error -> importError = outcome.message
+                                            }
+                                        }
+                                    },
+                                )
+                            }
+                            importError?.let { message ->
+                                Text(
+                                    text = message,
+                                    fontSize = 12.sp,
+                                    color = theme.danger,
+                                    modifier = Modifier.padding(top = MangoSpace.base),
+                                )
+                            }
                         }
-                        importError?.let { message ->
+                    }
+                    SettingsDivider()
+                    SettingsRow(title = "Accent", subtitle = "Recolors every accent token instantly") {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs),
+                            modifier = Modifier.testTag(settingsEntryTag("Accent")),
+                        ) {
+                            ACCENT_PRESETS.forEach { (label, color) ->
+                                AccentSwatch(
+                                    label = label,
+                                    color = color,
+                                    selected = color == theme.accent,
+                                    onClick = { onThemeChange(theme.copy(accent = color)) },
+                                )
+                            }
+                        }
+                    }
+                }
+
+                SettingsGroup(label = "Reader") {
+                    var pendingStripWidth by remember(stripWidth) { mutableStateOf(stripWidth) }
+                    SettingsRow(title = "Strip width", subtitle = "Width of the centered reading column") {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
+                            Slider(
+                                value = pendingStripWidth,
+                                onValueChange = { pendingStripWidth = it },
+                                onValueChangeFinished = { onStripWidthChange(pendingStripWidth) },
+                                valueRange = 600f..1400f,
+                                modifier = Modifier.width(180.dp).testTag(settingsEntryTag("Strip width")),
+                            )
                             Text(
-                                text = message,
-                                fontSize = 12.sp,
-                                color = theme.danger,
-                                modifier = Modifier.padding(top = MangoSpace.base),
+                                text = pendingStripWidth.roundToInt().toString(),
+                                style = MangoType.monoChapter,
+                                color = theme.textPrimary,
+                                modifier = Modifier.width(36.dp),
                             )
                         }
                     }
-                }
-                SettingsDivider()
-                SettingsRow(title = "Accent", subtitle = "Recolors every accent token instantly") {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs),
-                        modifier = Modifier.testTag(settingsEntryTag("Accent")),
-                    ) {
-                        ACCENT_PRESETS.forEach { (label, color) ->
-                            AccentSwatch(
-                                label = label,
-                                color = color,
-                                selected = color == theme.accent,
-                                onClick = { onThemeChange(theme.copy(accent = color)) },
+                    SettingsDivider()
+                    var pendingAutoScroll by remember(autoScrollSpeed) { mutableStateOf(autoScrollSpeed) }
+                    SettingsRow(title = "Auto-scroll speed", subtitle = "dp/s while auto-scroll (A) is running") {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
+                            Slider(
+                                value = pendingAutoScroll,
+                                onValueChange = { pendingAutoScroll = it },
+                                onValueChangeFinished = { onAutoScrollSpeedChange(pendingAutoScroll) },
+                                valueRange = 30f..600f,
+                                modifier = Modifier.width(180.dp).testTag(settingsEntryTag("Auto-scroll speed")),
+                            )
+                            Text(
+                                text = pendingAutoScroll.roundToInt().toString(),
+                                style = MangoType.monoChapter,
+                                color = theme.textPrimary,
+                                modifier = Modifier.width(36.dp),
                             )
                         }
                     }
-                }
-            }
-
-            SettingsGroup(label = "Reader") {
-                var pendingStripWidth by remember(stripWidth) { mutableStateOf(stripWidth) }
-                SettingsRow(title = "Strip width", subtitle = "Width of the centered reading column") {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
-                        Slider(
-                            value = pendingStripWidth,
-                            onValueChange = { pendingStripWidth = it },
-                            onValueChangeFinished = { onStripWidthChange(pendingStripWidth) },
-                            valueRange = 600f..1400f,
-                            modifier = Modifier.width(180.dp).testTag(settingsEntryTag("Strip width")),
-                        )
-                        Text(
-                            text = pendingStripWidth.roundToInt().toString(),
-                            style = MangoType.monoChapter,
-                            color = theme.textPrimary,
-                            modifier = Modifier.width(36.dp),
+                    SettingsDivider()
+                    SettingsRow(title = "Hide cursor", subtitle = "Blank the mouse cursor with the reader overlay") {
+                        TogglePill(
+                            checked = hideCursorInReader,
+                            onCheckedChange = onHideCursorInReaderChange,
+                            modifier = Modifier.testTag(settingsEntryTag("Hide cursor")),
                         )
                     }
                 }
-                SettingsDivider()
-                var pendingAutoScroll by remember(autoScrollSpeed) { mutableStateOf(autoScrollSpeed) }
-                SettingsRow(title = "Auto-scroll speed", subtitle = "dp/s while auto-scroll (A) is running") {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
-                        Slider(
-                            value = pendingAutoScroll,
-                            onValueChange = { pendingAutoScroll = it },
-                            onValueChangeFinished = { onAutoScrollSpeedChange(pendingAutoScroll) },
-                            valueRange = 30f..600f,
-                            modifier = Modifier.width(180.dp).testTag(settingsEntryTag("Auto-scroll speed")),
-                        )
-                        Text(
-                            text = pendingAutoScroll.roundToInt().toString(),
-                            style = MangoType.monoChapter,
-                            color = theme.textPrimary,
-                            modifier = Modifier.width(36.dp),
+
+                SettingsGroup(label = "General") {
+                    SettingsRow(title = "Library view") {
+                        SegmentedControl(
+                            options = listOf("Grid", "List"),
+                            selectedIndex = if (libraryView == LIBRARY_VIEW_LIST) 1 else 0,
+                            onSelect = { index -> onLibraryViewChange(if (index == 0) LIBRARY_VIEW_GRID else LIBRARY_VIEW_LIST) },
+                            modifier = Modifier.testTag(settingsEntryTag("Library view")),
                         )
                     }
-                }
-                SettingsDivider()
-                SettingsRow(title = "Hide cursor", subtitle = "Blank the mouse cursor with the reader overlay") {
-                    TogglePill(
-                        checked = hideCursorInReader,
-                        onCheckedChange = onHideCursorInReaderChange,
-                        modifier = Modifier.testTag(settingsEntryTag("Hide cursor")),
-                    )
-                }
-            }
-
-            SettingsGroup(label = "General") {
-                SettingsRow(title = "Library view") {
-                    SegmentedControl(
-                        options = listOf("Grid", "List"),
-                        selectedIndex = if (libraryView == LIBRARY_VIEW_LIST) 1 else 0,
-                        onSelect = { index -> onLibraryViewChange(if (index == 0) LIBRARY_VIEW_GRID else LIBRARY_VIEW_LIST) },
-                        modifier = Modifier.testTag(settingsEntryTag("Library view")),
-                    )
-                }
-                SettingsDivider()
-                SettingsRow(title = "Shortcuts") {
-                    Column(
-                        horizontalAlignment = Alignment.End,
-                        verticalArrangement = Arrangement.spacedBy(MangoSpace.base + 2.dp),
-                        modifier = Modifier.testTag(settingsEntryTag("Shortcuts")),
-                    ) {
-                        ShortcutLine(label = "Command palette", keys = listOf("shift", "shift"))
-                        ShortcutLine(label = "Toggle sidebar", keys = listOf("ctrl", "s"))
+                    SettingsDivider()
+                    SettingsRow(title = "Shortcuts") {
+                        Column(
+                            horizontalAlignment = Alignment.End,
+                            verticalArrangement = Arrangement.spacedBy(MangoSpace.base + 2.dp),
+                            modifier = Modifier.testTag(settingsEntryTag("Shortcuts")),
+                        ) {
+                            ShortcutLine(label = "Command palette", keys = listOf("shift", "shift"))
+                            ShortcutLine(label = "Toggle sidebar", keys = listOf("ctrl", "s"))
+                        }
                     }
                 }
             }

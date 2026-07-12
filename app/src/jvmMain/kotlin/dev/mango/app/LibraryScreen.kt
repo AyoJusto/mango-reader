@@ -82,67 +82,69 @@ fun LibraryScreenContent(
 ) {
     val theme = LocalMangoTheme.current
     Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = MangoSpace.screenGutter, vertical = MangoSpace.lg),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "Library",
-                    style = MangoType.display,
-                    color = theme.textPrimary,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = "${items.size} series",
-                    style = MangoType.caption,
-                    color = theme.textTertiary,
-                    modifier = Modifier.padding(end = MangoSpace.sm),
-                )
-                SegmentedControl(
-                    options = listOf("Grid", "List"),
-                    selectedIndex = if (libraryView == LIBRARY_VIEW_LIST) 1 else 0,
-                    onSelect = { index -> onLibraryViewChange(if (index == 0) LIBRARY_VIEW_GRID else LIBRARY_VIEW_LIST) },
-                )
-            }
-            when {
-                items.isEmpty() -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    EmptyState(
-                        title = "Nothing here yet",
-                        guidance = "Browse sources to add manhwa, or press Shift-Shift to search everywhere.",
-                        ctaLabel = "Browse sources",
-                        onCta = onBrowse,
+        ContentColumn(max = MangoSpace.gridMaxWidth) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = MangoSpace.screenGutter, vertical = MangoSpace.lg),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Library",
+                        style = MangoType.display,
+                        color = theme.textPrimary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        text = "${items.size} series",
+                        style = MangoType.caption,
+                        color = theme.textTertiary,
+                        modifier = Modifier.padding(end = MangoSpace.sm),
+                    )
+                    SegmentedControl(
+                        options = listOf("Grid", "List"),
+                        selectedIndex = if (libraryView == LIBRARY_VIEW_LIST) 1 else 0,
+                        onSelect = { index -> onLibraryViewChange(if (index == 0) LIBRARY_VIEW_GRID else LIBRARY_VIEW_LIST) },
                     )
                 }
-                libraryView == LIBRARY_VIEW_LIST -> LazyColumn(
-                    contentPadding = PaddingValues(horizontal = MangoSpace.screenGutter, vertical = MangoSpace.sm),
-                    modifier = Modifier.fillMaxSize().testTag(LIBRARY_LIST_TEST_TAG),
-                ) {
-                    items(items, key = { "${it.entry.sourceId}/${it.entry.mangaId}" }) { item ->
-                        LibraryListRow(item = item, onClick = { onOpenDetails(item.entry) })
-                    }
-                }
-                else -> LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 196.dp),
-                    contentPadding = PaddingValues(horizontal = MangoSpace.screenGutter, vertical = MangoSpace.sm),
-                    horizontalArrangement = Arrangement.spacedBy(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp),
-                    modifier = Modifier.fillMaxSize().testTag(LIBRARY_GRID_TEST_TAG),
-                ) {
-                    items(items, key = { "${it.entry.sourceId}/${it.entry.mangaId}" }) { item ->
-                        // CoverCard itself checks `finished` before falling back to unreadCount
-                        // for which pill to show, so unreadCount is passed unconditionally here.
-                        CoverCard(
-                            title = item.entry.title,
-                            coverUrl = item.entry.cover,
-                            metaLine = item.metaLine(),
-                            unreadCount = item.unreadCount,
-                            progress = item.readFraction(),
-                            finished = item.isFinished(),
-                            onClick = { onOpenDetails(item.entry) },
+                when {
+                    items.isEmpty() -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        EmptyState(
+                            title = "Nothing here yet",
+                            guidance = "Browse sources to add manhwa, or press Shift-Shift to search everywhere.",
+                            ctaLabel = "Browse sources",
+                            onCta = onBrowse,
                         )
+                    }
+                    libraryView == LIBRARY_VIEW_LIST -> LazyColumn(
+                        contentPadding = PaddingValues(horizontal = MangoSpace.screenGutter, vertical = MangoSpace.sm),
+                        modifier = Modifier.fillMaxSize().testTag(LIBRARY_LIST_TEST_TAG),
+                    ) {
+                        items(items, key = { "${it.entry.sourceId}/${it.entry.mangaId}" }) { item ->
+                            LibraryListRow(item = item, onClick = { onOpenDetails(item.entry) })
+                        }
+                    }
+                    else -> LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 196.dp),
+                        contentPadding = PaddingValues(horizontal = MangoSpace.screenGutter, vertical = MangoSpace.sm),
+                        horizontalArrangement = Arrangement.spacedBy(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(20.dp),
+                        modifier = Modifier.fillMaxSize().testTag(LIBRARY_GRID_TEST_TAG),
+                    ) {
+                        items(items, key = { "${it.entry.sourceId}/${it.entry.mangaId}" }) { item ->
+                            // CoverCard itself checks `finished` before falling back to unreadCount
+                            // for which pill to show, so unreadCount is passed unconditionally here.
+                            CoverCard(
+                                title = item.entry.title,
+                                coverUrl = item.entry.cover,
+                                metaLine = item.metaLine(),
+                                unreadCount = item.unreadCount,
+                                progress = item.readFraction(),
+                                finished = item.isFinished(),
+                                onClick = { onOpenDetails(item.entry) },
+                            )
+                        }
                     }
                 }
             }

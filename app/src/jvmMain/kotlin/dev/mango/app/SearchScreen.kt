@@ -273,78 +273,80 @@ fun SearchScreenContent(
 ) {
     val theme = LocalMangoTheme.current
     Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
-        Column(modifier = Modifier.fillMaxSize().padding(MangoSpace.md)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                StyledSearchField(
-                    value = query,
-                    onValueChange = onQueryChange,
-                    placeholder = "Search all sources…",
-                    onSearch = onSearch,
-                    modifier = Modifier.weight(1f),
-                )
-                Spacer(modifier = Modifier.width(MangoSpace.sm))
-                Text(
-                    text = "${sources.size} source${if (sources.size == 1) "" else "s"}",
-                    style = MangoType.caption,
-                    color = theme.textTertiary,
-                )
-            }
-            Spacer(modifier = Modifier.height(MangoSpace.sm))
-            Row(horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs)) {
-                sources.forEach { source ->
-                    val selected = source.sourceId in enabledSourceIds
-                    Pill(
-                        text = source.name,
-                        container = if (selected) theme.accent.copy(alpha = 0.14f) else theme.surface,
-                        content = if (selected) theme.accent else theme.textSecondary,
-                        modifier = Modifier.clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { onToggleSource(source.sourceId) },
-                        ),
+        ContentColumn(max = MangoSpace.gridMaxWidth) {
+            Column(modifier = Modifier.fillMaxSize().padding(MangoSpace.md)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    StyledSearchField(
+                        value = query,
+                        onValueChange = onQueryChange,
+                        placeholder = "Search all sources…",
+                        onSearch = onSearch,
+                        modifier = Modifier.weight(1f),
                     )
-                }
-            }
-            Spacer(modifier = Modifier.height(MangoSpace.md))
-            // no per-source data and nothing in flight means no search has run yet: show an
-            // idle hint instead of a "No results" section per source. There is deliberately
-            // no whole-screen spinner: each source's section appears the moment that source
-            // answers, so one slow extension never blocks the others' results.
-            val hasSearched =
-                resultsBySource.isNotEmpty() || errorsBySource.isNotEmpty() || pendingSourceIds.isNotEmpty()
-            if (!hasSearched) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Spacer(modifier = Modifier.width(MangoSpace.sm))
                     Text(
-                        text = if (sources.isNotEmpty() && enabledSourceIds.isEmpty()) {
-                            "No sources selected"
-                        } else {
-                            "Search across all installed sources"
-                        },
-                        style = MangoType.body,
-                        color = theme.textSecondary,
+                        text = "${sources.size} source${if (sources.size == 1) "" else "s"}",
+                        style = MangoType.caption,
+                        color = theme.textTertiary,
                     )
                 }
-            } else {
-                // sections reflect what was actually searched (the result/error maps), not the
-                // live chip state: toggling a chip after a search must neither fabricate a
-                // false "No results" section nor hide results already fetched
-                val searchedSources = sources.filter {
-                    it.sourceId in resultsBySource || it.sourceId in errorsBySource ||
-                        it.sourceId in pendingSourceIds
-                }
-                LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(MangoSpace.lg)) {
-                    items(searchedSources, key = { it.sourceId }) { source ->
-                        SearchSourceSection(
-                            source = source,
-                            results = resultsBySource[source.sourceId] ?: emptyList(),
-                            error = errorsBySource[source.sourceId],
-                            challengeUrl = challengeUrlsBySource[source.sourceId],
-                            pending = source.sourceId in pendingSourceIds,
-                            solving = solvingSourceId == source.sourceId,
-                            solveEnabled = solvingSourceId == null,
-                            onOpenDetails = onOpenDetails,
-                            onSolveChallenge = { onSolveChallenge(source.sourceId) },
+                Spacer(modifier = Modifier.height(MangoSpace.sm))
+                Row(horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs)) {
+                    sources.forEach { source ->
+                        val selected = source.sourceId in enabledSourceIds
+                        Pill(
+                            text = source.name,
+                            container = if (selected) theme.accent.copy(alpha = 0.14f) else theme.surface,
+                            content = if (selected) theme.accent else theme.textSecondary,
+                            modifier = Modifier.clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { onToggleSource(source.sourceId) },
+                            ),
                         )
+                    }
+                }
+                Spacer(modifier = Modifier.height(MangoSpace.md))
+                // no per-source data and nothing in flight means no search has run yet: show an
+                // idle hint instead of a "No results" section per source. There is deliberately
+                // no whole-screen spinner: each source's section appears the moment that source
+                // answers, so one slow extension never blocks the others' results.
+                val hasSearched =
+                    resultsBySource.isNotEmpty() || errorsBySource.isNotEmpty() || pendingSourceIds.isNotEmpty()
+                if (!hasSearched) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = if (sources.isNotEmpty() && enabledSourceIds.isEmpty()) {
+                                "No sources selected"
+                            } else {
+                                "Search across all installed sources"
+                            },
+                            style = MangoType.body,
+                            color = theme.textSecondary,
+                        )
+                    }
+                } else {
+                    // sections reflect what was actually searched (the result/error maps), not the
+                    // live chip state: toggling a chip after a search must neither fabricate a
+                    // false "No results" section nor hide results already fetched
+                    val searchedSources = sources.filter {
+                        it.sourceId in resultsBySource || it.sourceId in errorsBySource ||
+                            it.sourceId in pendingSourceIds
+                    }
+                    LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(MangoSpace.lg)) {
+                        items(searchedSources, key = { it.sourceId }) { source ->
+                            SearchSourceSection(
+                                source = source,
+                                results = resultsBySource[source.sourceId] ?: emptyList(),
+                                error = errorsBySource[source.sourceId],
+                                challengeUrl = challengeUrlsBySource[source.sourceId],
+                                pending = source.sourceId in pendingSourceIds,
+                                solving = solvingSourceId == source.sourceId,
+                                solveEnabled = solvingSourceId == null,
+                                onOpenDetails = onOpenDetails,
+                                onSolveChallenge = { onSolveChallenge(source.sourceId) },
+                            )
+                        }
                     }
                 }
             }

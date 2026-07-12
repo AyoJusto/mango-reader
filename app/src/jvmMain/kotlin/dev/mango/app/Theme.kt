@@ -95,6 +95,12 @@ object MangoSpace {
     val lg = 20.dp
     val xl = 28.dp
     val screenGutter = 28.dp
+
+    /** Width ceiling for reading/form screens (settings, lists, details) — content centers beyond it. */
+    val contentMaxWidth = 840.dp
+
+    /** Width ceiling for cover-grid screens; grids stop adding columns past this and center. */
+    val gridMaxWidth = 1320.dp
 }
 
 /** Corner radii, smallest to largest. */

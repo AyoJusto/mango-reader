@@ -232,98 +232,100 @@ fun BrowseScreenContent(
     val theme = LocalMangoTheme.current
 
     Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
-        Column(modifier = Modifier.fillMaxSize().padding(MangoSpace.md)) {
-            val selectedSource = sources.firstOrNull { it.sourceId == selectedSourceId }
-            if (selectedSource != null) {
-                // "updated …" caption from board 07 is skipped: SourceInfo carries no such timestamp.
-                Text(text = selectedSource.name, style = MangoType.title, color = theme.textPrimary)
-                Spacer(modifier = Modifier.height(MangoSpace.sm))
-            }
-            if (sources.isNotEmpty()) {
-                SegmentedControl(
-                    options = sources.map { it.name },
-                    selectedIndex = sources.indexOfFirst { it.sourceId == selectedSourceId },
-                    onSelect = { index -> onSelectSource(sources[index].sourceId) },
-                )
-                Spacer(modifier = Modifier.height(MangoSpace.sm))
-            }
-            StyledSearchField(
-                value = query,
-                onValueChange = onQueryChange,
-                placeholder = "Search…",
-                onSearch = onSearch,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(modifier = Modifier.height(MangoSpace.md))
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                if (selectedSourceId == null) {
-                    // nothing to browse: either the registry read failed (say so honestly) or
-                    // there are genuinely no sources — never the sections-mode hint
-                    Text(
-                        text = sourcesError ?: "No sources installed — add one from the Extensions tab",
-                        style = MangoType.body,
-                        color = if (sourcesError != null) theme.danger else theme.textSecondary,
+        ContentColumn(max = MangoSpace.gridMaxWidth) {
+            Column(modifier = Modifier.fillMaxSize().padding(MangoSpace.md)) {
+                val selectedSource = sources.firstOrNull { it.sourceId == selectedSourceId }
+                if (selectedSource != null) {
+                    // "updated …" caption from board 07 is skipped: SourceInfo carries no such timestamp.
+                    Text(text = selectedSource.name, style = MangoType.title, color = theme.textPrimary)
+                    Spacer(modifier = Modifier.height(MangoSpace.sm))
+                }
+                if (sources.isNotEmpty()) {
+                    SegmentedControl(
+                        options = sources.map { it.name },
+                        selectedIndex = sources.indexOfFirst { it.sourceId == selectedSourceId },
+                        onSelect = { index -> onSelectSource(sources[index].sourceId) },
                     )
-                } else if (searchActive) {
-                    when {
-                        isLoading -> CoverGridSkeleton(modifier = Modifier.fillMaxSize())
-                        error != null -> ChallengeErrorContent(
-                            error = error,
-                            challengeUrl = challengeUrl,
-                            solving = solving,
-                            solveEnabled = solveEnabled,
-                            onSolveChallenge = onSolveChallenge,
+                    Spacer(modifier = Modifier.height(MangoSpace.sm))
+                }
+                StyledSearchField(
+                    value = query,
+                    onValueChange = onQueryChange,
+                    placeholder = "Search…",
+                    onSearch = onSearch,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(modifier = Modifier.height(MangoSpace.md))
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    if (selectedSourceId == null) {
+                        // nothing to browse: either the registry read failed (say so honestly) or
+                        // there are genuinely no sources — never the sections-mode hint
+                        Text(
+                            text = sourcesError ?: "No sources installed — add one from the Extensions tab",
+                            style = MangoType.body,
+                            color = if (sourcesError != null) theme.danger else theme.textSecondary,
                         )
-                        results.isEmpty() -> EmptyState(
-                            title = "No results",
-                            guidance = "Try a different search term.",
-                        )
-                        // no item keys: extension data is untrusted and a duplicate mangaId in one
-                        // response must not crash composition with a duplicate-key exception
-                        else -> LazyVerticalGrid(
-                            columns = GridCells.Adaptive(minSize = BROWSE_COVER_WIDTH),
-                            contentPadding = PaddingValues(0.dp),
-                            horizontalArrangement = Arrangement.spacedBy(18.dp),
-                            verticalArrangement = Arrangement.spacedBy(18.dp),
-                            modifier = Modifier.fillMaxSize(),
-                        ) {
-                            items(results) { entry ->
-                                CoverCard(
-                                    title = entry.title,
-                                    coverUrl = entry.cover,
-                                    metaLine = "",
-                                    unreadCount = null,
-                                    progress = null,
-                                    finished = false,
-                                    onClick = { onOpenDetails(entry) },
-                                )
+                    } else if (searchActive) {
+                        when {
+                            isLoading -> CoverGridSkeleton(modifier = Modifier.fillMaxSize())
+                            error != null -> ChallengeErrorContent(
+                                error = error,
+                                challengeUrl = challengeUrl,
+                                solving = solving,
+                                solveEnabled = solveEnabled,
+                                onSolveChallenge = onSolveChallenge,
+                            )
+                            results.isEmpty() -> EmptyState(
+                                title = "No results",
+                                guidance = "Try a different search term.",
+                            )
+                            // no item keys: extension data is untrusted and a duplicate mangaId in one
+                            // response must not crash composition with a duplicate-key exception
+                            else -> LazyVerticalGrid(
+                                columns = GridCells.Adaptive(minSize = BROWSE_COVER_WIDTH),
+                                contentPadding = PaddingValues(0.dp),
+                                horizontalArrangement = Arrangement.spacedBy(18.dp),
+                                verticalArrangement = Arrangement.spacedBy(18.dp),
+                                modifier = Modifier.fillMaxSize(),
+                            ) {
+                                items(results) { entry ->
+                                    CoverCard(
+                                        title = entry.title,
+                                        coverUrl = entry.cover,
+                                        metaLine = "",
+                                        unreadCount = null,
+                                        progress = null,
+                                        finished = false,
+                                        onClick = { onOpenDetails(entry) },
+                                    )
+                                }
                             }
                         }
-                    }
-                } else {
-                    when {
-                        sectionsLoading -> SectionsSkeleton(modifier = Modifier.fillMaxSize())
-                        sectionsError != null -> ChallengeErrorContent(
-                            error = sectionsError,
-                            challengeUrl = challengeUrl,
-                            solving = solving,
-                            solveEnabled = solveEnabled,
-                            onSolveChallenge = onSolveChallenge,
-                        )
-                        sections.isNotEmpty() -> LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(MangoSpace.md),
-                        ) {
-                            // no item keys: extension-provided section ids are untrusted and a
-                            // duplicate must not crash composition with a duplicate-key exception
-                            items(sections) { section ->
-                                BrowseSectionRow(section = section, onOpenDetails = onOpenDetails)
+                    } else {
+                        when {
+                            sectionsLoading -> SectionsSkeleton(modifier = Modifier.fillMaxSize())
+                            sectionsError != null -> ChallengeErrorContent(
+                                error = sectionsError,
+                                challengeUrl = challengeUrl,
+                                solving = solving,
+                                solveEnabled = solveEnabled,
+                                onSolveChallenge = onSolveChallenge,
+                            )
+                            sections.isNotEmpty() -> LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(MangoSpace.md),
+                            ) {
+                                // no item keys: extension-provided section ids are untrusted and a
+                                // duplicate must not crash composition with a duplicate-key exception
+                                items(sections) { section ->
+                                    BrowseSectionRow(section = section, onOpenDetails = onOpenDetails)
+                                }
                             }
+                            else -> EmptyState(
+                                title = "No discover sections — search this source instead",
+                                guidance = "Try the search field above.",
+                            )
                         }
-                        else -> EmptyState(
-                            title = "No discover sections — search this source instead",
-                            guidance = "Try the search field above.",
-                        )
                     }
                 }
             }
