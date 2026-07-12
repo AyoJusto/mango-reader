@@ -4,6 +4,22 @@ Owner directive: work autonomously through U3–U6 per `design/ui-milestone-plan
 full loop per chunk, best judgment on calls, document everything here. Nothing below
 is a blocker; it is the morning's triage list.
 
+## RESULT: all four chunks shipped — the MU visual pass is complete
+
+- U3 component kit — 7a85ad5
+- U4 Library (grid/list, unread badges, chapter numbers) — ccaf293
+- U5 Reader (immersive overlay, cursor hide, skeletons) — 92790ee
+- U6 all screens + Spotlight palette + new settings — 7df9abb
+- Every chunk: Opus-reviewed SHIP, findings arbitrated + fixed, both suites
+  forced-rerun green (final: core 116, app 134), boards eyeballed by me.
+
+## Accepted review NITs (recorded, no action unless they bother you)
+
+- Sidebar + palette open together: the frosted panel samples already-blurred content
+  (double blur) — sits behind the palette scrim, barely perceptible.
+- "Mark finished" resets saved page positions to 0 for partially-read chapters (they
+  are finished afterward, so Continue skips them — semantically fine).
+
 ## Needs your eyes (couldn't be verified without you)
 
 - U2 live-run items you already verified (frosted sidebar, click-block, hover fade) are
