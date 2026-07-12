@@ -20,10 +20,17 @@ import dev.mango.core.engine.ApplicationHost
 import dev.mango.core.engine.PaperbackExtension
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.HttpTimeout
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.Properties
+
+private const val HTTP_CONNECT_TIMEOUT_MILLIS = 10_000L
+// sized for full image downloads, not just extension API calls; scheduleRequest applies
+// its own tighter timeout inside ApplicationHost for individual bundle-issued requests
+private const val HTTP_REQUEST_TIMEOUT_MILLIS = 120_000L
+private const val HTTP_SOCKET_TIMEOUT_MILLIS = 30_000L
 
 /**
  * The composition root: manual constructor DI, no framework. Wires the production :core
@@ -33,7 +40,14 @@ class AppGraph(dataDir: Path = defaultDataDir()) {
     // db and http stay private: screens talk to the repository ports only (CLAUDE.md
     // boundary); publishing either would hand the UI raw network and DB access
     private val db: MangoDatabase
-    private val http: HttpClient = HttpClient(CIO)
+    private val http: HttpClient = HttpClient(CIO) {
+        engine { requestTimeout = 0 }
+        install(HttpTimeout) {
+            connectTimeoutMillis = HTTP_CONNECT_TIMEOUT_MILLIS
+            requestTimeoutMillis = HTTP_REQUEST_TIMEOUT_MILLIS
+            socketTimeoutMillis = HTTP_SOCKET_TIMEOUT_MILLIS
+        }
+    }
     val library: LibraryRepository
     val catalog: CatalogRepository
     val downloads: DownloadManager
@@ -78,6 +92,7 @@ class AppGraph(dataDir: Path = defaultDataDir()) {
                 error("database is version $v but this app only knows ${MangoDatabase.Schema.version} — app downgrade?")
         }
         db = MangoDatabase(driver)
+        db.cookiesQueries.deleteExpiredCookies(System.currentTimeMillis())
 
         library = SqlLibraryRepository(db)
         catalog = PaperbackCatalogRepository(

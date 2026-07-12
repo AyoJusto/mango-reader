@@ -40,6 +40,7 @@ fun ExtensionsScreenContent(
     busy: Set<String>,
     isLoading: Boolean,
     error: String?,
+    actionError: String? = null,
     onInstall: (AvailableSource) -> Unit,
     onRemove: (AvailableSource) -> Unit,
 ) {
@@ -47,6 +48,9 @@ fun ExtensionsScreenContent(
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             when {
                 isLoading -> CircularProgressIndicator()
+                // The initial load has no list to show yet, so its failure takes over the whole
+                // screen; an install/remove failure must not reuse this state or it would blank
+                // an already-loaded list.
                 error != null -> Text(
                     text = error,
                     style = MaterialTheme.typography.bodyMedium,
@@ -57,53 +61,63 @@ fun ExtensionsScreenContent(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                else -> LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                    items(available, key = { it.sourceId }) { source ->
-                        val installedVersion = installed[source.sourceId]
-                        Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = source.name,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                    )
-                                    Text(
-                                        text = "${source.sourceId} · ${source.language ?: "?"} · v${source.version}",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                                when {
-                                    source.sourceId in busy ->
-                                        CircularProgressIndicator(modifier = Modifier.size(20.dp))
-                                    installedVersion == null -> Button(onClick = { onInstall(source) }) {
-                                        Text("Install")
-                                    }
-                                    installedVersion == source.version -> Row(verticalAlignment = Alignment.CenterVertically) {
+                else -> Column(modifier = Modifier.fillMaxSize()) {
+                    if (actionError != null) {
+                        Text(
+                            text = actionError,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        )
+                    }
+                    LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+                        items(available, key = { it.sourceId }) { source ->
+                            val installedVersion = installed[source.sourceId]
+                            Column {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = "Installed",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.primary,
+                                            text = source.name,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurface,
                                         )
-                                        TextButton(onClick = { onRemove(source) }) {
-                                            Text("Remove")
-                                        }
+                                        Text(
+                                            text = "${source.sourceId} · ${source.language ?: "?"} · v${source.version}",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
                                     }
-                                    else -> Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Button(onClick = { onInstall(source) }) {
-                                            Text("Update to ${source.version}")
+                                    when {
+                                        source.sourceId in busy ->
+                                            CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                                        installedVersion == null -> Button(onClick = { onInstall(source) }) {
+                                            Text("Install")
                                         }
-                                        TextButton(onClick = { onRemove(source) }) {
-                                            Text("Remove")
+                                        installedVersion == source.version -> Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "Installed",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.primary,
+                                            )
+                                            TextButton(onClick = { onRemove(source) }) {
+                                                Text("Remove")
+                                            }
+                                        }
+                                        else -> Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Button(onClick = { onInstall(source) }) {
+                                                Text("Update to ${source.version}")
+                                            }
+                                            TextButton(onClick = { onRemove(source) }) {
+                                                Text("Remove")
+                                            }
                                         }
                                     }
                                 }
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                             }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                         }
                     }
                 }
@@ -124,6 +138,7 @@ fun ExtensionsScreen(repo: ExtensionRepo, catalog: CatalogRepository) {
     var busy by remember { mutableStateOf<Set<String>>(emptySet()) }
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    var actionError by remember { mutableStateOf<String?>(null) }
 
     suspend fun refreshInstalled() {
         installed = catalog.installedSources().associate { it.sourceId to it.version }
@@ -150,11 +165,13 @@ fun ExtensionsScreen(repo: ExtensionRepo, catalog: CatalogRepository) {
         busy = busy,
         isLoading = isLoading,
         error = error,
+        actionError = actionError,
         onInstall = { source ->
             // busy is set synchronously, before the coroutine body runs: a second click on
             // the same row bails here instead of launching a duplicate install
             if (source.sourceId !in busy) {
                 busy = busy + source.sourceId
+                actionError = null
                 scope.launch {
                     try {
                         repo.install(source)
@@ -162,7 +179,7 @@ fun ExtensionsScreen(repo: ExtensionRepo, catalog: CatalogRepository) {
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        error = e.message ?: "Install failed"
+                        actionError = e.message ?: "Install failed"
                     } finally {
                         busy = busy - source.sourceId
                     }
@@ -174,6 +191,7 @@ fun ExtensionsScreen(repo: ExtensionRepo, catalog: CatalogRepository) {
             // same row bails here instead of launching a duplicate uninstall
             if (source.sourceId !in busy) {
                 busy = busy + source.sourceId
+                actionError = null
                 scope.launch {
                     try {
                         catalog.uninstall(source.sourceId)
@@ -181,7 +199,7 @@ fun ExtensionsScreen(repo: ExtensionRepo, catalog: CatalogRepository) {
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        error = e.message ?: "Remove failed"
+                        actionError = e.message ?: "Remove failed"
                     } finally {
                         busy = busy - source.sourceId
                     }

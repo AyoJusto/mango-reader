@@ -489,4 +489,59 @@ class ScreenFlowTest {
 
         assertEquals("c2", opened?.chapterId)
     }
+
+    // Simulates the Reader's back-nav returning to Details: the screen leaves and re-enters
+    // composition with the same DetailsCache instance and no invalidation in between.
+    @Test
+    fun reenteringDetailsWithTheSameCacheSkipsRefetchUntilInvalidated() {
+        val library = FakeLibraryRepository()
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        val chapters = listOf(Chapter(chapterId = "c1", number = 1.0, title = null, publishedAt = null))
+        val catalog = FakeCatalogRepository(
+            details = mapOf(("FlameComics" to "manga-1") to details),
+            chapters = mapOf(("FlameComics" to "manga-1") to chapters),
+        )
+        val cache = DetailsCache()
+        var showDetails by mutableStateOf(true)
+
+        rule.setContent {
+            MangoTheme {
+                if (showDetails) {
+                    DetailsScreen(
+                        sourceId = "FlameComics",
+                        mangaId = "manga-1",
+                        catalog = catalog,
+                        library = library,
+                        downloads = FakeDownloadManager(),
+                        challengeSolver = FakeChallengeSolver(),
+                        cache = cache,
+                        onOpenChapter = { _, _ -> },
+                    )
+                }
+            }
+        }
+        rule.waitForIdle()
+        assertEquals(1, catalog.detailsCallCount)
+        assertEquals(1, catalog.chaptersCallCount)
+
+        // Leave (as if the Reader opened) and come back — same cache, no invalidation.
+        showDetails = false
+        rule.waitForIdle()
+        showDetails = true
+        rule.waitForIdle()
+
+        assertEquals(1, catalog.detailsCallCount)
+        assertEquals(1, catalog.chaptersCallCount)
+
+        // A fresh open from a list screen invalidates first — the next entry refetches.
+        cache.invalidate("FlameComics", "manga-1")
+        showDetails = false
+        rule.waitForIdle()
+        showDetails = true
+        rule.waitForIdle()
+
+        assertEquals(2, catalog.detailsCallCount)
+        assertEquals(2, catalog.chaptersCallCount)
+    }
 }

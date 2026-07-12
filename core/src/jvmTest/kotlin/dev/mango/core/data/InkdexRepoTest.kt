@@ -122,6 +122,34 @@ class InkdexRepoTest {
     }
 
     @Test
+    fun declaredContentLengthOverCapIsRejectedWithoutReadingTheBody() = runTest {
+        val bundleDir = Files.createTempDirectory("inkdex-test")
+        val catalog = newCatalog(bundleDir)
+        val oversized = ByteArray(BundleLoader.MAX_BUNDLE_BYTES + 1)
+        val oversizedLength = oversized.size.toString()
+        val engine = MockEngine { request ->
+            val path = request.url.encodedPath
+            when {
+                path.endsWith("/versioning.json") -> respond(VERSIONING_JSON, HttpStatusCode.OK)
+                path.endsWith("/index.js") -> respond(
+                    oversized,
+                    HttpStatusCode.OK,
+                    headersOf(HttpHeaders.ContentLength, oversizedLength),
+                )
+                else -> respond("", HttpStatusCode.NotFound)
+            }
+        }
+        val repo = InkdexRepo(HttpClient(engine), bundleDir, catalog)
+
+        assertFailsWith<InkdexException> {
+            repo.install(AvailableSource(sourceId = "FlameComics", name = "Flame Comics", version = "1.0.0"))
+        }
+
+        assertFalse(Files.exists(bundleDir.resolve("FlameComics.index.js")))
+        assertTrue(catalog.installedSources().isEmpty())
+    }
+
+    @Test
     fun unsafeSourceIdIsRejectedBeforeAnyNetworkCall() = runTest {
         var networkCalled = false
         val engine = MockEngine {

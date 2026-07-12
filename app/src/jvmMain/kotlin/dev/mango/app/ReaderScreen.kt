@@ -53,6 +53,8 @@ import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import coil3.PlatformContext
+import coil3.SingletonImageLoader
 import coil3.compose.LocalPlatformContext
 import coil3.compose.SubcomposeAsyncImage
 import coil3.network.NetworkHeaders
@@ -83,6 +85,9 @@ private const val CONTROLS_AUTO_HIDE_MS = 2000L
 /** How close (in flattened rows) the last visible item must be to the strip's end before the next chapter auto-loads. */
 private const val AUTO_LOAD_THRESHOLD = 4
 
+/** How many upcoming pages the reader prefetches ahead of the last visible row. */
+private const val PREFETCH_PAGE_COUNT = 5
+
 /** Pointer moves within this distance of the reader's top edge reveal the controls overlay. */
 private val CONTROLS_REVEAL_BAND = 80.dp
 
@@ -102,8 +107,8 @@ data class ReaderSegment(
     val offline: Boolean = false,
 )
 
-/** One row in the flattened, multi-chapter LazyColumn strip. Private: an internal rendering detail. */
-private sealed interface ReaderRow {
+/** One row in the flattened, multi-chapter LazyColumn strip. Internal: a rendering detail shared with the prefetch helper below. */
+internal sealed interface ReaderRow {
     data class PageRow(val segmentIndex: Int, val page: Page) : ReaderRow
     data class DividerRow(val toChapterId: String, val fromLabel: String, val toLabel: String) : ReaderRow
     data object EndFooterRow : ReaderRow
@@ -144,6 +149,25 @@ private fun buildRows(
     }
     return rows
 }
+
+/**
+ * The next up-to-[count] pages strictly after [lastVisibleIndex] in [rows], for network
+ * prefetch. Pages whose segment is offline are skipped (local files need no prefetch) without
+ * consuming the count.
+ */
+internal fun pagesToPrefetch(
+    rows: List<ReaderRow>,
+    segments: List<ReaderSegment>,
+    lastVisibleIndex: Int,
+    count: Int,
+): List<Page> =
+    rows.asSequence()
+        .drop((lastVisibleIndex + 1).coerceAtLeast(0))
+        .filterIsInstance<ReaderRow.PageRow>()
+        .filterNot { segments.getOrNull(it.segmentIndex)?.offline ?: true }
+        .map { it.page }
+        .take(count)
+        .toList()
 
 private data class ReaderPosition(val segmentIndex: Int, val pageIndex: Int)
 
@@ -435,6 +459,9 @@ fun ReaderScreen(
     // Controls only reveal on a near-top hover, not any pointer move anywhere in the reader —
     // computed once in composition, never re-derived per pointer event.
     val topHoverPx = with(density) { CONTROLS_REVEAL_BAND.toPx() }
+    // Captured here (composition), not inside the prefetch effect below (a suspend block, no
+    // CompositionLocal access) — the default renderer's DefaultReaderPage reads the same local.
+    val platformContext = LocalPlatformContext.current
 
     // Local helpers, all reading the vars above fresh at call time — reused by effects and key
     // handlers so the flatten/attribute math lives in exactly one place.
@@ -593,6 +620,26 @@ fun ReaderScreen(
             }
     }
 
+    // Prefetch: warms Coil's cache for the next few pages so they're already loading by the time
+    // the strip scrolls to them. Only for the default renderer — a custom pageContent (tests,
+    // the screenshot harness) must never trigger network enqueues.
+    if (pageContent == null) {
+        LaunchedEffect(sourceId, mangaId, anchorChapterId) {
+            val imageLoader = SingletonImageLoader.get(platformContext)
+            val enqueuedPageUrls = mutableSetOf<String>()
+            snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
+                .collect { lastVisible ->
+                    if (lastVisible == null) return@collect
+                    pagesToPrefetch(currentRows(), displaySegments(), lastVisible, PREFETCH_PAGE_COUNT)
+                        .forEach { page ->
+                            if (enqueuedPageUrls.add(page.url)) {
+                                imageLoader.enqueue(networkPageRequest(platformContext, page))
+                            }
+                        }
+                }
+        }
+    }
+
     LaunchedEffect(visibilityTick) {
         controlsVisible = true
         delay(controlsAutoHideMillis)
@@ -627,36 +674,25 @@ fun ReaderScreen(
     when {
         currentError != null -> Surface(modifier = Modifier.fillMaxSize(), color = ReaderBlack) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = currentError,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                    val url = challengeUrl
-                    if (url != null) {
-                        Button(
-                            onClick = {
-                                scope.launch {
-                                    solving = true
-                                    try {
-                                        if (challengeSolver.solve(sourceId, url)) reloadKey++
-                                    } finally {
-                                        solving = false
-                                    }
+                val url = challengeUrl
+                ChallengeErrorContent(
+                    error = currentError,
+                    challengeUrl = url,
+                    solving = solving,
+                    solveEnabled = !solving,
+                    onSolveChallenge = {
+                        if (url != null) {
+                            scope.launch {
+                                solving = true
+                                try {
+                                    if (challengeSolver.solve(sourceId, url)) reloadKey++
+                                } finally {
+                                    solving = false
                                 }
-                            },
-                            enabled = !solving,
-                        ) { Text("Solve challenge") }
-                        if (solving) {
-                            Text(
-                                text = "Opening browser… (first run downloads it, ~100MB)",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            }
                         }
-                    }
-                }
+                    },
+                )
             }
         }
         segments.isEmpty() -> Surface(modifier = Modifier.fillMaxSize(), color = ReaderBlack) {
@@ -791,23 +827,34 @@ fun ReaderScreen(
  * reader's own offline state — NEVER by inspecting the url string: page URLs come from
  * untrusted extension output and must not be able to point the app at a disk path.
  */
+/**
+ * Builds the network image request for [page] — shared by [DefaultReaderPage] and the reader's
+ * prefetch effect so their headers and decode limits cannot drift apart.
+ */
+private fun networkPageRequest(context: PlatformContext, page: Page): ImageRequest {
+    val headers = NetworkHeaders.Builder().apply {
+        page.headers.forEach { (name, value) -> set(name, value) }
+    }.build()
+    return ImageRequest.Builder(context)
+        .data(page.url)
+        .httpHeaders(headers)
+        // per-request: loader-level cap doesn't reach decode in coil 3.5.0 (ImageLoading.kt)
+        .maxBitmapSize(WebtoonMaxBitmapSize)
+        .build()
+}
+
 @Composable
 private fun DefaultReaderPage(page: Page, local: Boolean) {
     val context = LocalPlatformContext.current
     val request = remember(page, local) {
-        val builder = ImageRequest.Builder(context)
         if (local) {
-            builder.data(File(page.url))
+            ImageRequest.Builder(context)
+                .data(File(page.url))
+                .maxBitmapSize(WebtoonMaxBitmapSize)
+                .build()
         } else {
-            val headers = NetworkHeaders.Builder().apply {
-                page.headers.forEach { (name, value) -> set(name, value) }
-            }.build()
-            builder.data(page.url).httpHeaders(headers)
+            networkPageRequest(context, page)
         }
-        builder
-            // per-request: loader-level cap doesn't reach decode in coil 3.5.0 (ImageLoading.kt)
-            .maxBitmapSize(WebtoonMaxBitmapSize)
-            .build()
     }
     SubcomposeAsyncImage(
         model = request,

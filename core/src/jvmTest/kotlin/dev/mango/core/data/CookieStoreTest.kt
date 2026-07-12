@@ -67,6 +67,18 @@ class CookieStoreTest {
     }
 
     @Test
+    fun deleteExpiredCookiesRemovesOnlyExpiredRows() = runTest {
+        val db = newDb()
+        val store = SqlCookieStore(db, "MangaBat")
+        store.put(StoredCookie(name = "old", value = "x", domain = "example.com", expiresAtMillis = 999_999))
+        store.put(StoredCookie(name = "live", value = "y", domain = "example.com", expiresAtMillis = 1_000_001))
+
+        db.cookiesQueries.deleteExpiredCookies(1_000_000)
+
+        assertEquals(listOf("live"), db.cookiesQueries.selectCookies("MangaBat").executeAsList().map { it.name })
+    }
+
+    @Test
     fun sourcesAreIsolated() = runTest {
         val db = newDb()
         SqlCookieStore(db, "MangaBat").put(StoredCookie(name = "session", value = "abc", domain = "example.com"))

@@ -17,3 +17,7 @@ SELECT * FROM cookie WHERE source_id = ?;
 upsertCookie:
 INSERT OR REPLACE INTO cookie(source_id, name, value, domain, path, expires_at)
 VALUES (?, ?, ?, ?, ?, ?);
+
+-- <= matches the read filter in SqlCookieStore (a cookie expiring exactly now is expired)
+deleteExpiredCookies:
+DELETE FROM cookie WHERE expires_at IS NOT NULL AND expires_at <= ?;

@@ -417,6 +417,10 @@ De-risk the unknown before building around it.
   will 403 (route through host interceptors when a real source needs it, M3+), and the
   download client skips `ApplicationHost`'s per-host rate limit — when the project-wide host
   allowlist lands, the download path must go through the same policy as `scheduleRequest`.
+  Reader page images share this ceiling family (noted R9, 2026-07-11): Coil fetches them with
+  `Page.headers` only — no per-source cookie jar, no pinned UA — so a CF-walled source's pages
+  can 403 in the reader even after a successful solve. Same fix when it lands: route image
+  fetches through the host policy layer.
 - **Cloudflare (built M4.3, mirrors Paperback's manual-check flow).** Detection lives in
   `:core`: `ApplicationHost` turns a Cloudflare-challenge response into a domain
   `ChallengeRequiredException` carrying the URL (M4.3a). Solving lives in `:app`: an embedded

@@ -91,6 +91,7 @@ fun AppShell(
     // Same rationale as browseState: Search's query/results/enabled-sources must survive
     // switching to another tab and back.
     val searchState = remember { SearchState() }
+    val detailsCache = remember { DetailsCache() }
     val scope = rememberCoroutineScope()
 
     // Both branches below live in a Box so PaletteOverlay can render on top of either one as a
@@ -159,15 +160,18 @@ fun AppShell(
                     ) {
                         when (current) {
                             Screen.Library -> LibraryScreen(library) { entry ->
+                                detailsCache.invalidate(entry.sourceId, entry.mangaId)
                                 screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = false)
                             }
                             Screen.Search -> SearchScreen(catalog, challengeSolver, searchState) { entry ->
                                 // Details has no fromSearch case yet: back from a Search-opened
                                 // Details returns to Library, same as fromBrowse = false
                                 // everywhere else that isn't Browse itself.
+                                detailsCache.invalidate(entry.sourceId, entry.mangaId)
                                 screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = false)
                             }
                             Screen.Browse -> BrowseScreen(catalog, challengeSolver, browseState) { entry ->
+                                detailsCache.invalidate(entry.sourceId, entry.mangaId)
                                 screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = true)
                             }
                             Screen.Downloads -> DownloadsScreen(downloads)
@@ -189,6 +193,7 @@ fun AppShell(
                                         library = library,
                                         downloads = downloads,
                                         challengeSolver = challengeSolver,
+                                        cache = detailsCache,
                                         onOpenChapter = { chapter, chapters ->
                                             screen = Screen.Reader(
                                                 sourceId = current.sourceId,
@@ -240,7 +245,12 @@ fun AppShell(
         val tabs = remember {
             paletteTabs(
                 library = library,
-                navigate = { screen = it },
+                navigate = { target ->
+                    // a palette hit is a fresh open, same as a list tap: invalidate so the
+                    // session cache can't serve stale details/chapters on this path
+                    if (target is Screen.Details) detailsCache.invalidate(target.sourceId, target.mangaId)
+                    screen = target
+                },
                 onThemeChange = onThemeChange,
             )
         }

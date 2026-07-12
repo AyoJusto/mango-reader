@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import dev.mango.core.domain.AvailableSource
+import dev.mango.core.domain.ExtensionRepo
 import dev.mango.core.domain.SourceInfo
 import java.nio.file.Files
 import kotlin.test.assertEquals
@@ -92,6 +93,25 @@ class ExtensionsScreenTest {
 
         rule.onNodeWithText("Install").assertExists()
         rule.onAllNodesWithText("Remove").assertCountEquals(1)
+    }
+
+    @Test
+    fun failedInstallShowsTheErrorWithoutBlankingTheList() {
+        val source = AvailableSource(sourceId = "FlameComics", name = "Flame Comics", version = "1.0.0", language = "en")
+        val catalog = FakeCatalogRepository()
+        val repo = object : ExtensionRepo {
+            override suspend fun available(): List<AvailableSource> = listOf(source)
+            override suspend fun install(source: AvailableSource): Nothing = throw RuntimeException("Install failed: network error")
+        }
+
+        rule.setContent { MangoTheme { ExtensionsScreen(repo, catalog) } }
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Install").performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Install failed: network error").assertExists()
+        rule.onNodeWithText(source.name).assertExists()
     }
 
     @Test

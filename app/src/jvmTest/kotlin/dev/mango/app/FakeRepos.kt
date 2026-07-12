@@ -97,6 +97,14 @@ class FakeCatalogRepository(
     var pagesCallCount: Int = 0
         private set
 
+    /** How many times [details] was called — cache tests assert a hit doesn't call through. */
+    var detailsCallCount: Int = 0
+        private set
+
+    /** How many times [chapters] was called — cache tests assert a hit doesn't call through. */
+    var chaptersCallCount: Int = 0
+        private set
+
     /** Records every [setUserAgent] call, keyed by sourceId — no-op otherwise (no cache to evict). */
     val userAgentsBySourceId = mutableMapOf<String, String>()
 
@@ -117,13 +125,17 @@ class FakeCatalogRepository(
     override suspend fun homeSections(sourceId: String): List<HomeSection> =
         sectionsBySource[sourceId] ?: emptyList()
 
-    override suspend fun details(sourceId: String, mangaId: String): MangaDetails =
-        details[sourceId to mangaId]
+    override suspend fun details(sourceId: String, mangaId: String): MangaDetails {
+        detailsCallCount++
+        return details[sourceId to mangaId]
             ?: error("FakeCatalogRepository.details has no canned entry for $sourceId/$mangaId")
+    }
 
-    override suspend fun chapters(sourceId: String, mangaId: String): List<Chapter> =
-        chapters[sourceId to mangaId]
+    override suspend fun chapters(sourceId: String, mangaId: String): List<Chapter> {
+        chaptersCallCount++
+        return chapters[sourceId to mangaId]
             ?: error("FakeCatalogRepository.chapters has no canned entry for $sourceId/$mangaId")
+    }
 
     override suspend fun pages(sourceId: String, mangaId: String, chapterId: String): List<Page> {
         pagesCallCount++

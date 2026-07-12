@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import org.graalvm.polyglot.Context
+import org.graalvm.polyglot.Engine
 import org.graalvm.polyglot.PolyglotException
 import org.graalvm.polyglot.Source
 import org.graalvm.polyglot.Value
@@ -37,10 +38,19 @@ class ExtensionNetworkException(message: String, cause: Throwable? = null) :
  * capability in the context.
  */
 class ExtensionRuntime(
-    private val bundleJs: String,
+    bundleJs: String,
     private val host: ApplicationHost = ApplicationHost(),
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
+    // One Engine + parsed Source per runtime: contexts built on the same Engine share its
+    // code cache, so the bundle parses once per runtime instead of on every call. Sharing
+    // an Engine grants no capabilities — the per-call Context stays the sandbox boundary,
+    // and SandboxTest pins the denials on this engine-attached path too. Never closed
+    // explicitly: dropping the runtime's last reference leaves the engine to the GC.
+    private val engine: Engine = newExtensionEngine()
+    private val bundleSource: Source =
+        Source.newBuilder("js", bundleJs, "bundle.js").cached(true).buildLiteral()
+
     suspend fun <T> withExtension(block: suspend (ExtensionHandle) -> T): T =
         withContext(dispatcher) {
             // handed to ApplicationHost so its dispatch's nested runBlocking (needed because
@@ -48,7 +58,7 @@ class ExtensionRuntime(
             // this call's Job as parent, letting outer cancellation reach an in-flight
             // blocking HTTP call instead of being invisible to it
             val callJob = coroutineContext[Job]
-            newExtensionContext().use { context ->
+            newExtensionContext(engine).use { context ->
                     val application = host.applicationProxyFor(context, callJob)
                     context.getBindings("js").putMember("Application", application)
                     // browser global probed at module top level by the bundles' inlined
@@ -62,7 +72,7 @@ class ExtensionRuntime(
                         },
                     )
                     try {
-                        context.eval(Source.newBuilder("js", bundleJs, "bundle.js").buildLiteral())
+                        context.eval(bundleSource)
                     } catch (e: PolyglotException) {
                         throw ExtensionCallException("bundle failed to evaluate: ${e.message}", e)
                     }
@@ -78,10 +88,19 @@ class ExtensionRuntime(
  * defaults: no host access, no IO, no native, no threads, no process, no class lookup.
  * SandboxTest pins these denials; any new option here must keep it green.
  */
-internal fun newExtensionContext(): Context =
-    Context.newBuilder("js")
+/** The engine every [ExtensionRuntime] shares across its per-call contexts. */
+internal fun newExtensionEngine(): Engine =
+    Engine.newBuilder()
         .option("engine.WarnInterpreterOnly", "false")
         .build()
+
+internal fun newExtensionContext(engine: Engine? = null): Context {
+    val builder = Context.newBuilder("js")
+    // engine.* options belong to whichever level owns the engine; setting one on a context
+    // that was handed an explicit engine is rejected by the polyglot API
+    if (engine != null) builder.engine(engine) else builder.option("engine.WarnInterpreterOnly", "false")
+    return builder.build()
+}
 
 /** A live extension inside one context. Valid only within the withExtension block. */
 class ExtensionHandle internal constructor(

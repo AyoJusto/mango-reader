@@ -6,10 +6,13 @@ import dev.mango.core.domain.ExtensionRepo
 import dev.mango.core.domain.SourceInfo
 import dev.mango.core.engine.BundleLoader
 import io.ktor.client.HttpClient
-import io.ktor.client.call.body
 import io.ktor.client.request.get
+import io.ktor.client.request.prepareGet
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.contentLength
 import io.ktor.http.isSuccess
+import io.ktor.utils.io.readRemaining
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
@@ -17,6 +20,7 @@ import java.security.MessageDigest
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.io.readByteArray
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -87,17 +91,28 @@ class InkdexRepo(
         requireSafeSourceId(source.sourceId)
 
         val url = "$baseUrl/${source.sourceId}/index.js"
-        val response = http.get(url)
-        if (!response.status.isSuccess()) {
-            throw InkdexException("GET $url failed with status ${response.status}")
+        // prepareGet + execute matters: a plain http.get() eagerly saves the ENTIRE body
+        // into memory (the client's default body-saving) before any caller code runs,
+        // which would defeat the size cap below. Inside execute the body stays a stream.
+        val bytes = http.prepareGet(url).execute { response ->
+            if (!response.status.isSuccess()) {
+                throw InkdexException("GET $url failed with status ${response.status}")
+            }
+            val declaredLength = response.contentLength()
+            if (declaredLength != null && declaredLength > BundleLoader.MAX_BUNDLE_BYTES) {
+                throw InkdexException(
+                    "bundle for ${source.sourceId} declares $declaredLength bytes, " +
+                        "max allowed is ${BundleLoader.MAX_BUNDLE_BYTES}"
+                )
+            }
+            // the download owns this cap (BundleLoader's in-memory check is defense-in-depth
+            // on top of it): read at most one byte past the limit so a hostile or broken
+            // registry response is never fully buffered before rejection
+            response.bodyAsChannel().readRemaining(BundleLoader.MAX_BUNDLE_BYTES + 1L).readByteArray()
         }
-        val bytes = response.body<ByteArray>()
-        // the download owns this cap (BundleLoader's in-memory check is defense-in-depth on
-        // top of it) — enforced before anything touches disk or the DB
         if (bytes.size > BundleLoader.MAX_BUNDLE_BYTES) {
             throw InkdexException(
-                "bundle for ${source.sourceId} is ${bytes.size} bytes, " +
-                    "max allowed is ${BundleLoader.MAX_BUNDLE_BYTES}"
+                "bundle for ${source.sourceId} is more than ${BundleLoader.MAX_BUNDLE_BYTES} bytes"
             )
         }
         val sha256 = sha256Hex(bytes)

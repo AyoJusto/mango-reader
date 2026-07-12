@@ -6,14 +6,22 @@ import kotlin.test.assertFailsWith
 
 /**
  * Pins the sandbox: the production context builder must deny every capability beyond
- * pure JS execution. If a future change to [newExtensionContext] opens host access,
- * these fail. Probes run through the exact builder production uses.
+ * pure JS execution. If a future change to [newExtensionContext] or [newExtensionEngine]
+ * opens host access, these fail. Probes run through the exact builders production uses —
+ * both the standalone-context path and the shared-engine path [ExtensionRuntime] runs.
  */
 class SandboxTest {
     private fun probe(js: String) {
         newExtensionContext().use { context ->
             assertFailsWith<PolyglotException>("sandbox must block: $js") {
                 context.eval("js", js)
+            }
+        }
+        newExtensionEngine().use { engine ->
+            newExtensionContext(engine).use { context ->
+                assertFailsWith<PolyglotException>("sandbox must block (shared engine): $js") {
+                    context.eval("js", js)
+                }
             }
         }
     }

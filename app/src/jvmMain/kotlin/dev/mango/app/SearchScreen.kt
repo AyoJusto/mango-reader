@@ -80,11 +80,7 @@ private fun SearchSourceSection(
             }
         }
         if (solving && challengeUrl != null) {
-            Text(
-                text = "Opening browser… (first run downloads it, ~100MB)",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            SolveProgressHint()
         }
         Spacer(modifier = Modifier.height(8.dp))
         when {

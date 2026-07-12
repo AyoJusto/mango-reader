@@ -47,35 +47,6 @@ import kotlinx.coroutines.launch
 import java.util.logging.Level
 import java.util.logging.Logger
 
-/** Error text (+ optional Solve button) shared by Browse's search-mode and sections-mode content. */
-@Composable
-private fun ChallengeErrorContent(
-    error: String,
-    challengeUrl: String?,
-    solving: Boolean,
-    solveEnabled: Boolean,
-    onSolveChallenge: () -> Unit,
-) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = error,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.error,
-        )
-        if (challengeUrl != null) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(onClick = onSolveChallenge, enabled = solveEnabled) { Text("Solve challenge") }
-            if (solving) {
-                Text(
-                    text = "Opening browser… (first run downloads it, ~100MB)",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
-}
-
 /** One discover/home section: title + a horizontal shelf of covers, same look as Search's per-source row. */
 @Composable
 private fun BrowseSectionRow(section: HomeSection, onOpenDetails: (MangaEntry) -> Unit) {

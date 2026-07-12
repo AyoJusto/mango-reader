@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -75,11 +76,13 @@ fun DetailsScreenContent(
     var fromText by remember { mutableStateOf("") }
     var toText by remember { mutableStateOf("") }
     var showClearStorageDialog by remember { mutableStateOf(false) }
+    val ascendingChapters = remember(chapters) { chapters.sortedBy { it.number } }
+    val descendingChapters = remember(chapters) { chapters.sortedByDescending { it.number } }
     // The chapter to resume into, plus its button label — computed once here so the header
     // button and its click handler can't drift. Ascending order (unlike the chapters list
     // below, which the LazyColumn shows newest-first) so "next after latest" walks forward.
     val continueTarget: Pair<Chapter, String>? = run {
-        val ascending = chapters.sortedBy { it.number }
+        val ascending = ascendingChapters
         val latest = latestProgress
         val latestChapter = latest?.let { progress -> ascending.find { it.chapterId == progress.chapterId } }
         when {
@@ -184,7 +187,7 @@ fun DetailsScreenContent(
             )
             LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 items(
-                    chapters.sortedByDescending { it.number },
+                    descendingChapters,
                     key = { it.chapterId },
                 ) { chapter ->
                     Column {
@@ -295,6 +298,25 @@ fun DetailsScreenContent(
 private fun formatDate(instant: kotlin.time.Instant): String =
     instant.toString().substringBefore('T')
 
+/**
+ * Session cache of loaded manga details, keyed by (sourceId, mangaId) — reused only when
+ * returning from the Reader; every fresh open from a list screen invalidates the entry first, so
+ * freshness is unchanged on normal navigation.
+ */
+class DetailsCache {
+    private val entries = mutableStateMapOf<Pair<String, String>, Pair<MangaDetails, List<Chapter>>>()
+
+    fun get(sourceId: String, mangaId: String): Pair<MangaDetails, List<Chapter>>? = entries[sourceId to mangaId]
+
+    fun put(sourceId: String, mangaId: String, details: MangaDetails, chapters: List<Chapter>) {
+        entries[sourceId to mangaId] = details to chapters
+    }
+
+    fun invalidate(sourceId: String, mangaId: String) {
+        entries.remove(sourceId to mangaId)
+    }
+}
+
 /** Stateful loader: loads details + chapters once, tracks library membership. */
 @Composable
 fun DetailsScreen(
@@ -307,6 +329,7 @@ fun DetailsScreen(
     onOpenChapter: (Chapter, List<Chapter>) -> Unit,
     onDownloadChapter: (MangaEntry, Chapter) -> Unit = { _, _ -> },
     onDownloadAll: (MangaEntry, List<Chapter>) -> Unit = { _, _ -> },
+    cache: DetailsCache = remember { DetailsCache() },
 ) {
     var details by remember(sourceId, mangaId) { mutableStateOf<MangaDetails?>(null) }
     var chapters by remember(sourceId, mangaId) { mutableStateOf<List<Chapter>>(emptyList()) }
@@ -329,8 +352,19 @@ fun DetailsScreen(
         error = null
         challengeUrl = null
         try {
-            details = catalog.details(sourceId, mangaId)
-            chapters = catalog.chapters(sourceId, mangaId)
+            val cached = cache.get(sourceId, mangaId)
+            if (cached != null) {
+                details = cached.first
+                chapters = cached.second
+            } else {
+                val loadedDetails = catalog.details(sourceId, mangaId)
+                val loadedChapters = catalog.chapters(sourceId, mangaId)
+                cache.put(sourceId, mangaId, loadedDetails, loadedChapters)
+                details = loadedDetails
+                chapters = loadedChapters
+            }
+            // Cheap local reads: always fresh, so reading just finished in the Reader shows up
+            // immediately even when details/chapters were served from the cache above.
             finishedChapterIds = library.finishedChapterIds(sourceId, mangaId)
             latestProgress = library.latestProgress(sourceId, mangaId)
         } catch (e: CancellationException) {
@@ -348,36 +382,25 @@ fun DetailsScreen(
     when {
         currentError != null -> Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = currentError,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                    val url = challengeUrl
-                    if (url != null) {
-                        Button(
-                            onClick = {
-                                scope.launch {
-                                    solving = true
-                                    try {
-                                        if (challengeSolver.solve(sourceId, url)) reloadKey++
-                                    } finally {
-                                        solving = false
-                                    }
+                val url = challengeUrl
+                ChallengeErrorContent(
+                    error = currentError,
+                    challengeUrl = url,
+                    solving = solving,
+                    solveEnabled = !solving,
+                    onSolveChallenge = {
+                        if (url != null) {
+                            scope.launch {
+                                solving = true
+                                try {
+                                    if (challengeSolver.solve(sourceId, url)) reloadKey++
+                                } finally {
+                                    solving = false
                                 }
-                            },
-                            enabled = !solving,
-                        ) { Text("Solve challenge") }
-                        if (solving) {
-                            Text(
-                                text = "Opening browser… (first run downloads it, ~100MB)",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            }
                         }
-                    }
-                }
+                    },
+                )
             }
         }
         currentDetails == null -> Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
