@@ -158,7 +158,7 @@ fun SettingsScreenContent(
                             importError?.let { message ->
                                 Text(
                                     text = message,
-                                    fontSize = 12.sp,
+                                    style = MangoType.caption,
                                     color = theme.danger,
                                     modifier = Modifier.padding(top = MangoSpace.base),
                                 )
@@ -291,7 +291,7 @@ private fun SettingsRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(text = title, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = theme.textPrimary)
             if (subtitle != null) {
-                Text(text = subtitle, fontSize = 12.sp, color = theme.textTertiary)
+                Text(text = subtitle, style = MangoType.caption, color = theme.textTertiary)
             }
         }
         control()
@@ -340,7 +340,7 @@ private fun AccentSwatch(label: String, color: Color, selected: Boolean, onClick
 private fun ShortcutLine(label: String, keys: List<String>) {
     val theme = LocalMangoTheme.current
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs)) {
-        Text(text = label, fontSize = 12.sp, color = theme.textSecondary)
+        Text(text = label, style = MangoType.caption, color = theme.textSecondary)
         keys.forEach { key -> Keycap(key) }
     }
 }
@@ -366,12 +366,12 @@ private fun TogglePill(checked: Boolean, onCheckedChange: (Boolean) -> Unit, mod
         } else {
             TOGGLE_THUMB_INSET
         },
-        animationSpec = tween(160, easing = MangoMotion.decel),
+        animationSpec = tween(MangoMotion.COVER_HOVER_MS, easing = MangoMotion.decel),
     )
     Box(
         modifier = modifier
             .size(width = TOGGLE_PILL_SIZE.first, height = TOGGLE_PILL_SIZE.second)
-            .clip(RoundedCornerShape(999.dp))
+            .clip(RoundedCornerShape(MangoRadius.pill))
             .background(trackColor)
             .clickable { onCheckedChange(!checked) },
     ) {

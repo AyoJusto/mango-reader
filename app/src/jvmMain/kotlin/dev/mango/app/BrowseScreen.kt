@@ -1,9 +1,6 @@
 package dev.mango.app
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,23 +20,17 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.ChallengeRequiredException
@@ -55,64 +46,6 @@ import java.util.logging.Logger
 
 /** Cover width used by both the search-results grid and the discover shelves: board 07's "5-column feel". */
 private val BROWSE_COVER_WIDTH = 190.dp
-
-/** Board 07's search-input grammar, shared by every text query field on this screen. */
-private val SEARCH_FIELD_RADIUS = MangoRadius.row
-private val SEARCH_FIELD_RING_RADIUS = SEARCH_FIELD_RADIUS + 2.dp
-
-/**
- * The one styled text query field on Browse: bg2 fill, radius 12, a focus ring offset from the
- * control by a bg gap, and an accent caret. Kept file-private and duplicated in SearchScreen.kt
- * rather than added to Kit.kt (out of scope for this restyle).
- */
-@Composable
-private fun StyledSearchField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-    onSearch: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val theme = LocalMangoTheme.current
-    val interaction = remember { MutableInteractionSource() }
-    val focused by interaction.collectIsFocusedAsState()
-    val ring = if (focused) {
-        Modifier.border(2.dp, theme.focus, RoundedCornerShape(SEARCH_FIELD_RING_RADIUS))
-    } else {
-        Modifier
-    }
-    Box(
-        modifier = modifier
-            .then(ring)
-            .padding(2.dp)
-            .clip(RoundedCornerShape(SEARCH_FIELD_RADIUS))
-            .background(theme.bg2)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
-            Text(text = "⌕", style = MangoType.body, color = theme.textTertiary)
-            BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                modifier = Modifier.weight(1f),
-                textStyle = MangoType.body.copy(color = theme.textPrimary),
-                singleLine = true,
-                cursorBrush = SolidColor(theme.accent),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { onSearch() }),
-                interactionSource = interaction,
-                decorationBox = { innerTextField ->
-                    Box {
-                        if (value.isEmpty()) {
-                            Text(text = placeholder, style = MangoType.body, color = theme.textTertiary)
-                        }
-                        innerTextField()
-                    }
-                },
-            )
-        }
-    }
-}
 
 /** Loading placeholder for the search-results grid: shapes mirror [CoverCard]'s cover + title. */
 @Composable
@@ -248,7 +181,7 @@ fun BrowseScreenContent(
                     )
                     Spacer(modifier = Modifier.height(MangoSpace.sm))
                 }
-                StyledSearchField(
+                KitSearchField(
                     value = query,
                     onValueChange = onQueryChange,
                     placeholder = "Search…",
@@ -416,21 +349,21 @@ fun BrowseScreen(
     // never disturbs another source's cache entry. Clears its own stale error AND challenge url
     // at start: a later non-challenge failure must not render a Solve button for an old URL.
     suspend fun fetchSections(sourceId: String) {
-        state.sectionsPending = state.sectionsPending + sourceId
-        state.sectionsErrors = state.sectionsErrors - sourceId
-        state.sectionsChallengeUrls = state.sectionsChallengeUrls - sourceId
+        state.sectionsPending += sourceId
+        state.sectionsErrors -= sourceId
+        state.sectionsChallengeUrls -= sourceId
         try {
             val loaded = catalog.homeSections(sourceId)
-            state.sectionsBySource = state.sectionsBySource + (sourceId to loaded)
+            state.sectionsBySource += (sourceId to loaded)
         } catch (e: CancellationException) {
             throw e
         } catch (e: ChallengeRequiredException) {
-            state.sectionsErrors = state.sectionsErrors + (sourceId to "Protected by Cloudflare")
-            e.url?.let { url -> state.sectionsChallengeUrls = state.sectionsChallengeUrls + (sourceId to url) }
+            state.sectionsErrors += (sourceId to "Protected by Cloudflare")
+            e.url?.let { url -> state.sectionsChallengeUrls += (sourceId to url) }
         } catch (e: Exception) {
-            state.sectionsErrors = state.sectionsErrors + (sourceId to (e.message ?: "Failed to load"))
+            state.sectionsErrors += (sourceId to (e.message ?: "Failed to load"))
         } finally {
-            state.sectionsPending = state.sectionsPending - sourceId
+            state.sectionsPending -= sourceId
         }
     }
 

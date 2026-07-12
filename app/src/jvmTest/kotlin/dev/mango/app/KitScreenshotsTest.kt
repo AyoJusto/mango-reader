@@ -97,14 +97,6 @@ class KitScreenshotsTest {
                         onRetry = {},
                         onDismiss = {},
                     )
-
-                    ChallengeSolvingCard(host = "FlameComics")
-
-                    ChallengeFailedCard(
-                        host = "MangaBat",
-                        onSolveManually = {},
-                        onRetry = {},
-                    )
                 }
             }
         }

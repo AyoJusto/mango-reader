@@ -71,7 +71,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.compose.LocalPlatformContext
@@ -92,6 +91,7 @@ import java.awt.Toolkit
 import java.awt.image.BufferedImage
 import java.io.File
 import kotlin.math.roundToInt
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
@@ -356,7 +356,7 @@ fun ReaderContent(
     }
 }
 
-/** Top-left exit control, per board 05: overlay-token fill, a leading chevron, wired to [onBack]. */
+/** Top-left exit control, per board 05: overlay-token fill, a leading chevron, wired to [onClick]. */
 @Composable
 private fun ReaderBackButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val theme = LocalMangoTheme.current
@@ -416,13 +416,13 @@ private fun ReaderOverlayBar(
                     Row {
                         Text(
                             text = "$pageNumber / $pageCount" + if (offline) " · offline" else "",
-                            fontSize = 11.5.sp,
+                            style = MangoType.meta,
                             color = theme.textSecondary,
                         )
                         if (!offline) {
                             Text(
                                 text = " panels · ${(progress * 100).roundToInt()}%",
-                                fontSize = 11.5.sp,
+                                style = MangoType.meta,
                                 color = theme.textSecondary,
                             )
                         }
@@ -475,7 +475,7 @@ private fun AutoScrollPill(active: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .height(28.dp)
-            .clip(RoundedCornerShape(999.dp))
+            .clip(RoundedCornerShape(MangoRadius.pill))
             .background(theme.accent.copy(alpha = 0.16f))
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp),
@@ -534,23 +534,15 @@ private fun FailedTailRow(
     val theme = LocalMangoTheme.current
     Box(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
         if (challengeUrl != null) {
-            Column(
-                modifier = Modifier
-                    .widthIn(max = 420.dp)
-                    .clip(RoundedCornerShape(MangoRadius.row))
-                    .background(theme.warning.copy(alpha = 0.10f))
-                    .padding(MangoSpace.md),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(MangoSpace.sm),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
-                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(theme.warning))
-                    Text(text = message, style = MangoType.bodyStrong, color = theme.textPrimary)
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
-                    KitButton(label = "Solve challenge", onClick = onSolveChallenge, style = KitButtonStyle.PRIMARY, enabled = !solving)
-                    KitButton(label = "Retry", onClick = onRetry, style = KitButtonStyle.SECONDARY, enabled = !solving)
-                }
+            Box(modifier = Modifier.widthIn(max = 420.dp)) {
+                ChallengeErrorContent(
+                    error = message,
+                    challengeUrl = challengeUrl,
+                    solving = solving,
+                    solveEnabled = !solving,
+                    onSolveChallenge = onSolveChallenge,
+                    onRetry = onRetry,
+                )
             }
         } else {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
@@ -786,7 +778,7 @@ fun ReaderScreen(
             position?.let { p -> segments.getOrNull(p.segmentIndex)?.let { seg -> seg.chapterId to p.pageIndex } }
         }
             .distinctUntilChanged()
-            .debounce(progressDebounceMillis)
+            .debounce(progressDebounceMillis.milliseconds)
             .collect { current ->
                 if (current != null) {
                     library.setProgress(
@@ -882,7 +874,7 @@ fun ReaderScreen(
     LaunchedEffect(revealVersion, paletteVisible) {
         controlsVisible = true
         if (paletteVisible) return@LaunchedEffect
-        delay(controlsAutoHideMillis)
+        delay(controlsAutoHideMillis.milliseconds)
         controlsVisible = false
     }
 
@@ -1075,17 +1067,6 @@ fun ReaderScreen(
 }
 
 /**
- * Default page renderer: a Coil [SubcomposeAsyncImage] carrying the page's host-required
- * headers (auth, referer) through [httpHeaders]. Plain `AsyncImage`'s placeholder slot only
- * takes a static Painter, so this uses SubcomposeAsyncImage to draw a composable loading box
- * (a tinted panel with a spinner) while a page is in flight.
- *
- * [Page] is reused for offline reading too ([ReaderScreen] fills `url` with a local absolute
- * path when the chapter is fully downloaded). Which branch runs is decided by [local] — the
- * reader's own offline state — NEVER by inspecting the url string: page URLs come from
- * untrusted extension output and must not be able to point the app at a disk path.
- */
-/**
  * Builds the network image request for [page] — shared by [DefaultReaderPage] and the reader's
  * prefetch effect so their headers and decode limits cannot drift apart.
  */
@@ -1101,6 +1082,17 @@ private fun networkPageRequest(context: PlatformContext, page: Page): ImageReque
         .build()
 }
 
+/**
+ * Default page renderer: a Coil [SubcomposeAsyncImage] carrying the page's host-required
+ * headers (auth, referer) through [httpHeaders]. Plain `AsyncImage`'s placeholder slot only
+ * takes a static Painter, so this uses SubcomposeAsyncImage to draw a composable loading box
+ * (a tinted panel with a spinner) while a page is in flight.
+ *
+ * [Page] is reused for offline reading too ([ReaderScreen] fills `url` with a local absolute
+ * path when the chapter is fully downloaded). Which branch runs is decided by [local] — the
+ * reader's own offline state — NEVER by inspecting the url string: page URLs come from
+ * untrusted extension output and must not be able to point the app at a disk path.
+ */
 @Composable
 private fun DefaultReaderPage(page: Page, local: Boolean, aspectRatios: MutableMap<String, Float>) {
     val context = LocalPlatformContext.current

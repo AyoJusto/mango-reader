@@ -234,6 +234,9 @@ private val PALETTE_PANEL_WIDTH = 660.dp
 private val PALETTE_PANEL_TOP_OFFSET = 120.dp
 private val PALETTE_RESULTS_MAX_HEIGHT = 600.dp
 
+/** The input row's glyph, query text, and placeholder all share this size — the palette's largest text. */
+private val PALETTE_INPUT_TYPE = TextStyle(fontSize = 19.sp)
+
 /**
  * Pure, data-driven content — the screenshot harness renders this directly. Full-screen scrim
  * (click closes) with a centered, Spotlight-styled panel: an autofocused search field, filter
@@ -376,7 +379,7 @@ fun PaletteContent(
 private fun PaletteInputRow(query: String, onQueryChange: (String) -> Unit, focusRequester: FocusRequester) {
     val theme = LocalMangoTheme.current
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
-        Text(text = "⌕", fontSize = 19.sp, color = theme.textTertiary)
+        Text(text = "⌕", style = PALETTE_INPUT_TYPE, color = theme.textTertiary)
         BasicTextField(
             value = query,
             onValueChange = onQueryChange,
@@ -384,11 +387,11 @@ private fun PaletteInputRow(query: String, onQueryChange: (String) -> Unit, focu
                 .weight(1f)
                 .focusRequester(focusRequester),
             singleLine = true,
-            textStyle = TextStyle(fontSize = 19.sp, color = theme.textPrimary),
+            textStyle = PALETTE_INPUT_TYPE.copy(color = theme.textPrimary),
             cursorBrush = SolidColor(theme.accent),
             decorationBox = { innerTextField ->
                 if (query.isEmpty()) {
-                    Text(text = "Search everywhere…", fontSize = 19.sp, color = theme.textTertiary)
+                    Text(text = "Search everywhere…", style = PALETTE_INPUT_TYPE, color = theme.textTertiary)
                 }
                 innerTextField()
             },
@@ -431,7 +434,7 @@ private fun PaletteResultRow(hit: PaletteHit, selected: Boolean, onClick: () -> 
         PaletteResultTile(category = hit.category, title = hit.title)
         Column(modifier = Modifier.weight(1f)) {
             Text(text = hit.title, fontSize = 13.5.sp, fontWeight = FontWeight.Medium, color = theme.textPrimary)
-            Text(text = hit.subtitle ?: hit.category, fontSize = 11.5.sp, color = theme.textTertiary)
+            Text(text = hit.subtitle ?: hit.category, style = MangoType.meta, color = theme.textTertiary)
         }
         hit.hint?.let { hint -> Keycap(hint) }
     }
@@ -449,7 +452,7 @@ private fun PaletteResultTile(category: String, title: String) {
         contentAlignment = Alignment.Center,
     ) {
         val glyph = PALETTE_CATEGORY_GLYPHS[category] ?: title.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
-        Text(text = glyph, fontSize = 13.sp, color = theme.textSecondary)
+        Text(text = glyph, style = MangoType.label, color = theme.textSecondary)
     }
 }
 
@@ -464,8 +467,8 @@ private fun PaletteFooter(resultCount: Int) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = "↑↓ navigate · ↵ open · tab next filter", fontSize = 11.sp, color = theme.textTertiary)
-            Text(text = resultCount.toString(), fontSize = 11.sp, color = theme.textTertiary)
+            Text(text = "↑↓ navigate · ↵ open · tab next filter", style = MangoType.hint, color = theme.textTertiary)
+            Text(text = resultCount.toString(), style = MangoType.hint, color = theme.textTertiary)
         }
     }
 }

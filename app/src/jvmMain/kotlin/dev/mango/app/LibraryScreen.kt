@@ -1,12 +1,8 @@
 package dev.mango.app
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,7 +24,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,7 +32,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import dev.mango.core.domain.LibraryItem
 import dev.mango.core.domain.LibraryRepository
@@ -159,21 +153,15 @@ fun LibraryScreenContent(
 @Composable
 private fun LibraryListRow(item: LibraryItem, onClick: () -> Unit) {
     val theme = LocalMangoTheme.current
-    val interaction = remember { MutableInteractionSource() }
-    val hovered by interaction.collectIsHoveredAsState()
-    val fill by animateColorAsState(
-        // Same-color-at-zero-alpha rest state; see Chrome.kt's title-bar glyph for why.
-        targetValue = if (hovered) theme.bg1 else theme.bg1.copy(alpha = 0f),
-        animationSpec = tween(MangoMotion.HOVER_MS),
-    )
+    val hover = rememberHoverFill(rest = theme.bg1.copy(alpha = 0f), hover = theme.bg1)
     val fraction = item.readFraction()
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(MangoRadius.control))
-            .background(fill)
-            .hoverable(interaction)
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .background(hover.fill)
+            .hoverable(hover.interaction)
+            .clickable(interactionSource = hover.interaction, indication = null, onClick = onClick)
             .padding(vertical = MangoSpace.xs, horizontal = MangoSpace.sm),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm),
@@ -204,7 +192,7 @@ private fun LibraryListRow(item: LibraryItem, onClick: () -> Unit) {
             )
             Text(
                 text = if (item.isFinished()) "Completed" else item.metaLine(),
-                fontSize = 11.5.sp,
+                style = MangoType.meta,
                 color = theme.textTertiary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -213,14 +201,14 @@ private fun LibraryListRow(item: LibraryItem, onClick: () -> Unit) {
         ProgressTrack(progress = fraction ?: 0f, modifier = Modifier.weight(1f))
         Text(
             text = fraction?.let { "${(it * 100).roundToInt()}%" } ?: "—",
-            fontSize = 12.sp,
+            style = MangoType.caption,
             color = theme.textSecondary,
             textAlign = TextAlign.End,
             modifier = Modifier.width(36.dp),
         )
         Text(
             text = item.lastReadAt?.let { formatDate(it) } ?: "—",
-            fontSize = 12.sp,
+            style = MangoType.caption,
             color = theme.textTertiary,
             modifier = Modifier.width(110.dp),
             textAlign = TextAlign.End,

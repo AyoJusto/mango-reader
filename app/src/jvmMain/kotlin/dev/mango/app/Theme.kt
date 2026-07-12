@@ -80,7 +80,10 @@ object MangoType {
     val title = TextStyle(fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.01).em)
     val bodyStrong = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold)
     val body = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Normal)
+    val label = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Normal)
     val caption = TextStyle(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Normal)
+    val meta = TextStyle(fontSize = 11.5.sp, fontWeight = FontWeight.Normal)
+    val hint = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Normal)
     val microLabel = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Normal, letterSpacing = 0.12.em)
     val monoKeycap = TextStyle(fontSize = 11.sp, fontFamily = FontFamily.Monospace)
     val monoChapter = TextStyle(fontSize = 12.5.sp, fontFamily = FontFamily.Monospace)
@@ -110,6 +113,9 @@ object MangoRadius {
     val row = 12.dp
     val panel = 14.dp
     val large = 18.dp
+
+    /** Large enough to round any control height into a full stadium/circle shape. */
+    val pill = 999.dp
 }
 
 /** Easings and named durations shared by every transition in the app; nothing bounces, nothing exceeds 320 ms. */
@@ -130,8 +136,6 @@ object MangoMotion {
     const val READER_OVERLAY_OUT_MS = 320
     const val READER_IDLE_MS = 1500
     const val READER_PAGE_CROSSFADE_MS = 200
-    const val VIEW_CHANGE_MS = 200
-    val VIEW_CHANGE_RISE = 8.dp
     const val COVER_HOVER_MS = 160
     const val COVER_HOVER_SCALE = 1.03f
     const val PROGRESS_BAR_MS = 300
@@ -143,9 +147,10 @@ object MangoMotion {
 val LocalMangoTheme = staticCompositionLocalOf { MangoDark }
 
 /**
- * Provides [theme] to [LocalMangoTheme] for [content] and maps it onto a Material [ColorScheme]
- * so Material components keep rendering correctly. Screens should prefer [LocalMangoTheme]
- * directly; the Material mapping exists only because Material3 components need one.
+ * Provides [theme] to [LocalMangoTheme] for [content] and maps it onto a Material
+ * [androidx.compose.material3.ColorScheme] so Material components keep rendering correctly.
+ * Screens should prefer [LocalMangoTheme] directly; the Material mapping exists only because
+ * Material3 components need one.
  */
 @Composable
 fun ProvideMangoTheme(theme: MangoTheme, content: @Composable () -> Unit) {

@@ -14,10 +14,12 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -35,12 +37,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -52,10 +57,12 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -103,6 +110,33 @@ fun SkeletonBlock(modifier: Modifier = Modifier) {
     Box(modifier = modifier.background(color))
 }
 
+/**
+ * A hoverable's [interaction] source paired with its animated hover [fill]. [interaction] is
+ * exposed so the same source can also drive `.hoverable()`, `.clickable()`, and any other
+ * interaction-derived state a caller needs (a pressed-scale animation, say), instead of forcing
+ * a second [MutableInteractionSource] to be threaded through by hand.
+ */
+class HoverFill(val interaction: MutableInteractionSource, fillState: State<Color>) {
+    val fill: Color by fillState
+}
+
+/**
+ * Fades between [rest] and [hover] as the returned [HoverFill.interaction] reports hover state.
+ * [rest] must be [hover] at zero alpha — never [Color.Transparent]: a fade toward transparent
+ * black passes through darker mid-frames on the way out, a visible flash at the end of the
+ * hover-exit animation that an alpha-only fade of the same color never produces.
+ */
+@Composable
+fun rememberHoverFill(rest: Color, hover: Color): HoverFill {
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    val fill = animateColorAsState(
+        targetValue = if (hovered) hover else rest,
+        animationSpec = tween(MangoMotion.HOVER_MS),
+    )
+    return HoverFill(interaction, fill)
+}
+
 /** The four button treatments every action in the app uses; see [KitButton]. */
 enum class KitButtonStyle { PRIMARY, SECONDARY, GHOST, DANGER }
 
@@ -123,10 +157,6 @@ fun KitButton(
     modifier: Modifier = Modifier,
 ) {
     val theme = LocalMangoTheme.current
-    val interaction = remember { MutableInteractionSource() }
-    val hovered by interaction.collectIsHoveredAsState()
-    val pressed by interaction.collectIsPressedAsState()
-
     val restFill = when (style) {
         KitButtonStyle.PRIMARY -> theme.accent
         KitButtonStyle.SECONDARY -> theme.surface
@@ -134,10 +164,9 @@ fun KitButton(
         KitButtonStyle.DANGER -> theme.danger.copy(alpha = 0.14f)
     }
     val hoverFill = if (style == KitButtonStyle.GHOST) theme.surface else restFill
-    val fill by animateColorAsState(
-        targetValue = if (hovered) hoverFill else restFill,
-        animationSpec = tween(MangoMotion.HOVER_MS),
-    )
+    val hover = rememberHoverFill(rest = restFill, hover = hoverFill)
+    val interaction = hover.interaction
+    val pressed by interaction.collectIsPressedAsState()
     val contentColor = when (style) {
         KitButtonStyle.PRIMARY -> theme.accentOn
         KitButtonStyle.SECONDARY -> theme.textPrimary
@@ -153,7 +182,7 @@ fun KitButton(
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .height(38.dp)
             .clip(RoundedCornerShape(MangoRadius.control))
-            .background(fill)
+            .background(hover.fill)
             .hoverable(interaction)
             .clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onClick)
             .padding(horizontal = MangoSpace.md),
@@ -198,7 +227,7 @@ fun EmptyState(
         Text(text = title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = theme.textPrimary)
         Text(
             text = guidance,
-            fontSize = 13.sp,
+            style = MangoType.label,
             color = theme.textSecondary,
             textAlign = TextAlign.Center,
         )
@@ -284,20 +313,14 @@ private fun ErrorBannerRetryButton(onClick: () -> Unit) {
 @Composable
 private fun ErrorBannerDismissButton(onClick: () -> Unit) {
     val theme = LocalMangoTheme.current
-    val interaction = remember { MutableInteractionSource() }
-    val hovered by interaction.collectIsHoveredAsState()
-    val fill by animateColorAsState(
-        // Same-color-at-zero-alpha rest state; see Chrome.kt's title-bar glyph for why.
-        targetValue = if (hovered) theme.surface else theme.surface.copy(alpha = 0f),
-        animationSpec = tween(MangoMotion.HOVER_MS),
-    )
+    val hover = rememberHoverFill(rest = theme.surface.copy(alpha = 0f), hover = theme.surface)
     Box(
         modifier = Modifier
             .size(24.dp)
             .clip(CircleShape)
-            .background(fill)
-            .hoverable(interaction)
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick),
+            .background(hover.fill)
+            .hoverable(hover.interaction)
+            .clickable(interactionSource = hover.interaction, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
@@ -320,7 +343,7 @@ fun Pill(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(999.dp))
+            .clip(RoundedCornerShape(MangoRadius.pill))
             .background(container)
             .padding(horizontal = 8.dp, vertical = 3.dp),
     ) {
@@ -339,6 +362,63 @@ fun Keycap(text: String, modifier: Modifier = Modifier) {
             .padding(horizontal = 6.dp, vertical = 2.dp),
     ) {
         Text(text = text, style = MangoType.monoKeycap, color = theme.textPrimary)
+    }
+}
+
+private val KIT_SEARCH_FIELD_RADIUS = MangoRadius.row
+private val KIT_SEARCH_FIELD_RING_RADIUS = KIT_SEARCH_FIELD_RADIUS + 2.dp
+
+/**
+ * The app's styled text query field: bg2 fill, rounded, a focus ring offset from the control by
+ * a bg gap, an accent caret, and a leading search glyph. Single-line; Enter (IME search action)
+ * fires [onSearch]. [placeholder] shows only while [value] is empty.
+ */
+@Composable
+fun KitSearchField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    onSearch: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val theme = LocalMangoTheme.current
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val ring = if (focused) {
+        Modifier.border(2.dp, theme.focus, RoundedCornerShape(KIT_SEARCH_FIELD_RING_RADIUS))
+    } else {
+        Modifier
+    }
+    Box(
+        modifier = modifier
+            .then(ring)
+            .padding(2.dp)
+            .clip(RoundedCornerShape(KIT_SEARCH_FIELD_RADIUS))
+            .background(theme.bg2)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
+            Text(text = "⌕", style = MangoType.body, color = theme.textTertiary)
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier.weight(1f),
+                textStyle = MangoType.body.copy(color = theme.textPrimary),
+                singleLine = true,
+                cursorBrush = SolidColor(theme.accent),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+                interactionSource = interaction,
+                decorationBox = { innerTextField ->
+                    Box {
+                        if (value.isEmpty()) {
+                            Text(text = placeholder, style = MangoType.body, color = theme.textTertiary)
+                        }
+                        innerTextField()
+                    }
+                },
+            )
+        }
     }
 }
 
@@ -407,7 +487,7 @@ private fun SegmentedControlOption(text: String, selected: Boolean, onClick: () 
     val theme = LocalMangoTheme.current
     val interaction = remember { MutableInteractionSource() }
     val fill by animateColorAsState(
-        // Same-color-at-zero-alpha rest state; see Chrome.kt's title-bar glyph for why.
+        // Same-color-at-zero-alpha rest state; see rememberHoverFill's KDoc for why.
         targetValue = if (selected) theme.surface else theme.surface.copy(alpha = 0f),
         animationSpec = tween(MangoMotion.HOVER_MS),
     )
@@ -503,7 +583,7 @@ fun CoverCard(
                     .padding(8.dp),
             ) {
                 Column {
-                    Text(text = metaLine, fontSize = 11.5.sp, color = theme.textSecondary)
+                    Text(text = metaLine, style = MangoType.meta, color = theme.textSecondary)
                     if (progress != null) {
                         Spacer(modifier = Modifier.height(4.dp))
                         ProgressTrack(progress = progress, height = 3.dp)
@@ -522,73 +602,9 @@ fun CoverCard(
         )
         Text(
             text = if (finished) "Completed" else metaLine,
-            fontSize = 11.5.sp,
+            style = MangoType.meta,
             color = theme.textTertiary,
         )
     }
 }
 
-/** Step 1 of the challenge flow: a source's site is being solved, inline where content would load. */
-@Composable
-fun ChallengeSolvingCard(host: String, modifier: Modifier = Modifier) {
-    val theme = LocalMangoTheme.current
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(MangoRadius.row))
-            .background(theme.bg2)
-            .padding(horizontal = MangoSpace.md, vertical = MangoSpace.sm),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm),
-    ) {
-        CircularProgressIndicator(
-            modifier = Modifier.size(16.dp),
-            color = theme.accent,
-            strokeWidth = 2.dp,
-            trackColor = Color.Transparent,
-        )
-        Column {
-            Text(text = "Solving $host's challenge…", style = MangoType.bodyStrong, color = theme.textPrimary)
-            Text(text = "~15 s", style = MangoType.caption, color = theme.textTertiary)
-        }
-    }
-}
-
-/**
- * Step 2 of the challenge flow, on failure: the user did nothing wrong, so this reads as
- * warning — never danger — with a manual-solve escape hatch and a retry.
- */
-@Composable
-fun ChallengeFailedCard(
-    host: String,
-    onSolveManually: () -> Unit,
-    onRetry: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val theme = LocalMangoTheme.current
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(MangoRadius.row))
-            .background(theme.warning.copy(alpha = 0.10f))
-            .padding(MangoSpace.md),
-        verticalArrangement = Arrangement.spacedBy(MangoSpace.sm),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(theme.warning),
-            )
-            Text(text = "$host needs a manual challenge solve", style = MangoType.bodyStrong, color = theme.textPrimary)
-        }
-        Text(
-            text = "This site checks that you're not a bot before it lets mango in. Solve it once and mango remembers.",
-            style = MangoType.caption,
-            color = theme.textSecondary,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
-            KitButton(label = "Solve manually…", onClick = onSolveManually, style = KitButtonStyle.PRIMARY)
-            KitButton(label = "Retry", onClick = onRetry, style = KitButtonStyle.SECONDARY)
-        }
-    }
-}

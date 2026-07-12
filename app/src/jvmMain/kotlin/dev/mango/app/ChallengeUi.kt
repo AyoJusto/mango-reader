@@ -46,7 +46,8 @@ internal fun SolveProgressHint() {
  *
  * [solveEnabled] and [solving] are distinct: a solve running anywhere disables the button
  * ([solveEnabled]), but only the screen whose own solve is running shows the progress hint
- * ([solving]).
+ * ([solving]). [onRetry] is null when the caller has no separate retry action; passing it renders
+ * a secondary Retry button alongside Solve.
  */
 @Composable
 internal fun ChallengeErrorContent(
@@ -55,6 +56,7 @@ internal fun ChallengeErrorContent(
     solving: Boolean,
     solveEnabled: Boolean,
     onSolveChallenge: () -> Unit,
+    onRetry: (() -> Unit)? = null,
 ) {
     val theme = LocalMangoTheme.current
     Column(
@@ -75,12 +77,22 @@ internal fun ChallengeErrorContent(
             Text(text = error, style = MangoType.bodyStrong, color = theme.textPrimary)
         }
         if (challengeUrl != null) {
-            KitButton(
-                label = "Solve challenge",
-                onClick = onSolveChallenge,
-                style = KitButtonStyle.PRIMARY,
-                enabled = solveEnabled,
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
+                KitButton(
+                    label = "Solve challenge",
+                    onClick = onSolveChallenge,
+                    style = KitButtonStyle.PRIMARY,
+                    enabled = solveEnabled,
+                )
+                if (onRetry != null) {
+                    KitButton(
+                        label = "Retry",
+                        onClick = onRetry,
+                        style = KitButtonStyle.SECONDARY,
+                        enabled = solveEnabled,
+                    )
+                }
+            }
             if (solving) {
                 SolveProgressHint()
             }

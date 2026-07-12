@@ -1,12 +1,8 @@
 package dev.mango.app
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -65,6 +61,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
+/** Left column width shared by the loaded layout and its skeleton, so they can't drift apart. */
+private val DETAILS_COVER_COLUMN_WIDTH = 300.dp
+
+/** Screen edge padding shared by the loaded layout and its skeleton, so they can't drift apart. */
+private val DETAILS_PAGE_PADDING = 48.dp
+
 /** Pure, data-driven content — the screenshot harness renders this directly. */
 @Composable
 fun DetailsScreenContent(
@@ -93,11 +95,15 @@ fun DetailsScreenContent(
     Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
         ContentColumn(max = MangoSpace.gridMaxWidth) {
             Row(
-                modifier = Modifier.fillMaxSize().padding(start = 48.dp, end = 48.dp, top = 48.dp),
+                modifier = Modifier.fillMaxSize().padding(
+                    start = DETAILS_PAGE_PADDING,
+                    end = DETAILS_PAGE_PADDING,
+                    top = DETAILS_PAGE_PADDING,
+                ),
                 horizontalArrangement = Arrangement.spacedBy(40.dp),
             ) {
                 Column(
-                    modifier = Modifier.width(300.dp),
+                    modifier = Modifier.width(DETAILS_COVER_COLUMN_WIDTH),
                     verticalArrangement = Arrangement.spacedBy(MangoSpace.sm),
                 ) {
                     Box(
@@ -316,17 +322,22 @@ private fun MetadataRow(key: String, value: String, accentValue: Boolean = false
     }
 }
 
-/** A genre tag chip — display only, not a filter control. */
+/**
+ * A genre tag chip — display only, not a filter control. Kit's [Pill] hardcodes 8/3dp padding
+ * and an 11sp label, which don't match this chip's 11/3dp padding and 12sp label, so this stays
+ * its own composable rather than a [Pill] call; it still shares [MangoRadius.pill] for the
+ * corner radius.
+ */
 @Composable
 private fun GenreChip(text: String) {
     val theme = LocalMangoTheme.current
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
+            .clip(RoundedCornerShape(MangoRadius.pill))
             .background(theme.bg2)
             .padding(horizontal = 11.dp, vertical = 3.dp),
     ) {
-        Text(text = text, fontSize = 12.sp, color = theme.textSecondary)
+        Text(text = text, style = MangoType.caption, color = theme.textSecondary)
     }
 }
 
@@ -345,13 +356,7 @@ private fun ChapterRow(
     onDownload: () -> Unit,
 ) {
     val theme = LocalMangoTheme.current
-    val interaction = remember { MutableInteractionSource() }
-    val hovered by interaction.collectIsHoveredAsState()
-    val fill by animateColorAsState(
-        // Same-color-at-zero-alpha rest state; see Chrome.kt's title-bar glyph for why.
-        targetValue = if (hovered) theme.bg1 else theme.bg1.copy(alpha = 0f),
-        animationSpec = tween(MangoMotion.HOVER_MS),
-    )
+    val hover = rememberHoverFill(rest = theme.bg1.copy(alpha = 0f), hover = theme.bg1)
     val dotColor = when {
         inProgress != null -> theme.accent
         finished -> theme.textPrimary.copy(alpha = 0.25f)
@@ -361,9 +366,9 @@ private fun ChapterRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(MangoRadius.control))
-            .background(fill)
-            .hoverable(interaction)
-            .clickable(interactionSource = interaction, indication = null, onClick = onOpen)
+            .background(hover.fill)
+            .hoverable(hover.interaction)
+            .clickable(interactionSource = hover.interaction, indication = null, onClick = onOpen)
             .padding(horizontal = 12.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm),
@@ -389,20 +394,20 @@ private fun ChapterRow(
             // shows the saved page (the Continue button's grammar), not a percentage.
             inProgress != null -> Text(
                 text = "reading · p. ${inProgress.page + 1}",
-                fontSize = 12.sp,
+                style = MangoType.caption,
                 color = theme.accent,
             )
-            downloaded && !finished -> Text(text = "downloaded", fontSize = 12.sp, color = theme.success)
+            downloaded && !finished -> Text(text = "downloaded", style = MangoType.caption, color = theme.success)
         }
         Text(
             text = chapter.publishedAt?.let { formatDate(it) }.orEmpty(),
-            fontSize = 12.sp,
+            style = MangoType.caption,
             color = theme.textTertiary,
             textAlign = TextAlign.End,
             modifier = Modifier.width(90.dp),
         )
         if (downloaded) {
-            Text(text = "✓", fontSize = 12.sp, color = theme.success)
+            Text(text = "✓", style = MangoType.caption, color = theme.success)
         } else {
             ChapterDownloadGlyph(onClick = onDownload)
         }
@@ -413,22 +418,16 @@ private fun ChapterRow(
 @Composable
 private fun ChapterDownloadGlyph(onClick: () -> Unit) {
     val theme = LocalMangoTheme.current
-    val interaction = remember { MutableInteractionSource() }
-    val hovered by interaction.collectIsHoveredAsState()
-    val fill by animateColorAsState(
-        // Same-color-at-zero-alpha rest state; see Chrome.kt's title-bar glyph for why.
-        targetValue = if (hovered) theme.surface else theme.surface.copy(alpha = 0f),
-        animationSpec = tween(MangoMotion.HOVER_MS),
-    )
+    val hover = rememberHoverFill(rest = theme.surface.copy(alpha = 0f), hover = theme.surface)
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(MangoRadius.keycap))
-            .background(fill)
-            .hoverable(interaction)
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .background(hover.fill)
+            .hoverable(hover.interaction)
+            .clickable(interactionSource = hover.interaction, indication = null, onClick = onClick)
             .padding(horizontal = 6.dp, vertical = 2.dp),
     ) {
-        Text(text = "↓", fontSize = 12.sp, color = theme.textSecondary)
+        Text(text = "↓", style = MangoType.caption, color = theme.textSecondary)
     }
 }
 
@@ -439,11 +438,15 @@ private fun DetailsSkeleton() {
     Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
         ContentColumn(max = MangoSpace.gridMaxWidth) {
             Row(
-                modifier = Modifier.fillMaxSize().padding(start = 48.dp, end = 48.dp, top = 48.dp),
+                modifier = Modifier.fillMaxSize().padding(
+                    start = DETAILS_PAGE_PADDING,
+                    end = DETAILS_PAGE_PADDING,
+                    top = DETAILS_PAGE_PADDING,
+                ),
                 horizontalArrangement = Arrangement.spacedBy(40.dp),
             ) {
                 Column(
-                    modifier = Modifier.width(300.dp),
+                    modifier = Modifier.width(DETAILS_COVER_COLUMN_WIDTH),
                     verticalArrangement = Arrangement.spacedBy(MangoSpace.sm),
                 ) {
                     SkeletonBlock(
@@ -490,12 +493,11 @@ private fun DetailsSkeleton() {
  */
 internal fun continueTarget(chapters: List<Chapter>, latestProgress: ReadProgress?): Pair<Chapter, String>? {
     val ascending = chapters.sortedBy { it.number }
-    val latest = latestProgress
-    val latestChapter = latest?.let { progress -> ascending.find { it.chapterId == progress.chapterId } }
+    val latestChapter = latestProgress?.let { progress -> ascending.find { it.chapterId == progress.chapterId } }
     return when {
-        latest == null || latestChapter == null -> ascending.firstOrNull()?.let { it to "Start reading" }
-        !latest.finished -> latestChapter to
-            "Continue — Ch. ${formatChapterNumber(latestChapter.number)} · p. ${latest.page + 1}"
+        latestProgress == null || latestChapter == null -> ascending.firstOrNull()?.let { it to "Start reading" }
+        !latestProgress.finished -> latestChapter to
+            "Continue — Ch. ${formatChapterNumber(latestChapter.number)} · p. ${latestProgress.page + 1}"
         else -> {
             val next = ascending.getOrNull(ascending.indexOf(latestChapter) + 1)
             next?.let { it to "Continue — Ch. ${formatChapterNumber(it.number)}" }

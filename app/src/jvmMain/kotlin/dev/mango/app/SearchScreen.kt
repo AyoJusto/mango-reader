@@ -1,14 +1,9 @@
 package dev.mango.app
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,9 +18,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -40,9 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -59,82 +49,18 @@ import kotlinx.coroutines.launch
 import java.util.logging.Level
 import java.util.logging.Logger
 
-/** Board 07's search-input grammar, shared by every text query field on this screen. */
-private val SEARCH_FIELD_RADIUS = MangoRadius.row
-private val SEARCH_FIELD_RING_RADIUS = SEARCH_FIELD_RADIUS + 2.dp
-
-/**
- * The one styled text query field on Search: bg2 fill, radius 12, a focus ring offset from the
- * control by a bg gap, and an accent caret. Kept file-private and duplicated in BrowseScreen.kt
- * rather than added to Kit.kt (out of scope for this restyle).
- */
-@Composable
-private fun StyledSearchField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-    onSearch: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val theme = LocalMangoTheme.current
-    val interaction = remember { MutableInteractionSource() }
-    val focused by interaction.collectIsFocusedAsState()
-    val ring = if (focused) {
-        Modifier.border(2.dp, theme.focus, RoundedCornerShape(SEARCH_FIELD_RING_RADIUS))
-    } else {
-        Modifier
-    }
-    Box(
-        modifier = modifier
-            .then(ring)
-            .padding(2.dp)
-            .clip(RoundedCornerShape(SEARCH_FIELD_RADIUS))
-            .background(theme.bg2)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
-            Text(text = "⌕", style = MangoType.body, color = theme.textTertiary)
-            BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                modifier = Modifier.weight(1f),
-                textStyle = MangoType.body.copy(color = theme.textPrimary),
-                singleLine = true,
-                cursorBrush = SolidColor(theme.accent),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { onSearch() }),
-                interactionSource = interaction,
-                decorationBox = { innerTextField ->
-                    Box {
-                        if (value.isEmpty()) {
-                            Text(text = placeholder, style = MangoType.body, color = theme.textTertiary)
-                        }
-                        innerTextField()
-                    }
-                },
-            )
-        }
-    }
-}
-
 /** A result row: 30x42 thumb, title, alpha-only bg1 hover — no ripple, the fill fade is the indication. */
 @Composable
 private fun SearchResultRow(entry: MangaEntry, onClick: () -> Unit) {
     val theme = LocalMangoTheme.current
-    val interaction = remember { MutableInteractionSource() }
-    val hovered by interaction.collectIsHoveredAsState()
-    val rowBg by animateColorAsState(
-        // Same-color-at-zero-alpha rest state, never Color.Transparent, so the exit never flashes.
-        targetValue = if (hovered) theme.bg1 else theme.bg1.copy(alpha = 0f),
-        animationSpec = tween(MangoMotion.HOVER_MS),
-    )
+    val hover = rememberHoverFill(rest = theme.bg1.copy(alpha = 0f), hover = theme.bg1)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(MangoRadius.row))
-            .background(rowBg)
-            .hoverable(interaction)
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .background(hover.fill)
+            .hoverable(hover.interaction)
+            .clickable(interactionSource = hover.interaction, indication = null, onClick = onClick)
             .padding(horizontal = MangoSpace.sm, vertical = MangoSpace.xs),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm),
@@ -276,7 +202,7 @@ fun SearchScreenContent(
         ContentColumn(max = MangoSpace.gridMaxWidth) {
             Column(modifier = Modifier.fillMaxSize().padding(MangoSpace.md)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    StyledSearchField(
+                    KitSearchField(
                         value = query,
                         onValueChange = onQueryChange,
                         placeholder = "Search all sources…",
@@ -416,18 +342,18 @@ fun SearchScreen(
     suspend fun searchOne(sourceId: String, query: String) {
         try {
             val found = catalog.search(sourceId, query)
-            state.results = state.results + (sourceId to found)
-            state.errors = state.errors - sourceId
-            state.challengeUrls = state.challengeUrls - sourceId
+            state.results += (sourceId to found)
+            state.errors -= sourceId
+            state.challengeUrls -= sourceId
         } catch (e: CancellationException) {
             throw e
         } catch (e: ChallengeRequiredException) {
-            state.errors = state.errors + (sourceId to "Protected by Cloudflare")
-            e.url?.let { url -> state.challengeUrls = state.challengeUrls + (sourceId to url) }
+            state.errors += (sourceId to "Protected by Cloudflare")
+            e.url?.let { url -> state.challengeUrls += (sourceId to url) }
         } catch (e: Exception) {
-            state.errors = state.errors + (sourceId to (e.message ?: "Search failed"))
+            state.errors += (sourceId to (e.message ?: "Search failed"))
         } finally {
-            state.pendingSourceIds = state.pendingSourceIds - sourceId
+            state.pendingSourceIds -= sourceId
         }
     }
 

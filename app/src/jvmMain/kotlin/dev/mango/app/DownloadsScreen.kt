@@ -26,7 +26,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.mango.core.domain.Download
 import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.DownloadStatus
@@ -125,7 +124,7 @@ private fun DownloadRow(download: Download) {
                 Spacer(modifier = Modifier.height(MangoSpace.base))
                 Text(
                     text = "${download.pagesDone} / ${download.pagesTotal} pages",
-                    fontSize = 11.5.sp,
+                    style = MangoType.meta,
                     color = theme.textTertiary,
                 )
             }

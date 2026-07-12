@@ -18,9 +18,6 @@ import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 
-/** The merged title bar's height; also the height requested from the JBR native bar. */
-private val TITLE_BAR_HEIGHT = 44.dp
-
 fun main() {
     val graph = AppGraph()
     val settings = Settings(AppGraph.defaultDataDir())

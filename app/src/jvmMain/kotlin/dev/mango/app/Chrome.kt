@@ -1,7 +1,6 @@
 package dev.mango.app
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -15,8 +14,6 @@ import dev.chrisbanes.haze.HazeDefaults
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,7 +41,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,14 +74,13 @@ internal const val SIDEBAR_TOGGLE_TAG = "sidebar-toggle"
 
 /**
  * Handle to a JBR custom title bar merged into the window: the native bar object, its
- * hit-test hook, and the pixel widths the OS reserves for its own controls at either end —
- * captured once at apply time, never hardcoded (they vary with OS, scale, and JBR version).
+ * hit-test hook, and the pixel width the OS reserves for its own controls on the right —
+ * captured once at apply time, never hardcoded (it varies with OS, scale, and JBR version).
  */
 class JbrBar internal constructor(
     private val bar: Any,
     private val forceHitTestMethod: Method,
     val rightInset: Float,
-    val leftInset: Float,
 ) {
     /**
      * Reports the current pointer position's ownership to the native bar: `true` claims it for
@@ -115,8 +110,7 @@ fun applyJbrTitleBar(frame: Frame, heightPx: Float): JbrBar? = try {
         wdIface.getMethod("setCustomTitleBar", Frame::class.java, barIface).invoke(wd, frame, bar)
         val force = barIface.getMethod("forceHitTest", Boolean::class.javaPrimitiveType)
         val rightInset = barIface.getMethod("getRightInset").invoke(bar) as Float
-        val leftInset = barIface.getMethod("getLeftInset").invoke(bar) as Float
-        JbrBar(bar, force, rightInset, leftInset)
+        JbrBar(bar, force, rightInset)
     }
 } catch (t: Throwable) {
     chromeLog.log(Level.INFO, "JBR custom title bar unavailable, falling back to OS decorations", t)
@@ -148,6 +142,9 @@ fun Modifier.jbrHitTest(bar: JbrBar?): Modifier {
     }
 }
 
+/** The merged title bar's height; also the height requested from the JBR native bar. */
+internal val TITLE_BAR_HEIGHT = 44.dp
+
 /**
  * The 44dp merged title bar: sidebar-toggle glyph and app title on the left, a spacer on the
  * right reserving the OS-drawn window controls' width. Never draws min/max/close itself — they
@@ -160,31 +157,28 @@ fun MangoTitleBar(jbrBar: JbrBar?, sidebarOpen: Boolean, onToggleSidebar: () -> 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(44.dp)
+            .height(TITLE_BAR_HEIGHT)
             .background(theme.bg0)
             .jbrHitTest(jbrBar),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Spacer(modifier = Modifier.width(12.dp))
-        val interaction = remember { MutableInteractionSource() }
-        val hovered by interaction.collectIsHoveredAsState()
-        val fill by animateColorAsState(
-            // Rest state is the SAME color at zero alpha, not Color.Transparent: lerping
-            // toward transparent black passes through darker mid-frames (a visible flash
-            // on hover exit); alpha-only animation cannot.
-            targetValue = if (sidebarOpen || hovered) theme.surface else theme.surface.copy(alpha = 0f),
-            animationSpec = tween(MangoMotion.HOVER_MS),
+        // sidebarOpen folds into both rest and hover so the toggle stays lit while the
+        // sidebar is open, regardless of live hover state.
+        val hover = rememberHoverFill(
+            rest = if (sidebarOpen) theme.surface else theme.surface.copy(alpha = 0f),
+            hover = theme.surface,
         )
         Box(
             modifier = Modifier
                 .testTag(SIDEBAR_TOGGLE_TAG)
                 .size(width = 34.dp, height = 28.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(fill)
-                .hoverable(interaction)
+                .background(hover.fill)
+                .hoverable(hover.interaction)
                 // The animated fill IS the indication; the default ripple would double-draw
                 // and flash its own hover layer on exit.
-                .clickable(interactionSource = interaction, indication = null, onClick = onToggleSidebar),
+                .clickable(interactionSource = hover.interaction, indication = null, onClick = onToggleSidebar),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -195,7 +189,7 @@ fun MangoTitleBar(jbrBar: JbrBar?, sidebarOpen: Boolean, onToggleSidebar: () -> 
             )
         }
         Spacer(modifier = Modifier.width(12.dp))
-        Text(text = "mango", fontSize = 13.sp, color = theme.textSecondary)
+        Text(text = "mango", style = MangoType.label, color = theme.textSecondary)
         Spacer(modifier = Modifier.weight(1f))
         val rightInset = jbrBar?.let { with(density) { it.rightInset.toDp() } } ?: 0.dp
         Spacer(modifier = Modifier.width(rightInset))
@@ -260,8 +254,8 @@ fun Sidebar(
                 .padding(start = 10.dp, bottom = 10.dp)
                 .fillMaxHeight()
                 .width(264.dp)
-                .shadow(elevation = 24.dp, shape = RoundedCornerShape(14.dp))
-                .clip(RoundedCornerShape(14.dp))
+                .shadow(elevation = 24.dp, shape = RoundedCornerShape(MangoRadius.panel))
+                .clip(RoundedCornerShape(MangoRadius.panel))
                 .then(
                     if (hazeState != null) {
                         Modifier.hazeEffect(
@@ -351,21 +345,15 @@ private fun SidebarStaggerGroup(groupIndex: Int, content: @Composable ColumnScop
 @Composable
 private fun ContinueCard(item: ContinueItem, onClick: () -> Unit) {
     val theme = LocalMangoTheme.current
-    val interaction = remember { MutableInteractionSource() }
-    val hovered by interaction.collectIsHoveredAsState()
-    val fill by animateColorAsState(
-        // Same-color-at-zero-alpha rest state; see the title-bar glyph for why.
-        targetValue = if (hovered) theme.surface else theme.surface.copy(alpha = 0f),
-        animationSpec = tween(MangoMotion.HOVER_MS),
-    )
+    val hover = rememberHoverFill(rest = theme.surface.copy(alpha = 0f), hover = theme.surface)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(fill)
-            .hoverable(interaction)
+            .clip(RoundedCornerShape(MangoRadius.control))
+            .background(hover.fill)
+            .hoverable(hover.interaction)
             // Same rule as the title-bar glyph: the animated fill is the only indication.
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .clickable(interactionSource = hover.interaction, indication = null, onClick = onClick)
             .padding(vertical = 8.dp, horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -373,7 +361,7 @@ private fun ContinueCard(item: ContinueItem, onClick: () -> Unit) {
         Box(
             modifier = Modifier
                 .size(width = 30.dp, height = 40.dp)
-                .clip(RoundedCornerShape(6.dp))
+                .clip(RoundedCornerShape(MangoRadius.keycap))
                 .background(theme.bg2),
         ) {
             if (item.cover != null) {
@@ -396,7 +384,7 @@ private fun ContinueCard(item: ContinueItem, onClick: () -> Unit) {
             )
             Text(
                 text = item.progressLine,
-                fontSize = 11.sp,
+                style = MangoType.hint,
                 color = theme.textTertiary,
             )
         }
@@ -406,26 +394,21 @@ private fun ContinueCard(item: ContinueItem, onClick: () -> Unit) {
 @Composable
 private fun SidebarNavRow(nav: SidebarNavItem, active: Boolean, pill: String?, onClick: () -> Unit) {
     val theme = LocalMangoTheme.current
-    val interaction = remember { MutableInteractionSource() }
-    val hovered by interaction.collectIsHoveredAsState()
-    val fill by animateColorAsState(
-        // Same-color-at-zero-alpha rest state; see the title-bar glyph for why.
-        targetValue = when {
-            active -> theme.accent.copy(alpha = 0.12f)
-            hovered -> theme.surface
-            else -> theme.surface.copy(alpha = 0f)
-        },
-        animationSpec = tween(MangoMotion.HOVER_MS),
+    // active folds into both rest and hover so it wins over live hover state, same idiom as
+    // the title-bar glyph's sidebarOpen.
+    val hover = rememberHoverFill(
+        rest = if (active) theme.accent.copy(alpha = 0.12f) else theme.surface.copy(alpha = 0f),
+        hover = if (active) theme.accent.copy(alpha = 0.12f) else theme.surface,
     )
     val contentColor = if (active) theme.accent else theme.textSecondary
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(fill)
-            .hoverable(interaction)
+            .clip(RoundedCornerShape(MangoRadius.control))
+            .background(hover.fill)
+            .hoverable(hover.interaction)
             // Same rule as the title-bar glyph: the animated fill is the only indication.
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .clickable(interactionSource = hover.interaction, indication = null, onClick = onClick)
             .padding(vertical = 8.dp, horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -438,19 +421,17 @@ private fun SidebarNavRow(nav: SidebarNavItem, active: Boolean, pill: String?, o
         )
         Text(
             text = nav.label,
-            fontSize = 13.sp,
+            style = MangoType.label,
             color = contentColor,
             modifier = Modifier.weight(1f),
         )
         if (pill != null) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(theme.surface)
-                    .padding(horizontal = 7.dp, vertical = 2.dp),
-            ) {
-                Text(text = pill, fontSize = 11.sp, color = theme.textSecondary)
-            }
+            Pill(
+                text = pill,
+                container = theme.surface,
+                content = theme.textSecondary,
+                fontWeight = FontWeight.Normal,
+            )
         }
     }
 }
