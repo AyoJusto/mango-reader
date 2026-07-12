@@ -339,7 +339,9 @@ private fun SettingsDivider() {
 @Composable
 private fun AccentSwatch(label: String, color: Color, selected: Boolean, onClick: () -> Unit) {
     val theme = LocalMangoTheme.current
-    Box(contentAlignment = Alignment.Center) {
+    // Fixed footprint at ring size: the selection ring must not change the swatch's outer
+    // bounds, or the row jumps vertically and neighbors reflow when the selection moves.
+    Box(modifier = Modifier.size(34.dp), contentAlignment = Alignment.Center) {
         if (selected) {
             Box(
                 modifier = Modifier
