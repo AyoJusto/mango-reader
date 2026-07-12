@@ -18,14 +18,21 @@ core 101 tests + app 87 tests, all verified via forced rerun + JUnit XML.
   auto-scroll → drive loop stranded on the detached listState); fixed at altitude — the
   nav helpers stop auto-scroll themselves — with a regression test. fuzzyScore full-DP
   DEFERRED (owner call; ceiling stays).
-- **Next (owner-triaged, not yet started): R5 — Details chapter list shows "↓" even for
-  downloaded chapters.** Root cause: DetailsScreen never receives download state (downloads
-  flow only outward via onOpenChapter/onDownloadChapter callbacks). Agreed design: pass
-  `downloads` in, derive downloadedChapterIds from observeDownloads() filtered to the manga
-  + DONE (live-updating, cheaper than per-chapter localPages file probes); rows show a
-  disabled ✓; Download all/unread/range skip already-downloaded. Ceiling to record: a DONE
-  row with deleted files still shows the badge (reader already falls back to network).
-  Owner has NOT yet said go — confirm before building.
+- `f0deed4` — R5 SHIPPED: Details shows download state (disabled ✓ on downloaded rows,
+  bulk actions skip what's on disk, all derived live from observeDownloads()) + owner
+  addition: "Clear storage" button on Details (visible only with downloads, one confirm
+  dialog) backed by DownloadManager.clearDownloads — rows deleted first, then a
+  best-effort deepest-first file sweep through the same safeSegment mapping as the write
+  path (Opus review confirmed the delete can't escape the downloads root; symlinks are
+  removed as links, not followed). Ceilings: clear-during-active-download orphans that
+  one chapter's files (next clear removes them); DONE rows with hand-deleted files read
+  as downloaded until cleared.
+- **Triaged, awaiting owner go: R6 — extension removal.** No uninstall exists anywhere
+  (plain omission, never specced). Agreed design: CatalogRepository.uninstall(sourceId)
+  (delete source row + bundle file + evict cached engine — eviction machinery exists),
+  "Remove" button on installed Extensions rows, keep library/downloads/progress data
+  (downloads stay readable offline; live loads fail honestly until reinstall; cascade
+  delete recorded as ceiling, not built).
 
 ## New owner invariant (2026-07-11): search-everywhere completeness
 
