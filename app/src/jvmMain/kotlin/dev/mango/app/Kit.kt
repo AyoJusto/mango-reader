@@ -643,7 +643,8 @@ private const val KIT_DROPDOWN_TYPE_AHEAD_RESET_MS = 750L
  *
  * Keyboard: typing jumps the active row to the first prefix match (case-insensitive, transient
  * buffer), Up/Down step it without wrapping, Enter selects it, Escape dismisses. The active row
- * shares the hover fill treatment; it starts on the selected option, scrolled into view.
+ * shares the hover fill treatment; it starts on the selected option, scrolled into view. While a
+ * prefix is buffered, the trigger echoes it in accent color so typing has visible feedback.
  */
 @Composable
 fun KitDropdown(
@@ -656,7 +657,11 @@ fun KitDropdown(
     var expanded by remember { mutableStateOf(false) }
     var triggerWidthPx by remember { mutableIntStateOf(0) }
     val hover = rememberHoverFill(rest = theme.surface, hover = theme.bg2)
+    val typeAhead = remember(expanded) { TypeAheadState(options, options.indexOf(selected)) }
     Box(modifier = modifier) {
+        // The trigger stays visible above the open menu, so it doubles as the type-ahead echo:
+        // while a prefix is buffered it shows what was typed instead of the selected value.
+        val typing = expanded && typeAhead.buffer.isNotEmpty()
         Row(
             modifier = Modifier
                 .onSizeChanged { triggerWidthPx = it.width }
@@ -669,14 +674,17 @@ fun KitDropdown(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs),
         ) {
-            Text(text = selected, style = MangoType.body, color = theme.textPrimary)
+            Text(
+                text = if (typing) typeAhead.buffer else selected,
+                style = MangoType.body,
+                color = if (typing) theme.accent else theme.textPrimary,
+            )
             Text(text = "▾", style = MangoType.body, color = theme.textTertiary)
         }
         val density = LocalDensity.current
         val triggerWidth = with(density) { triggerWidthPx.toDp() }
         val itemHeightPx = with(density) { KIT_DROPDOWN_ITEM_HEIGHT.roundToPx() }
         val scrollState = rememberScrollState()
-        val typeAhead = remember(expanded) { TypeAheadState(options, options.indexOf(selected)) }
         val menuFocus = remember { FocusRequester() }
         DropdownMenu(
             expanded = expanded,
