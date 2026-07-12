@@ -39,7 +39,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -674,6 +676,11 @@ fun ReaderScreen(
     // Captured here (composition), not inside the prefetch effect below (a suspend block, no
     // CompositionLocal access) — the default renderer's DefaultReaderPage reads the same local.
     val platformContext = LocalPlatformContext.current
+    // Learned width/height ratio per page url, hoisted above the LazyColumn so it survives item
+    // recycling: a page scrolled back into view must reserve its REAL height immediately. If it
+    // collapsed to the fallback ratio and re-grew on load, content above the viewport would
+    // shrink-then-stretch under an upward scroll and the strip's start could never be reached.
+    val pageAspectRatios = remember { mutableStateMapOf<String, Float>() }
 
     // Local helpers, all reading the vars above fresh at call time — reused by effects and key
     // handlers so the flatten/attribute math lives in exactly one place.
@@ -1055,7 +1062,11 @@ fun ReaderScreen(
                     // local-file loading is gated on OUR offline state, never on the shape of
                     // page.url: an extension-returned "URL" must not be able to name a disk path
                     pageContent = { page, offline ->
-                        if (pageContent != null) pageContent(page) else DefaultReaderPage(page, local = offline)
+                        if (pageContent != null) {
+                            pageContent(page)
+                        } else {
+                            DefaultReaderPage(page, local = offline, aspectRatios = pageAspectRatios)
+                        }
                     },
                 )
             }
@@ -1091,7 +1102,7 @@ private fun networkPageRequest(context: PlatformContext, page: Page): ImageReque
 }
 
 @Composable
-private fun DefaultReaderPage(page: Page, local: Boolean) {
+private fun DefaultReaderPage(page: Page, local: Boolean, aspectRatios: MutableMap<String, Float>) {
     val context = LocalPlatformContext.current
     val request = remember(page, local) {
         if (local) {
@@ -1111,15 +1122,26 @@ private fun DefaultReaderPage(page: Page, local: Boolean) {
         filterQuality = FilterQuality.High,
         modifier = Modifier.fillMaxWidth(),
         loading = {
-            // ponytail: 3:4 reserved height; true no-reflow needs page dimensions from source metadata
-            Box(modifier = Modifier.fillMaxWidth().aspectRatio(3f / 4f)) {
+            // ponytail: 3:4 first-load guess, learned ratio thereafter; true first-load
+            // no-reflow needs page dimensions from source metadata
+            Box(modifier = Modifier.fillMaxWidth().aspectRatio(aspectRatios[page.url] ?: (3f / 4f))) {
                 SkeletonBlock(modifier = Modifier.fillMaxSize())
             }
         },
         success = {
-            val alpha = remember(page) { Animatable(0f) }
+            // First reveal = this page's true size was unknown until now: crossfade in. A page
+            // re-entering after recycling shows instantly — re-fading content the user already
+            // saw reads as flicker while scrolling back.
+            val firstReveal = remember(page) { aspectRatios[page.url] == null }
+            val size = painter.intrinsicSize
+            if (size.width > 0f && size.height > 0f) {
+                SideEffect { aspectRatios[page.url] = size.width / size.height }
+            }
+            val alpha = remember(page) { Animatable(if (firstReveal) 0f else 1f) }
             LaunchedEffect(page) {
-                alpha.animateTo(1f, animationSpec = tween(MangoMotion.READER_PAGE_CROSSFADE_MS))
+                if (firstReveal) {
+                    alpha.animateTo(1f, animationSpec = tween(MangoMotion.READER_PAGE_CROSSFADE_MS))
+                }
             }
             Image(
                 painter = painter,
