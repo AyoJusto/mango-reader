@@ -34,6 +34,9 @@ fun main() {
         // Same hoist pattern as theme: the Settings screen's slider applies live, without
         // restarting the app.
         var autoScrollSpeed by remember { mutableStateOf(settings.autoScrollSpeed) }
+        // Same hoist pattern again: the Settings screen's segmented control and the palette's
+        // toggle action both apply live, without restarting the app.
+        var libraryView by remember { mutableStateOf(settings.libraryView) }
         var sidebarOpen by remember { mutableStateOf(false) }
         // Latch for the Ctrl+S toggle: a held key auto-repeats KeyDowns, and each one would
         // re-toggle without it. Set on the first S down, cleared on S up.
@@ -109,6 +112,8 @@ fun main() {
                     palette = palette,
                     sidebarOpen = sidebarOpen,
                     onSidebarChange = { sidebarOpen = it },
+                    libraryView = libraryView,
+                    onLibraryViewChange = { libraryView = it; settings.libraryView = it },
                     jbrBar = jbrBar,
                 )
             }

@@ -136,4 +136,92 @@ class LibraryRepositoryTest {
 
         assertEquals("c2", repo.latestProgress("MangaBat", "m1")?.chapterId)
     }
+
+    @Test
+    fun setProgressThenLatestProgressRoundTripsTheChapterNumber() = runTest {
+        val repo = newRepository()
+
+        repo.setProgress("MangaBat", "m1", "c1", page = 1, chapterNumber = 12.5)
+
+        assertEquals(12.5, repo.latestProgress("MangaBat", "m1")?.chapterNumber)
+        assertEquals(12.5, repo.progress("MangaBat", "m1", "c1")?.chapterNumber)
+    }
+
+    @Test
+    fun unreadCountWithNoProgressRowsEqualsTheFullChapterCount() = runTest {
+        val repo = newRepository()
+        repo.addToLibrary(MangaEntry(sourceId = "MangaBat", mangaId = "m1", title = "Solo Leveling"))
+
+        repo.setChapterCount("MangaBat", "m1", 10)
+
+        val item = repo.observeLibrary().first().single()
+        assertEquals(10, item.unreadCount)
+        assertNull(item.lastReadAt)
+    }
+
+    @Test
+    fun unreadCountDropsByOnePerStartedChapterRegardlessOfFinished() = runTest {
+        val repo = newRepository()
+        repo.addToLibrary(MangaEntry(sourceId = "MangaBat", mangaId = "m1", title = "Solo Leveling"))
+        repo.setChapterCount("MangaBat", "m1", 10)
+
+        // c1 is only opened (not finished) — still counts as started, not unread.
+        repo.setProgress("MangaBat", "m1", "c1", page = 0, finished = false)
+        repo.setProgress("MangaBat", "m1", "c2", page = 5, finished = true)
+
+        val item = repo.observeLibrary().first().single()
+        assertEquals(8, item.unreadCount)
+    }
+
+    @Test
+    fun unreadCountIsZeroWhenEveryChapterHasBeenStarted() = runTest {
+        val repo = newRepository()
+        repo.addToLibrary(MangaEntry(sourceId = "MangaBat", mangaId = "m1", title = "Solo Leveling"))
+        repo.setChapterCount("MangaBat", "m1", 2)
+
+        repo.setProgress("MangaBat", "m1", "c1", page = 0, finished = true)
+        repo.setProgress("MangaBat", "m1", "c2", page = 0, finished = true)
+
+        assertEquals(0, repo.observeLibrary().first().single().unreadCount)
+    }
+
+    @Test
+    fun unreadCountWithZeroChapterCountStaysZeroNotNegative() = runTest {
+        val repo = newRepository()
+        repo.addToLibrary(MangaEntry(sourceId = "MangaBat", mangaId = "m1", title = "Solo Leveling"))
+
+        // chapter_count defaults to 0 (never loaded via Details yet); a stray progress row must
+        // not drive the MAX(0, ...) floor negative.
+        repo.setProgress("MangaBat", "m1", "c1", page = 0, finished = true)
+
+        assertEquals(0, repo.observeLibrary().first().single().unreadCount)
+    }
+
+    @Test
+    fun lastReadAtIsNullUntilTheFirstProgressWriteThenTracksTheLatest() = runTest {
+        val repo = newRepository()
+        repo.addToLibrary(MangaEntry(sourceId = "MangaBat", mangaId = "m1", title = "Solo Leveling"))
+        assertNull(repo.observeLibrary().first().single().lastReadAt)
+
+        repo.setProgress("MangaBat", "m1", "c1", page = 1)
+        repo.setProgress("MangaBat", "m1", "c2", page = 2)
+
+        val item = repo.observeLibrary().first().single()
+        val latest = repo.latestProgress("MangaBat", "m1")
+        assertEquals(latest?.updatedAt, item.lastReadAt)
+    }
+
+    @Test
+    fun addingToLibraryAgainPreservesTheChapterCountInsteadOfResettingIt() = runTest {
+        val repo = newRepository()
+        val entry = MangaEntry(sourceId = "MangaBat", mangaId = "m1", title = "Solo Leveling")
+        repo.addToLibrary(entry)
+        repo.setChapterCount("MangaBat", "m1", 42)
+
+        // Re-adding an already-library manga happens on every chapter download of an existing
+        // series (AppShell.onDownloadChapter), not just the first add.
+        repo.addToLibrary(entry.copy(title = "Solo Leveling (renamed)"))
+
+        assertEquals(42, repo.observeLibrary().first().single().unreadCount)
+    }
 }

@@ -1,0 +1,7 @@
+-- v4 -> v5: the Library screen's grid/list views need per-series unread counts and last-read
+-- times without looping chapters in Kotlin. chapter_count is a cached copy of the last chapters
+-- load (there is no count-only catalog query) so the unread math can live entirely in SQL;
+-- chapter_number lets the sidebar's Continue cards show "Ch. N" instead of a raw saved page.
+
+ALTER TABLE library_item ADD COLUMN chapter_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE read_progress ADD COLUMN chapter_number REAL NOT NULL DEFAULT 0;

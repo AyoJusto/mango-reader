@@ -41,7 +41,7 @@ import kotlin.math.roundToInt
  * derives its Settings hits from. A new setting is not done until it is registered here; the
  * completeness tests in PaletteFlowTest/SettingsScreenTest fail otherwise.
  */
-val SETTINGS_ENTRIES = listOf("Theme", "Accent", "Export theme", "Import theme", "Auto-scroll speed")
+val SETTINGS_ENTRIES = listOf("Theme", "Accent", "Export theme", "Import theme", "Auto-scroll speed", "Library view")
 
 private val settingsLog = Logger.getLogger("SettingsScreen")
 
@@ -63,6 +63,8 @@ fun SettingsScreenContent(
     onThemeChange: (MangoTheme) -> Unit,
     autoScrollSpeed: Float = 120f,
     onAutoScrollSpeedChange: (Float) -> Unit = {},
+    libraryView: String = LIBRARY_VIEW_GRID,
+    onLibraryViewChange: (String) -> Unit = {},
 ) {
     var importError by remember { mutableStateOf<String?>(null) }
 
@@ -180,6 +182,29 @@ fun SettingsScreenContent(
                 valueRange = 30f..600f,
                 modifier = Modifier.fillMaxWidth(),
             )
+
+            Text(
+                text = "General",
+                style = MaterialTheme.typography.titleMedium,
+                color = theme.textPrimary,
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.testTag(settingsEntryTag("Library view")),
+            ) {
+                Text(
+                    text = "Library view",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = theme.textPrimary,
+                    modifier = Modifier.weight(1f),
+                )
+                SegmentedControl(
+                    options = listOf("Grid", "List"),
+                    selectedIndex = if (libraryView == LIBRARY_VIEW_LIST) 1 else 0,
+                    onSelect = { index -> onLibraryViewChange(if (index == 0) LIBRARY_VIEW_GRID else LIBRARY_VIEW_LIST) },
+                )
+            }
         }
     }
 }

@@ -97,6 +97,8 @@ fun AppShell(
     palette: PaletteState = remember { PaletteState() },
     sidebarOpen: Boolean = false,
     onSidebarChange: (Boolean) -> Unit = {},
+    libraryView: String = LIBRARY_VIEW_GRID,
+    onLibraryViewChange: (String) -> Unit = {},
     jbrBar: JbrBar? = null,
 ) {
     var screen by remember { mutableStateOf<Screen>(Screen.Library) }
@@ -132,7 +134,11 @@ fun AppShell(
                     mangaId = item.entry.mangaId,
                     title = item.entry.title,
                     cover = item.entry.cover,
-                    progressLine = "p. ${progress.page + 1}",
+                    progressLine = if (progress.chapterNumber > 0) {
+                        "Ch. ${formatChapterNumber(progress.chapterNumber)}"
+                    } else {
+                        "p. ${progress.page + 1}"
+                    },
                 )
             }
     }
@@ -179,10 +185,16 @@ fun AppShell(
                         color = theme.bg0,
                     ) {
                         when (current) {
-                            Screen.Library -> LibraryScreen(library) { entry ->
-                                detailsCache.invalidate(entry.sourceId, entry.mangaId)
-                                screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = false)
-                            }
+                            Screen.Library -> LibraryScreen(
+                                library = library,
+                                libraryView = libraryView,
+                                onLibraryViewChange = onLibraryViewChange,
+                                onBrowse = { screen = Screen.Browse },
+                                onOpenDetails = { entry ->
+                                    detailsCache.invalidate(entry.sourceId, entry.mangaId)
+                                    screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = false)
+                                },
+                            )
                             Screen.Search -> SearchScreen(catalog, challengeSolver, searchState) { entry ->
                                 // Details has no fromSearch case yet: back from a Search-opened
                                 // Details returns to Library, same as fromBrowse = false
@@ -201,6 +213,8 @@ fun AppShell(
                                 onThemeChange = onThemeChange,
                                 autoScrollSpeed = autoScrollSpeed,
                                 onAutoScrollSpeedChange = onAutoScrollSpeedChange,
+                                libraryView = libraryView,
+                                onLibraryViewChange = onLibraryViewChange,
                             )
                             is Screen.Details -> {
                                 LaunchedEffect(current) { lastDetails = current.copy(autoContinue = false) }
@@ -278,9 +292,10 @@ fun AppShell(
                 modifier = Modifier.align(Alignment.CenterStart),
                 hazeState = hazeState,
             )
-            // The palette's toggle-sidebar hit reads the CURRENT open state at run time, not the
-            // value captured when the tab list was remembered below.
+            // The palette's toggle-sidebar/toggle-library-view hits read the CURRENT state at run
+            // time, not the value captured when the tab list was remembered below.
             val currentSidebarOpen by rememberUpdatedState(sidebarOpen)
+            val currentLibraryView by rememberUpdatedState(libraryView)
             // keyed on theme (not plain remember{}): the accent provider closes over the current
             // theme by value, so a theme change must rebuild the tab list or its hits would apply
             // an accent on top of a stale, already-replaced theme
@@ -296,6 +311,9 @@ fun AppShell(
                     theme = theme,
                     onThemeChange = onThemeChange,
                     onToggleSidebar = { onSidebarChange(!currentSidebarOpen) },
+                    onToggleLibraryView = {
+                        onLibraryViewChange(if (currentLibraryView == LIBRARY_VIEW_LIST) LIBRARY_VIEW_GRID else LIBRARY_VIEW_LIST)
+                    },
                 )
             }
             PaletteOverlay(state = palette, tabs = tabs)

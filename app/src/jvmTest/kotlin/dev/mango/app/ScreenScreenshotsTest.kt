@@ -30,8 +30,9 @@ class ScreenScreenshotsTest {
         assertTrue(Files.size(file) > 0, "expected a non-empty PNG at $file")
     }
 
-    @Test
-    fun libraryPopulated() {
+    // Board data shared by libraryPopulated (grid) and libraryList: a mix of unread, partially
+    // read, and finished series so both boards exercise every CoverCard/list-row state.
+    private fun libraryBoardItems(): List<LibraryItem> {
         val titles = listOf(
             "Solo Leveling",
             "Omniscient Reader",
@@ -40,14 +41,38 @@ class ScreenScreenshotsTest {
             "Nano Machine",
             "Return of the Mount Hua Sect",
         )
-        val items = titles.mapIndexed { index, title ->
+        return titles.mapIndexed { index, title ->
             LibraryItem(
                 entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-$index", title = title),
                 addedAt = Clock.System.now(),
+                chapterCount = 142,
+                // manga-0 is fully unread, manga-1 is finished, the rest sit partway through.
+                unreadCount = when (index) {
+                    0 -> 142
+                    1 -> 0
+                    else -> 142 - (index * 20)
+                },
+                lastReadAt = if (index == 0) null else Clock.System.now(),
             )
         }
+    }
+
+    @Test
+    fun libraryPopulated() {
         val file = Screenshots.render("library-populated") {
-            ProvideMangoTheme(MangoDark) { LibraryScreenContent(items = items, onOpenDetails = {}) }
+            ProvideMangoTheme(MangoDark) {
+                LibraryScreenContent(items = libraryBoardItems(), libraryView = LIBRARY_VIEW_GRID, onOpenDetails = {})
+            }
+        }
+        assertTrue(Files.size(file) > 0, "expected a non-empty PNG at $file")
+    }
+
+    @Test
+    fun libraryList() {
+        val file = Screenshots.render("library-list") {
+            ProvideMangoTheme(MangoDark) {
+                LibraryScreenContent(items = libraryBoardItems(), libraryView = LIBRARY_VIEW_LIST, onOpenDetails = {})
+            }
         }
         assertTrue(Files.size(file) > 0, "expected a non-empty PNG at $file")
     }

@@ -3,11 +3,28 @@ package dev.mango.core.domain
 import kotlin.time.Instant
 import kotlinx.coroutines.flow.Flow
 
-/** A series the user has saved, normalized at the persistence boundary. No infrastructure here. */
-data class LibraryItem(val entry: MangaEntry, val addedAt: Instant)
+/**
+ * A series the user has saved, normalized at the persistence boundary. No infrastructure here.
+ * [chapterCount] is the last count recorded via [LibraryRepository.setChapterCount];
+ * [unreadCount] and [lastReadAt] are derived from it and read progress at the query layer, not
+ * recomputed from a chapter list here.
+ */
+data class LibraryItem(
+    val entry: MangaEntry,
+    val addedAt: Instant,
+    val chapterCount: Int = 0,
+    val unreadCount: Int = 0,
+    val lastReadAt: Instant? = null,
+)
 
 /** Where the user left off in one chapter. */
-data class ReadProgress(val chapterId: String, val page: Int, val updatedAt: Instant, val finished: Boolean = false)
+data class ReadProgress(
+    val chapterId: String,
+    val page: Int,
+    val updatedAt: Instant,
+    val finished: Boolean = false,
+    val chapterNumber: Double = 0.0,
+)
 
 /**
  * Persistence contract for the user's library and reading progress. Nothing here may depend
@@ -18,9 +35,18 @@ interface LibraryRepository {
     suspend fun addToLibrary(entry: MangaEntry)
     suspend fun removeFromLibrary(sourceId: String, mangaId: String)
     suspend fun progress(sourceId: String, mangaId: String, chapterId: String): ReadProgress?
-    suspend fun setProgress(sourceId: String, mangaId: String, chapterId: String, page: Int, finished: Boolean = false)
+    suspend fun setProgress(
+        sourceId: String,
+        mangaId: String,
+        chapterId: String,
+        page: Int,
+        finished: Boolean = false,
+        chapterNumber: Double = 0.0,
+    )
     /** Chapter ids the user has read to the last page — an opened-but-unfinished chapter is NOT in this set. */
     suspend fun finishedChapterIds(sourceId: String, mangaId: String): Set<String>
     /** The most recently updated progress row for the manga, finished or not; null if never opened. */
     suspend fun latestProgress(sourceId: String, mangaId: String): ReadProgress?
+    /** Caches the series' total chapter count so the library's unread-count query can derive it in SQL. */
+    suspend fun setChapterCount(sourceId: String, mangaId: String, count: Int)
 }

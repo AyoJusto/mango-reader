@@ -28,6 +28,7 @@ fun TestAppShell(
     palette: PaletteState? = null,
 ) {
     var sidebarOpen by remember { mutableStateOf(false) }
+    var libraryView by remember { mutableStateOf(LIBRARY_VIEW_GRID) }
     ProvideMangoTheme(MangoDark) {
         AppShell(
             library = library,
@@ -37,6 +38,8 @@ fun TestAppShell(
             palette = palette ?: remember { PaletteState() },
             sidebarOpen = sidebarOpen,
             onSidebarChange = { sidebarOpen = it },
+            libraryView = libraryView,
+            onLibraryViewChange = { libraryView = it },
         )
     }
 }

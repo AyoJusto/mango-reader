@@ -132,6 +132,34 @@ class SidebarFlowTest {
         rule.onNode(hasText("1") and inSidebar).assertExists()
     }
 
+    // Continue cards show the chapter number once it's known (set alongside the page on every
+    // Reader write), falling back to the saved page only for progress written before that
+    // column existed (chapterNumber defaults to 0).
+    @Test
+    fun continueCardShowsTheChapterNumberWhenKnownAndFallsBackToTheSavedPageOtherwise() {
+        val withChapter = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val withoutChapter = MangaEntry(sourceId = "FlameComics", mangaId = "manga-2", title = "Omniscient Reader")
+        val library = FakeLibraryRepository(
+            listOf(
+                LibraryItem(withChapter, Clock.System.now()),
+                LibraryItem(withoutChapter, Clock.System.now()),
+            ),
+        )
+        runBlocking {
+            library.setProgress("FlameComics", "manga-1", "c1", page = 4, chapterNumber = 12.0)
+            library.setProgress("FlameComics", "manga-2", "c1", page = 6)
+        }
+
+        rule.setContent { TestAppShell(library, FakeCatalogRepository(), FakeDownloadManager()) }
+        rule.waitForIdle()
+
+        rule.onNodeWithTag(SIDEBAR_TOGGLE_TAG).performClick()
+        rule.waitForIdle()
+
+        rule.onNode(hasText("Ch. 12") and inSidebar).assertExists()
+        rule.onNode(hasText("p. 7") and inSidebar).assertExists()
+    }
+
     // Tests run on a stock JDK: the JBR reflection path must degrade to null (OS-decorated
     // fallback), never throw.
     @Test

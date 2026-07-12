@@ -32,6 +32,9 @@ class SqlLibraryRepository(
                         cover = row.cover,
                     ),
                     addedAt = Instant.fromEpochMilliseconds(row.added_at),
+                    chapterCount = row.chapter_count.toInt(),
+                    unreadCount = (row.unread_count ?: 0L).toInt(),
+                    lastReadAt = row.last_read_at?.let { Instant.fromEpochMilliseconds(it) },
                 )
             }
         }
@@ -60,22 +63,30 @@ class SqlLibraryRepository(
                     page = row.page.toInt(),
                     updatedAt = Instant.fromEpochMilliseconds(row.updated_at),
                     finished = row.finished != 0L,
+                    chapterNumber = row.chapter_number,
                 )
             }
         }
 
-    override suspend fun setProgress(sourceId: String, mangaId: String, chapterId: String, page: Int, finished: Boolean) =
-        withContext(context) {
-            db.libraryQueries.upsertProgress(
-                source_id = sourceId,
-                manga_id = mangaId,
-                chapter_id = chapterId,
-                page = page.toLong(),
-                finished = if (finished) 1L else 0L,
-                updated_at = clock.now().toEpochMilliseconds(),
-            )
-            Unit
-        }
+    override suspend fun setProgress(
+        sourceId: String,
+        mangaId: String,
+        chapterId: String,
+        page: Int,
+        finished: Boolean,
+        chapterNumber: Double,
+    ) = withContext(context) {
+        db.libraryQueries.upsertProgress(
+            source_id = sourceId,
+            manga_id = mangaId,
+            chapter_id = chapterId,
+            page = page.toLong(),
+            finished = if (finished) 1L else 0L,
+            updated_at = clock.now().toEpochMilliseconds(),
+            chapter_number = chapterNumber,
+        )
+        Unit
+    }
 
     override suspend fun finishedChapterIds(sourceId: String, mangaId: String): Set<String> = withContext(context) {
         db.libraryQueries.selectFinishedChapterIds(sourceId, mangaId).executeAsList().toSet()
@@ -88,7 +99,13 @@ class SqlLibraryRepository(
                 page = row.page.toInt(),
                 updatedAt = Instant.fromEpochMilliseconds(row.updated_at),
                 finished = row.finished != 0L,
+                chapterNumber = row.chapter_number,
             )
         }
+    }
+
+    override suspend fun setChapterCount(sourceId: String, mangaId: String, count: Int) = withContext(context) {
+        db.libraryQueries.updateChapterCount(chapter_count = count.toLong(), source_id = sourceId, manga_id = mangaId)
+        Unit
     }
 }

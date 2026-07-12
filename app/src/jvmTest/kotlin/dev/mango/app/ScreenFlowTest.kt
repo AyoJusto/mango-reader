@@ -74,7 +74,7 @@ class ScreenFlowTest {
 
         rule.setContent { TestAppShell(library, catalog, FakeDownloadManager()) }
 
-        rule.onNodeWithText("Library is empty — browse sources to add manhwa").assertExists()
+        rule.onNodeWithText("Nothing here yet").assertExists()
 
         rule.navigateVia("Browse")
 

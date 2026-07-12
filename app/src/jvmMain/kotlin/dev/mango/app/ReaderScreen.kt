@@ -570,7 +570,15 @@ fun ReaderScreen(
             .distinctUntilChanged()
             .debounce(progressDebounceMillis)
             .collect { current ->
-                if (current != null) library.setProgress(sourceId, mangaId, current.first, page = current.second)
+                if (current != null) {
+                    library.setProgress(
+                        sourceId,
+                        mangaId,
+                        current.first,
+                        page = current.second,
+                        chapterNumber = chapters.find { it.chapterId == current.first }?.number ?: 0.0,
+                    )
+                }
             }
     }
 
@@ -600,7 +608,14 @@ fun ReaderScreen(
             .collect { completed ->
                 completed.filter(written::add).forEach { chapterId ->
                     val lastPage = (segments.find { it.chapterId == chapterId }?.pages?.size ?: 1) - 1
-                    library.setProgress(sourceId, mangaId, chapterId, page = lastPage, finished = true)
+                    library.setProgress(
+                        sourceId,
+                        mangaId,
+                        chapterId,
+                        page = lastPage,
+                        finished = true,
+                        chapterNumber = chapters.find { it.chapterId == chapterId }?.number ?: 0.0,
+                    )
                 }
             }
     }

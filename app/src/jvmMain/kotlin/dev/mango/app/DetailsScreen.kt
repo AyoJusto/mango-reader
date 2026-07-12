@@ -278,10 +278,6 @@ fun DetailsScreenContent(
     }
 }
 
-/** Raw Instant.toString() is machine format; readers get the date only. */
-private fun formatDate(instant: kotlin.time.Instant): String =
-    instant.toString().substringBefore('T')
-
 /**
  * The chapter the Continue action resumes into, plus its button label — computed in one place
  * so the header button and its click handler can't drift. Walks chapters in ascending order
@@ -374,6 +370,9 @@ fun DetailsScreen(
                 details = loadedDetails
                 chapters = loadedChapters
             }
+            // Unconditional: a manga not in the library has no library_item row, so the UPDATE
+            // simply no-ops rather than needing a membership check here.
+            library.setChapterCount(sourceId, mangaId, chapters.size)
             // Cheap local reads: always fresh, so reading just finished in the Reader shows up
             // immediately even when details/chapters were served from the cache above.
             finishedChapterIds = library.finishedChapterIds(sourceId, mangaId)
@@ -445,6 +444,10 @@ fun DetailsScreen(
                         library.removeFromLibrary(sourceId, mangaId)
                     } else {
                         library.addToLibrary(currentDetails.entry)
+                        // The freshly inserted row starts at chapter_count 0; the loaded
+                        // chapter list is at hand, so the unread badge is right immediately
+                        // instead of after the next Details visit.
+                        library.setChapterCount(sourceId, mangaId, chapters.size)
                     }
                 }
             },

@@ -43,6 +43,11 @@ class FakeLibraryRepository(initial: List<LibraryItem> = emptyList()) : LibraryR
     private var writeCounter = 0L
     private val updatedAtOrder = mutableMapOf<Triple<String, String, String>, Long>()
 
+    // Records setChapterCount calls; unlike the real repository, not wired into observeLibrary()
+    // (LibraryItem entries here come straight from the constructor list, not a derived query) —
+    // the unread-count math itself is covered by LibraryRepositoryTest against the real SQL.
+    val chapterCountBySeries = mutableMapOf<Pair<String, String>, Int>()
+
     override fun observeLibrary(): Flow<List<LibraryItem>> = state
 
     override suspend fun addToLibrary(entry: MangaEntry) {
@@ -58,7 +63,14 @@ class FakeLibraryRepository(initial: List<LibraryItem> = emptyList()) : LibraryR
     override suspend fun progress(sourceId: String, mangaId: String, chapterId: String): ReadProgress? =
         progressByChapter[Triple(sourceId, mangaId, chapterId)]
 
-    override suspend fun setProgress(sourceId: String, mangaId: String, chapterId: String, page: Int, finished: Boolean) {
+    override suspend fun setProgress(
+        sourceId: String,
+        mangaId: String,
+        chapterId: String,
+        page: Int,
+        finished: Boolean,
+        chapterNumber: Double,
+    ) {
         val key = Triple(sourceId, mangaId, chapterId)
         val existingFinished = progressByChapter[key]?.finished ?: false
         progressByChapter[key] = ReadProgress(
@@ -66,6 +78,7 @@ class FakeLibraryRepository(initial: List<LibraryItem> = emptyList()) : LibraryR
             page = page,
             updatedAt = Clock.System.now(),
             finished = existingFinished || finished,
+            chapterNumber = chapterNumber,
         )
         writeCounter++
         updatedAtOrder[key] = writeCounter
@@ -82,6 +95,10 @@ class FakeLibraryRepository(initial: List<LibraryItem> = emptyList()) : LibraryR
             .filter { it.key.first == sourceId && it.key.second == mangaId }
             .maxByOrNull { it.value }
             ?.let { progressByChapter[it.key] }
+
+    override suspend fun setChapterCount(sourceId: String, mangaId: String, count: Int) {
+        chapterCountBySeries[sourceId to mangaId] = count
+    }
 }
 
 /** Canned [CatalogRepository] for tests. Unstubbed members throw. No DB, no network. */

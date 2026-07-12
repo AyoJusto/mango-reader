@@ -37,6 +37,15 @@ class Settings(dataDir: Path) {
             save()
         }
 
+    // "grid" or "list". Any other stored value (a future format, hand-edited file) falls back
+    // to the default rather than propagating an unrecognized mode into the UI.
+    var libraryView: String
+        get() = props.getProperty("libraryView")?.takeIf { it == "grid" || it == "list" } ?: "grid"
+        set(value) {
+            props.setProperty("libraryView", value)
+            save()
+        }
+
     private fun save() {
         try {
             Files.createDirectories(file.parent)

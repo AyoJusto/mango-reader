@@ -6,6 +6,7 @@ CREATE TABLE library_item (
   title TEXT NOT NULL,
   cover TEXT,
   added_at INTEGER NOT NULL,
+  chapter_count INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (source_id, manga_id)
 );
 
@@ -16,29 +17,56 @@ CREATE TABLE read_progress (
   page INTEGER NOT NULL,
   finished INTEGER NOT NULL DEFAULT 0,
   updated_at INTEGER NOT NULL,
+  chapter_number REAL NOT NULL DEFAULT 0,
   PRIMARY KEY (source_id, manga_id, chapter_id)
 );
 
+-- unread_count and last_read_at are derived per series: a LEFT JOIN against read_progress means
+-- a series with zero progress rows still emits one row (unread_count = chapter_count, last_read_at
+-- NULL). A read_progress row counts as "started" regardless of finished, so unread_count only
+-- drops once a chapter has been opened at all, never requiring it be finished.
 selectAllLibraryItems:
-SELECT * FROM library_item ORDER BY added_at DESC;
+SELECT
+  li.source_id AS source_id,
+  li.manga_id AS manga_id,
+  li.title AS title,
+  li.cover AS cover,
+  li.added_at AS added_at,
+  li.chapter_count AS chapter_count,
+  MAX(0, li.chapter_count - COUNT(rp.chapter_id)) AS unread_count,
+  MAX(rp.updated_at) AS last_read_at
+FROM library_item li
+LEFT JOIN read_progress rp ON rp.source_id = li.source_id AND rp.manga_id = li.manga_id
+GROUP BY li.source_id, li.manga_id, li.title, li.cover, li.added_at, li.chapter_count
+ORDER BY li.added_at DESC;
 
+-- chapter_count is preserved via a correlated subquery, not overwritten to 0: addToLibrary is
+-- called on every chapter download for a series already in the library (not just the initial
+-- add), and an unconditional REPLACE would zero the Library grid's unread pill on every download.
 upsertLibraryItem:
-INSERT OR REPLACE INTO library_item(source_id, manga_id, title, cover, added_at)
-VALUES (?, ?, ?, ?, ?);
+INSERT OR REPLACE INTO library_item(source_id, manga_id, title, cover, added_at, chapter_count)
+VALUES (
+  ?1, ?2, ?3, ?4, ?5,
+  COALESCE((SELECT chapter_count FROM library_item WHERE source_id = ?1 AND manga_id = ?2), 0)
+);
 
 deleteLibraryItem:
 DELETE FROM library_item WHERE source_id = ? AND manga_id = ?;
+
+updateChapterCount:
+UPDATE library_item SET chapter_count = ? WHERE source_id = ? AND manga_id = ?;
 
 selectProgress:
 SELECT * FROM read_progress WHERE source_id = ? AND manga_id = ? AND chapter_id = ?;
 
 upsertProgress:
-INSERT INTO read_progress(source_id, manga_id, chapter_id, page, finished, updated_at)
-VALUES (?, ?, ?, ?, ?, ?)
+INSERT INTO read_progress(source_id, manga_id, chapter_id, page, finished, updated_at, chapter_number)
+VALUES (?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(source_id, manga_id, chapter_id) DO UPDATE SET
   page = excluded.page,
   finished = MAX(read_progress.finished, excluded.finished),
-  updated_at = excluded.updated_at;
+  updated_at = excluded.updated_at,
+  chapter_number = excluded.chapter_number;
 
 selectFinishedChapterIds:
 SELECT chapter_id FROM read_progress WHERE source_id = ? AND manga_id = ? AND finished = 1;
