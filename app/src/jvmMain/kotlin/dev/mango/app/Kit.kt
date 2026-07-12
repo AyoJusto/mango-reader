@@ -16,7 +16,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -43,6 +42,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.DropdownMenu
@@ -75,7 +75,6 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.key.utf16CodePoint
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -87,7 +86,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import kotlinx.coroutines.delay
 
 /**
  * Shared visual primitives every screen restyle builds on: reads [LocalMangoTheme]
@@ -399,6 +397,7 @@ fun KitSearchField(
     placeholder: String,
     onSearch: () -> Unit,
     modifier: Modifier = Modifier,
+    focusRequester: FocusRequester? = null,
 ) {
     val theme = LocalMangoTheme.current
     val interaction = remember { MutableInteractionSource() }
@@ -421,7 +420,9 @@ fun KitSearchField(
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
                 textStyle = MangoType.body.copy(color = theme.textPrimary),
                 singleLine = true,
                 cursorBrush = SolidColor(theme.accent),
@@ -629,11 +630,11 @@ fun CoverCard(
 
 private val KIT_DROPDOWN_MAX_MENU_HEIGHT = 320.dp
 
-/** Fixed option-row height; the type-ahead scroll math derives offsets from it, so they cannot drift. */
+/** Fixed option-row height; the scroll-into-view math derives offsets from it, so they cannot drift. */
 private val KIT_DROPDOWN_ITEM_HEIGHT = 36.dp
 
-/** Idle time after which the type-ahead prefix buffer resets and typing starts a new prefix. */
-private const val KIT_DROPDOWN_TYPE_AHEAD_RESET_MS = 750L
+/** Option count above which the menu pins a filter field on top; short lists stay a plain menu. */
+private const val KIT_DROPDOWN_FILTER_THRESHOLD = 12
 
 /**
  * The app's single-select dropdown: a kit-styled trigger row showing the current value, opening
@@ -641,10 +642,10 @@ private const val KIT_DROPDOWN_TYPE_AHEAD_RESET_MS = 750L
  * option needs it); the selected option renders in accent color. Selection is by value, not
  * index — [onSelect] receives the clicked option string.
  *
- * Keyboard: typing jumps the active row to the first prefix match (case-insensitive, transient
- * buffer), Up/Down step it without wrapping, Enter selects it, Escape dismisses. The active row
- * shares the hover fill treatment; it starts on the selected option, scrolled into view. While a
- * prefix is buffered, the trigger echoes it in accent color so typing has visible feedback.
+ * Long lists get a filter field pinned above the options, focused on open: typing narrows the
+ * list (case-insensitive contains), Up/Down move the active row through the matches without
+ * wrapping, Enter selects the active row, Escape dismisses. Short lists omit the field — a
+ * search box above a handful of rows is noise.
  */
 @Composable
 fun KitDropdown(
@@ -657,11 +658,7 @@ fun KitDropdown(
     var expanded by remember { mutableStateOf(false) }
     var triggerWidthPx by remember { mutableIntStateOf(0) }
     val hover = rememberHoverFill(rest = theme.surface, hover = theme.bg2)
-    val typeAhead = remember(expanded) { TypeAheadState(options, options.indexOf(selected)) }
     Box(modifier = modifier) {
-        // The trigger stays visible above the open menu, so it doubles as the type-ahead echo:
-        // while a prefix is buffered it shows what was typed instead of the selected value.
-        val typing = expanded && typeAhead.buffer.isNotEmpty()
         Row(
             modifier = Modifier
                 .onSizeChanged { triggerWidthPx = it.width }
@@ -674,85 +671,105 @@ fun KitDropdown(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs),
         ) {
-            Text(
-                text = if (typing) typeAhead.buffer else selected,
-                style = MangoType.body,
-                color = if (typing) theme.accent else theme.textPrimary,
-            )
+            Text(text = selected, style = MangoType.body, color = theme.textPrimary)
             Text(text = "▾", style = MangoType.body, color = theme.textTertiary)
         }
         val density = LocalDensity.current
         val triggerWidth = with(density) { triggerWidthPx.toDp() }
         val itemHeightPx = with(density) { KIT_DROPDOWN_ITEM_HEIGHT.roundToPx() }
-        val scrollState = rememberScrollState()
-        val menuFocus = remember { FocusRequester() }
+        val filterable = options.size > KIT_DROPDOWN_FILTER_THRESHOLD
+        var query by remember(expanded) { mutableStateOf("") }
+        val visibleOptions = if (filterable && query.isNotBlank()) {
+            options.filter { it.contains(query.trim(), ignoreCase = true) }
+        } else {
+            options
+        }
+        var activeIndex by remember(expanded, query) {
+            mutableIntStateOf(if (query.isEmpty()) visibleOptions.indexOf(selected).coerceAtLeast(0) else 0)
+        }
+        val listScroll = rememberScrollState()
+        val filterFocus = remember { FocusRequester() }
+
+        fun selectActive() {
+            visibleOptions.getOrNull(activeIndex)?.let {
+                expanded = false
+                onSelect(it)
+            }
+        }
+
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-            scrollState = scrollState,
             shape = RoundedCornerShape(MangoRadius.panel),
             containerColor = theme.bg2,
-            modifier = Modifier
-                .widthIn(min = triggerWidth)
-                .heightIn(max = KIT_DROPDOWN_MAX_MENU_HEIGHT)
-                .focusRequester(menuFocus)
-                .focusable()
-                .onPreviewKeyEvent { event ->
-                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                    when (event.key) {
-                        Key.DirectionDown -> {
-                            typeAhead.onArrowDown()
-                            true
-                        }
-                        Key.DirectionUp -> {
-                            typeAhead.onArrowUp()
-                            true
-                        }
-                        Key.Enter, Key.NumPadEnter -> {
-                            options.getOrNull(typeAhead.activeIndex)?.let {
-                                expanded = false
-                                onSelect(it)
-                            }
-                            true
-                        }
-                        else -> {
-                            val char = event.utf16CodePoint.toChar()
-                            if (char.code >= 32 && !char.isISOControl()) {
-                                typeAhead.onChar(char)
-                                true
-                            } else {
-                                false
-                            }
-                        }
-                    }
-                },
+            modifier = Modifier.widthIn(min = triggerWidth),
         ) {
-            LaunchedEffect(Unit) { menuFocus.requestFocus() }
-            LaunchedEffect(typeAhead.buffer) {
-                if (typeAhead.buffer.isNotEmpty()) {
-                    delay(KIT_DROPDOWN_TYPE_AHEAD_RESET_MS)
-                    typeAhead.clearBuffer()
+            if (filterable) {
+                LaunchedEffect(Unit) { filterFocus.requestFocus() }
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = MangoSpace.xs)
+                        .onPreviewKeyEvent { event ->
+                            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                            when (event.key) {
+                                Key.DirectionDown -> {
+                                    if (activeIndex < visibleOptions.size - 1) activeIndex++
+                                    true
+                                }
+                                Key.DirectionUp -> {
+                                    if (activeIndex > 0) activeIndex--
+                                    true
+                                }
+                                Key.Enter, Key.NumPadEnter -> {
+                                    selectActive()
+                                    true
+                                }
+                                else -> false
+                            }
+                        },
+                ) {
+                    KitSearchField(
+                        value = query,
+                        onValueChange = { query = it },
+                        placeholder = "Type to filter…",
+                        onSearch = ::selectActive,
+                        focusRequester = filterFocus,
+                    )
+                }
+                LaunchedEffect(activeIndex) {
+                    val targetTop = activeIndex * itemHeightPx
+                    val viewport = listScroll.viewportSize
+                    if (targetTop < listScroll.value) {
+                        listScroll.animateScrollTo(targetTop)
+                    } else if (targetTop + itemHeightPx > listScroll.value + viewport) {
+                        listScroll.animateScrollTo(targetTop + itemHeightPx - viewport)
+                    }
                 }
             }
-            LaunchedEffect(typeAhead.activeIndex) {
-                val targetTop = typeAhead.activeIndex * itemHeightPx
-                val viewport = scrollState.viewportSize
-                if (targetTop < scrollState.value) {
-                    scrollState.animateScrollTo(targetTop)
-                } else if (targetTop + itemHeightPx > scrollState.value + viewport) {
-                    scrollState.animateScrollTo(targetTop + itemHeightPx - viewport)
+            Column(
+                modifier = Modifier
+                    .heightIn(max = KIT_DROPDOWN_MAX_MENU_HEIGHT)
+                    .verticalScroll(listScroll),
+            ) {
+                if (visibleOptions.isEmpty()) {
+                    Row(
+                        modifier = Modifier.height(KIT_DROPDOWN_ITEM_HEIGHT).padding(horizontal = MangoSpace.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(text = "No matches", style = MangoType.body, color = theme.textTertiary)
+                    }
                 }
-            }
-            options.forEachIndexed { index, option ->
-                KitDropdownItem(
-                    text = option,
-                    selected = option == selected,
-                    active = index == typeAhead.activeIndex,
-                    onClick = {
-                        expanded = false
-                        onSelect(option)
-                    },
-                )
+                visibleOptions.forEachIndexed { index, option ->
+                    KitDropdownItem(
+                        text = option,
+                        selected = option == selected,
+                        active = filterable && index == activeIndex,
+                        onClick = {
+                            expanded = false
+                            onSelect(option)
+                        },
+                    )
+                }
             }
         }
     }
