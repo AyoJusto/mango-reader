@@ -175,6 +175,8 @@ fun AppShell(
                             onBack = { lastDetails?.let { screen = it } ?: run { screen = Screen.Library } },
                             onToggleFullscreen = onToggleFullscreen,
                             autoScrollSpeedDpPerSec = autoScrollSpeed,
+                            // No user-facing strip-width slider is wired yet; thread the spec default.
+                            stripWidthDp = 880f,
                             paletteVisible = palette.visible,
                         )
                     }

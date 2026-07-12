@@ -1,33 +1,42 @@
 package dev.mango.app
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,19 +49,27 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.compose.LocalPlatformContext
@@ -68,7 +85,11 @@ import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.LibraryRepository
 import dev.mango.core.domain.Page
+import java.awt.Point
+import java.awt.Toolkit
+import java.awt.image.BufferedImage
 import java.io.File
+import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
@@ -79,8 +100,8 @@ import kotlinx.coroutines.launch
 /** How long the strip scrolls forward/back per Space/PageDown/PageUp keypress, as a fraction of the viewport. */
 private const val PAGE_SCROLL_FRACTION = 0.9f
 
-/** How long the controls overlay stays up after the last pointer move, in milliseconds. */
-private const val CONTROLS_AUTO_HIDE_MS = 2000L
+/** How long the controls overlay stays up after the last reveal — mirrors [MangoMotion.READER_IDLE_MS]. */
+private val CONTROLS_AUTO_HIDE_MS = MangoMotion.READER_IDLE_MS.toLong()
 
 /** How close (in flattened rows) the last visible item must be to the strip's end before the next chapter auto-loads. */
 private const val AUTO_LOAD_THRESHOLD = 4
@@ -88,8 +109,43 @@ private const val AUTO_LOAD_THRESHOLD = 4
 /** How many upcoming pages the reader prefetches ahead of the last visible row. */
 private const val PREFETCH_PAGE_COUNT = 5
 
-/** Pointer moves within this distance of the reader's top edge reveal the controls overlay. */
-private val CONTROLS_REVEAL_BAND = 80.dp
+/** The reading strip's default width — the spec's literal value; a user-facing width slider is not wired yet. */
+private const val DEFAULT_STRIP_WIDTH_DP = 880f
+
+/**
+ * Pointer moves at least this far (px) from the previous sample count as a genuine reveal.
+ * Compose desktop emits synthetic hover-move events at (near) the same position during a
+ * stationary-cursor wheel scroll — those land under this threshold and must not reveal.
+ */
+private const val OVERLAY_MOVE_THRESHOLD_PX = 2f
+
+/**
+ * The move-delta gate for the reader's controls overlay: decides whether a pointer sample counts
+ * as a genuine reveal (moved at least [OVERLAY_MOVE_THRESHOLD_PX] from the previous sample). No
+ * Compose or coroutine dependency, so unit tests exercise it directly. [ReaderScreen] wires the
+ * returned decision into its pointer handler; the idle-hide and palette-pin scheduling live in a
+ * Compose effect there (delay-based, proven to cooperate with the Compose test clock, unlike a
+ * polling loop — see the auto-scroll drive loop's own comments).
+ */
+internal class ReaderOverlayState {
+    private var lastPointer: Offset? = null
+
+    /**
+     * A pointer sample; returns true if it counts as a genuine reveal. The first sample only
+     * establishes a baseline position and never reveals by itself.
+     */
+    fun onPointerMove(position: Offset): Boolean {
+        val last = lastPointer
+        lastPointer = position
+        return last != null && (position - last).getDistance() >= OVERLAY_MOVE_THRESHOLD_PX
+    }
+}
+
+/** A fully transparent 1x1 AWT cursor: the reader hides the mouse cursor together with the controls overlay. */
+private val BLANK_CURSOR_ICON: PointerIcon by lazy {
+    val transparentPixel = BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB)
+    PointerIcon(Toolkit.getDefaultToolkit().createCustomCursor(transparentPixel, Point(0, 0), "mango-reader-hidden-cursor"))
+}
 
 /**
  * One chapter's worth of pages in the flattened strip, plus display labels — the public,
@@ -217,11 +273,14 @@ fun ReaderContent(
     nextLoading: Boolean = false,
     nextError: String? = null,
     nextChallengeUrl: String? = null,
+    autoScrolling: Boolean = false,
+    stripWidthDp: Float = DEFAULT_STRIP_WIDTH_DP,
     onBack: () -> Unit,
     onPrev: () -> Unit = {},
     onNext: () -> Unit = {},
     onRetryNext: () -> Unit = {},
     onSolveNextChallenge: () -> Unit = {},
+    onToggleAutoScroll: () -> Unit = {},
     nextChallengeSolving: Boolean = false,
     pageContent: @Composable (Page, Boolean) -> Unit,
 ) {
@@ -234,14 +293,9 @@ fun ReaderContent(
     val currentChapterId = currentSegment?.chapterId
     val prevEnabled = currentChapterId != null && previousChapter(chapters, currentChapterId) != null
     val nextEnabled = currentChapterId != null && nextChapter(chapters, currentChapterId) != null
-    val counterText = buildString {
-        if (currentSegment != null && position != null) {
-            append(position.pageIndex + 1)
-            append(" / ")
-            append(currentSegment.pages.size)
-            if (currentSegment.offline) append(" · offline")
-        }
-    }
+    val pageNumber = position?.pageIndex?.plus(1)
+    val pageCount = currentSegment?.pages?.size?.takeIf { it > 0 }
+    val progressFraction = if (pageNumber != null && pageCount != null) pageNumber.toFloat() / pageCount else 0f
 
     Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -250,7 +304,7 @@ fun ReaderContent(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxHeight()
-                    .widthIn(max = 1000.dp)
+                    .widthIn(max = stripWidthDp.dp)
                     .fillMaxWidth(),
             ) {
                 items(rows, key = { row -> row.rowKey { index -> segments[index].chapterId } }) { row ->
@@ -271,36 +325,165 @@ fun ReaderContent(
             }
             AnimatedVisibility(
                 visible = controlsVisible,
-                enter = fadeIn(),
-                exit = fadeOut(),
-                modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth(),
+                enter = fadeIn(animationSpec = tween(MangoMotion.READER_OVERLAY_IN_MS, easing = MangoMotion.decel)),
+                exit = fadeOut(animationSpec = tween(MangoMotion.READER_OVERLAY_OUT_MS, easing = MangoMotion.standard)),
+                modifier = Modifier.fillMaxSize(),
             ) {
-                Surface(color = theme.bg0.copy(alpha = 0.85f)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        IconButton(onClick = onBack) {
-                            Text("←", color = theme.textSecondary)
-                        }
-                        Text(
-                            text = currentSegment?.label.orEmpty(),
-                            style = MaterialTheme.typography.titleSmall,
-                            color = theme.textPrimary,
-                        )
-                        Spacer(modifier = Modifier.fillMaxWidth().weight(1f))
-                        TextButton(onClick = onPrev, enabled = prevEnabled) { Text("‹ Prev") }
-                        TextButton(onClick = onNext, enabled = nextEnabled) { Text("Next ›") }
-                        Text(
-                            text = counterText,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = theme.textSecondary,
-                            modifier = Modifier.padding(end = 16.dp),
-                        )
-                    }
+                Box(modifier = Modifier.fillMaxSize()) {
+                    ReaderBackButton(
+                        onClick = onBack,
+                        modifier = Modifier.align(Alignment.TopStart).padding(16.dp),
+                    )
+                    ReaderOverlayBar(
+                        label = currentSegment?.label.orEmpty(),
+                        pageNumber = pageNumber,
+                        pageCount = pageCount,
+                        offline = currentSegment?.offline == true,
+                        progress = progressFraction,
+                        prevEnabled = prevEnabled,
+                        nextEnabled = nextEnabled,
+                        onPrev = onPrev,
+                        onNext = onNext,
+                        autoScrolling = autoScrolling,
+                        onToggleAutoScroll = onToggleAutoScroll,
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
+                    )
                 }
             }
         }
+    }
+}
+
+/** Top-left exit control, per board 05: overlay-token fill, a leading chevron, wired to [onBack]. */
+@Composable
+private fun ReaderBackButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val theme = LocalMangoTheme.current
+    Box(
+        modifier = modifier
+            .size(width = 34.dp, height = 30.dp)
+            .clip(RoundedCornerShape(MangoRadius.control))
+            .background(theme.overlay)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(imageVector = Icons.Filled.ChevronLeft, contentDescription = "Back", tint = theme.textPrimary)
+    }
+}
+
+/**
+ * Bottom-centered floating status bar, per board 05: chapter title and panel progress on the
+ * left, chapter nav and the auto-scroll toggle on the right, a thin progress track below.
+ *
+ * The nav buttons keep their historical "‹ Prev" / "Next ›" text (rather than icon-only glyphs)
+ * because existing flow tests locate them by that exact text; only the surrounding chrome is new.
+ */
+@Composable
+private fun ReaderOverlayBar(
+    label: String,
+    pageNumber: Int?,
+    pageCount: Int?,
+    offline: Boolean,
+    progress: Float,
+    prevEnabled: Boolean,
+    nextEnabled: Boolean,
+    onPrev: () -> Unit,
+    onNext: () -> Unit,
+    autoScrolling: Boolean,
+    onToggleAutoScroll: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val theme = LocalMangoTheme.current
+    Column(
+        modifier = modifier
+            .width(520.dp)
+            .shadow(elevation = 16.dp, shape = RoundedCornerShape(MangoRadius.panel))
+            .clip(RoundedCornerShape(MangoRadius.panel))
+            .background(theme.overlay)
+            .padding(vertical = MangoSpace.sm, horizontal = MangoSpace.md),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = label,
+                    style = MangoType.bodyStrong,
+                    color = theme.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (pageNumber != null && pageCount != null) {
+                    Row {
+                        Text(
+                            text = "$pageNumber / $pageCount" + if (offline) " · offline" else "",
+                            fontSize = 11.5.sp,
+                            color = theme.textSecondary,
+                        )
+                        if (!offline) {
+                            Text(
+                                text = " panels · ${(progress * 100).roundToInt()}%",
+                                fontSize = 11.5.sp,
+                                color = theme.textSecondary,
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.width(MangoSpace.sm))
+            ReaderChapterNavButton(label = "‹ Prev", enabled = prevEnabled, onClick = onPrev)
+            Spacer(modifier = Modifier.width(6.dp))
+            ReaderChapterNavButton(label = "Next ›", enabled = nextEnabled, onClick = onNext)
+            Spacer(modifier = Modifier.width(6.dp))
+            AutoScrollPill(active = autoScrolling, onClick = onToggleAutoScroll)
+        }
+        Spacer(modifier = Modifier.height(MangoSpace.sm))
+        ProgressTrack(
+            progress = progress,
+            trackColor = theme.textPrimary.copy(alpha = 0.10f),
+            height = 3.dp,
+            // Reaching the strip's bottom is just a position, not a completion state.
+            successAtFull = false,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+private fun ReaderChapterNavButton(label: String, enabled: Boolean, onClick: () -> Unit) {
+    val theme = LocalMangoTheme.current
+    Box(
+        modifier = Modifier
+            .height(28.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(theme.textPrimary.copy(alpha = 0.06f))
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = MangoType.caption,
+            color = if (enabled) theme.textPrimary else theme.textPrimary.copy(alpha = 0.3f),
+        )
+    }
+}
+
+/** Wires to the existing auto-scroll toggle; a leading dot appears only while it's running. */
+@Composable
+private fun AutoScrollPill(active: Boolean, onClick: () -> Unit) {
+    val theme = LocalMangoTheme.current
+    Row(
+        modifier = Modifier
+            .height(28.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .background(theme.accent.copy(alpha = 0.16f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (active) {
+            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(theme.accent))
+        }
+        Text(text = "Auto-scroll", style = MangoType.caption, color = theme.accent)
     }
 }
 
@@ -333,6 +516,11 @@ private fun LoadingTailRow() {
     }
 }
 
+/**
+ * The next-chapter load failed. A Cloudflare challenge reads as warning (per the challenge
+ * grammar in ChallengeUi.kt — the user did nothing wrong); any other failure stays danger. The
+ * "Solve challenge" and "Retry" button labels are exact — flow tests locate them by that text.
+ */
 @Composable
 private fun FailedTailRow(
     message: String,
@@ -341,16 +529,31 @@ private fun FailedTailRow(
     onSolveChallenge: () -> Unit,
     solving: Boolean = false,
 ) {
+    val theme = LocalMangoTheme.current
     Box(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = LocalMangoTheme.current.danger,
-            )
-            Button(onClick = onRetry, enabled = !solving) { Text("Retry") }
-            if (challengeUrl != null) {
-                Button(onClick = onSolveChallenge, enabled = !solving) { Text("Solve challenge") }
+        if (challengeUrl != null) {
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 420.dp)
+                    .clip(RoundedCornerShape(MangoRadius.row))
+                    .background(theme.warning.copy(alpha = 0.10f))
+                    .padding(MangoSpace.md),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(MangoSpace.sm),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
+                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(theme.warning))
+                    Text(text = message, style = MangoType.bodyStrong, color = theme.textPrimary)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
+                    KitButton(label = "Solve challenge", onClick = onSolveChallenge, style = KitButtonStyle.PRIMARY, enabled = !solving)
+                    KitButton(label = "Retry", onClick = onRetry, style = KitButtonStyle.SECONDARY, enabled = !solving)
+                }
+            }
+        } else {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
+                Text(text = message, style = MangoType.bodyStrong, color = theme.danger)
+                KitButton(label = "Retry", onClick = onRetry, style = KitButtonStyle.DANGER, enabled = !solving)
             }
         }
     }
@@ -428,6 +631,8 @@ fun ReaderScreen(
     // dp/sec driving the A-key auto-scroll loop; persisted via Settings, plumbed down as a
     // plain composable param (not part of Screen.Reader nav state).
     autoScrollSpeedDpPerSec: Float = 120f,
+    // The reading strip's width; a user-facing width slider is not wired yet.
+    stripWidthDp: Float = DEFAULT_STRIP_WIDTH_DP,
     pageContent: (@Composable (Page) -> Unit)? = null,
     // While the palette overlay is up it owns the keyboard; when it closes the reader must
     // re-request focus or its shortcuts stay dead (focus went to the palette's field)
@@ -451,15 +656,18 @@ fun ReaderScreen(
     val listState = remember(sourceId, mangaId, anchorChapterId) { LazyListState() }
     val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
-    var visibilityTick by remember { mutableStateOf(0) }
+    // Bumped on every genuine reveal (a pointer move past ReaderOverlayState's delta gate, or
+    // any click); the effect below (keyed on this) is what actually schedules the hide.
+    var revealVersion by remember { mutableStateOf(0) }
     var controlsVisible by remember { mutableStateOf(true) }
     // Deliberately unkeyed on any per-chapter identity: auto-appending the next chapter (the
     // infinite-scroll effect above) must not stop the scroll mid-flight.
     var autoScrolling by remember { mutableStateOf(false) }
     val density = LocalDensity.current
-    // Controls only reveal on a near-top hover, not any pointer move anywhere in the reader —
-    // computed once in composition, never re-derived per pointer event.
-    val topHoverPx = with(density) { CONTROLS_REVEAL_BAND.toPx() }
+    // Pure move-delta gate backing the pointer handlers below; also unkeyed on chapter identity,
+    // same reasoning as autoScrolling above — it tracks the pointer across the reader's whole
+    // lifetime, not per anchor.
+    val overlayState = remember { ReaderOverlayState() }
     // Captured here (composition), not inside the prefetch effect below (a suspend block, no
     // CompositionLocal access) — the default renderer's DefaultReaderPage reads the same local.
     val platformContext = LocalPlatformContext.current
@@ -656,8 +864,14 @@ fun ReaderScreen(
         }
     }
 
-    LaunchedEffect(visibilityTick) {
+    // A one-shot delay per reveal, cancelled and restarted on the next one — proven to cooperate
+    // with the Compose test clock (rule.mainClock.advanceTimeBy), unlike a polling loop (which
+    // would never go idle; see the auto-scroll loop's own comments below). Pinned while the
+    // palette is up: it owns the keyboard and the screen, so no hide is ever scheduled until
+    // it closes.
+    LaunchedEffect(revealVersion, paletteVisible) {
         controlsVisible = true
+        if (paletteVisible) return@LaunchedEffect
         delay(controlsAutoHideMillis)
         controlsVisible = false
     }
@@ -730,14 +944,21 @@ fun ReaderScreen(
                     .fillMaxSize()
                     .focusRequester(focusRequester)
                     .focusable()
+                    // The cursor hides together with the overlay; restored the instant
+                    // controlsVisible flips back (never leaks past this Box's lifetime).
+                    .pointerHoverIcon(if (controlsVisible) PointerIcon.Default else BLANK_CURSOR_ICON, overrideDescendants = true)
                     .onPointerEvent(PointerEventType.Move) { event ->
-                        // Only near the top edge — anywhere else in the strip a move must not
-                        // yank the controls back up over the page the reader is trying to read.
-                        if (event.changes.firstOrNull()?.position?.y?.let { it <= topHoverPx } == true) {
-                            visibilityTick++
+                        val position = event.changes.firstOrNull()?.position
+                        // Keyboard paging/N/P never reach this handler — only a genuine pointer
+                        // move (gated by ReaderOverlayState) or a click reveals.
+                        if (position != null && overlayState.onPointerMove(position)) {
+                            revealVersion++
                         }
                     }
-                    .onPointerEvent(PointerEventType.Press) { visibilityTick++ }
+                    .onPointerEvent(PointerEventType.Press) {
+                        // A click always reveals.
+                        revealVersion++
+                    }
                     .onPreviewKeyEvent { keyEvent ->
                         if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                         when (keyEvent.key) {
@@ -794,9 +1015,12 @@ fun ReaderScreen(
                     nextError = (nextLoad as? NextLoadState.Failed)?.message,
                     nextChallengeUrl = (nextLoad as? NextLoadState.Failed)?.challengeUrl,
                     nextChallengeSolving = solvingNext,
+                    autoScrolling = autoScrolling,
+                    stripWidthDp = stripWidthDp,
                     onBack = onBack,
                     onPrev = { reanchorToPreviousChapter() },
                     onNext = { goToNextChapter() },
+                    onToggleAutoScroll = { autoScrolling = !autoScrolling },
                     onRetryNext = {
                         scope.launch {
                             val lastSegment = segments.lastOrNull() ?: return@launch
@@ -880,15 +1104,22 @@ private fun DefaultReaderPage(page: Page, local: Boolean) {
         filterQuality = FilterQuality.High,
         modifier = Modifier.fillMaxWidth(),
         loading = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(600.dp)
-                    .background(LocalMangoTheme.current.bg2.copy(alpha = 0.2f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+            // ponytail: 3:4 reserved height; true no-reflow needs page dimensions from source metadata
+            Box(modifier = Modifier.fillMaxWidth().aspectRatio(3f / 4f)) {
+                SkeletonBlock(modifier = Modifier.fillMaxSize())
             }
+        },
+        success = {
+            val alpha = remember(page) { Animatable(0f) }
+            LaunchedEffect(page) {
+                alpha.animateTo(1f, animationSpec = tween(MangoMotion.READER_PAGE_CROSSFADE_MS))
+            }
+            Image(
+                painter = painter,
+                contentDescription = null,
+                contentScale = contentScale,
+                modifier = Modifier.fillMaxWidth().alpha(alpha.value),
+            )
         },
     )
 }

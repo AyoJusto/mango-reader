@@ -123,6 +123,7 @@ object MangoMotion {
     const val READER_OVERLAY_IN_MS = 160
     const val READER_OVERLAY_OUT_MS = 320
     const val READER_IDLE_MS = 1500
+    const val READER_PAGE_CROSSFADE_MS = 200
     const val VIEW_CHANGE_MS = 200
     val VIEW_CHANGE_RISE = 8.dp
     const val COVER_HOVER_MS = 160

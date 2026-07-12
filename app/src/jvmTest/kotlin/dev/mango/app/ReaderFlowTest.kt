@@ -352,17 +352,21 @@ class ReaderFlowTest {
         assertTrue(textVisible("/ 5"), "expected ch-1 to still be the current chapter after the failed append")
     }
 
-    // The controls overlay only reveals on a near-top hover or a click, not any move.
+    // The controls overlay reveals on genuine pointer movement anywhere in the reader (not just
+    // a top-edge band — the old band-based reveal is gone) or a click, and ignores Compose
+    // desktop's synthetic hover-move events fired at (near) the same position during a
+    // stationary-cursor wheel scroll (filtered by ReaderOverlayState's 2px move-delta gate).
+    // Updated from the old top-edge-band assertions to the new move-delta semantics (locked
+    // decision: reveal on pointer movement anywhere, not a Y-position band).
     @Test
-    fun controlsAppearOnlyNearTheTopEdgeOrOnClick() {
+    fun controlsRevealOnGenuineMovementNotSubPixelJitterOrClick() {
         // HARNESS TRAP, same family as the auto-scroll one below: with autoAdvance=true, a
-        // cursor parked in the top band makes waitForIdle diverge — every completed hide
+        // cursor parked at a fixed spot makes waitForIdle diverge — every completed hide
         // changes the hit-tree under the stationary cursor, Compose synthesizes a hover Move,
-        // the controls re-show, and the show/hide cycle spins forever. So: autoAdvance=false,
-        // explicit advanceTimeBy only, and every hide is advanced-past while the cursor is
-        // parked mid-screen (a below-threshold spot where no synthetic Move can re-reveal).
-        // The hide window is deliberately huge (10s) so reveal-asserts can advance generously
-        // (event delivery + recomposition) without racing the hide.
+        // and (were it not for the move-delta gate) the show/hide cycle could spin forever. So:
+        // autoAdvance=false, explicit advanceTimeBy only. The hide window is deliberately huge
+        // (10s) so reveal-asserts can advance generously (event delivery + recomposition)
+        // without racing the hide.
         val library = FakeLibraryRepository()
         setReaderContent(library, catalogWithPages(), controlsAutoHideMillis = 10_000)
         rule.waitForIdle()
@@ -372,18 +376,24 @@ class ReaderFlowTest {
         rule.mainClock.advanceTimeBy(11_000)
         rule.onNodeWithText("Ch. 1").assertDoesNotExist()
 
-        // Mid-screen move: below the 80.dp threshold, must NOT reveal.
+        // Establish a known pointer baseline (this move may or may not itself reveal, depending
+        // on wherever the test harness's cursor implicitly started), then let any resulting
+        // reveal expire so the assertions below start from a clean, hidden state.
         rule.onRoot().performMouseInput { moveTo(Offset(400f, 400f)) }
+        rule.mainClock.advanceTimeBy(11_000)
+        rule.onNodeWithText("Ch. 1").assertDoesNotExist()
+
+        // A sub-2px move from that baseline must NOT reveal.
+        rule.onRoot().performMouseInput { moveTo(Offset(401f, 400f)) }
         rule.mainClock.advanceTimeBy(500)
         rule.onNodeWithText("Ch. 1").assertDoesNotExist()
 
-        // Near-top move: reveals (500ms advanced is far inside the 10s window).
-        rule.onRoot().performMouseInput { moveTo(Offset(400f, 10f)) }
+        // A move past the threshold reveals — anywhere in the reader, not just near the top.
+        rule.onRoot().performMouseInput { moveTo(Offset(401f, 450f)) }
         rule.mainClock.advanceTimeBy(500)
         rule.onNodeWithText("Ch. 1").assertExists()
 
-        // Park the cursor mid-screen, then let the pending hide fire.
-        rule.onRoot().performMouseInput { moveTo(Offset(400f, 400f)) }
+        // Park the cursor, then let the pending hide fire.
         rule.mainClock.advanceTimeBy(11_000)
         rule.onNodeWithText("Ch. 1").assertDoesNotExist()
 
@@ -521,6 +531,57 @@ class ReaderFlowTest {
         paletteVisibleState.value = false
         rule.mainClock.advanceTimeBy(500)
         assertTrue(currentPageCounter() != paused, "expected auto-scroll to resume once the palette closed")
+
+        rule.mainClock.autoAdvance = true
+    }
+
+    // While the palette overlay is up the controls overlay is pinned visible: no idle hide is
+    // ever scheduled (the reveal effect early-returns on paletteVisible); closing the palette
+    // resumes the idle countdown. This fails if that early-return is removed.
+    @Test
+    fun paletteVisibilityPinsTheControlsOverlay() {
+        val library = FakeLibraryRepository()
+        val paletteVisibleState = mutableStateOf(false)
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                ReaderScreen(
+                    sourceId = SOURCE_ID,
+                    mangaId = MANGA_ID,
+                    chapterId = CHAPTER_ID,
+                    chapters = listOf(Chapter(CHAPTER_ID, number = 1.0)),
+                    catalog = catalogWithPages(),
+                    downloads = FakeDownloadManager(),
+                    library = library,
+                    challengeSolver = FakeChallengeSolver(),
+                    onBack = {},
+                    onToggleFullscreen = {},
+                    controlsAutoHideMillis = 1500,
+                    pageContent = { page -> FakePageContent(page) },
+                    paletteVisible = paletteVisibleState.value,
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        // Same clock discipline as the reveal test above: autoAdvance=false, explicit
+        // advanceTimeBy only, so the idle hide fires exactly when this test says so.
+        rule.mainClock.autoAdvance = false
+
+        // Reveal via a click, then confirm the controls are up.
+        rule.onRoot().performMouseInput { click(Offset(400f, 400f)) }
+        rule.mainClock.advanceTimeBy(100)
+        rule.onNodeWithText("Ch. 1").assertExists()
+
+        // Open the palette, then advance well past the idle window: still pinned visible.
+        paletteVisibleState.value = true
+        rule.mainClock.advanceTimeByFrame()
+        rule.mainClock.advanceTimeBy(10_000)
+        rule.onNodeWithText("Ch. 1").assertExists()
+
+        // Close the palette: the idle countdown resumes and the controls hide.
+        paletteVisibleState.value = false
+        rule.mainClock.advanceTimeBy(10_000)
+        rule.onNodeWithText("Ch. 1").assertDoesNotExist()
 
         rule.mainClock.autoAdvance = true
     }

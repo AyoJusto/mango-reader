@@ -324,23 +324,33 @@ fun Keycap(text: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * A horizontal progress bar: [progress] animates width changes, and the fill turns [success]
- * once it reaches 1f (a finished chapter/download reads as done, not just "full accent").
+ * A horizontal progress bar: [progress] animates width changes, and with [successAtFull] the
+ * fill turns [MangoTheme.success] once it reaches 1f (a finished chapter/download reads as
+ * done, not just "full accent"); pass false to keep the fill accent throughout (the reader's
+ * position bar, where 1f is just "at the bottom", not an achievement). [trackColor] overrides
+ * the resting-track fill (e.g. the reader overlay's white-on-dark track); null keeps the
+ * default [MangoTheme.bg2].
  */
 @Composable
-fun ProgressTrack(progress: Float, modifier: Modifier = Modifier, height: Dp = 4.dp) {
+fun ProgressTrack(
+    progress: Float,
+    modifier: Modifier = Modifier,
+    height: Dp = 4.dp,
+    trackColor: Color? = null,
+    successAtFull: Boolean = true,
+) {
     val theme = LocalMangoTheme.current
     val clamped = progress.coerceIn(0f, 1f)
     val animated by animateFloatAsState(
         targetValue = clamped,
         animationSpec = tween(MangoMotion.PROGRESS_BAR_MS, easing = MangoMotion.standard),
     )
-    val fillColor = if (clamped >= 1f) theme.success else theme.accent
+    val fillColor = if (successAtFull && clamped >= 1f) theme.success else theme.accent
     Box(
         modifier = modifier
             .height(height)
             .clip(RoundedCornerShape(height / 2))
-            .background(theme.bg2),
+            .background(trackColor ?: theme.bg2),
     ) {
         Box(
             modifier = Modifier

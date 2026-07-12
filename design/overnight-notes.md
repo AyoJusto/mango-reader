@@ -19,6 +19,16 @@ is a blocker; it is the morning's triage list.
 - U3: SearchScreen and ReaderScreen still have inline challenge rows in danger red
   (mixed error/challenge renderers). Deferred to U6/U5 which restyle those files —
   carried explicitly in their briefs, not forgotten.
+- U4: series "Completed" treatment = all chapters STARTED (not all finished). Reviewer
+  ruled the drift bounded and self-healing; the exact upgrade (finished_count in the
+  same SQL join) is recorded if premature Completed pills ever bother you.
+- U5 RULING (title bar over reader): the merged bar STAYS visible while reading. The
+  native window controls live in it — hiding it would remove drag/min/max from a
+  windowed app. Board 05's "zero chrome" applies to the content area below the bar;
+  F (fullscreen) remains the total-immersion mode. Revisit in the morning if you want
+  bar auto-hide in fullscreen only.
+- U5: cursor-hide with the overlay ships as always-on behavior (board 05); the board 09
+  "Hide cursor" toggle registers as a setting with U6's settings restyle.
 
 ## Known open questions carried in
 
