@@ -1,75 +1,58 @@
-# Handoff — 2026-07-11 (late night)
+# Handoff — 2026-07-12
 
-Session summary for the next pickup. R9 shipped: a project-wide quality/readability/
-performance review (owner-requested neckbeard pass) followed by fixing all nine findings.
-Both suites green after the commit: core 109 + app 103, forced rerun, JUnit XML verified.
+Session summary for the next pickup. The MU UI-overhaul milestone kicked off: owner built
+a full visual-direction lookbook in claude.ai/design, it was pulled into the repo, planned
+in depth, the U2 chrome spike ran on the owner's machine, and U1 (theme foundation)
+shipped. Both suites green after the commit: core 109 + app 110, forced rerun, JUnit XML
+verified.
 
-## R9 shipped (58d41c5)
+## MU milestone standing docs
 
-Review verdict first: the codebase was healthy — no architectural problems, boundaries
-hold, the recorded ceilings were left alone. Nine targeted findings, all fixed:
+- `design/lookbook-handoff.md` — the design spec of record (tokens, type, motion,
+  per-screen specs). Every MU brief and review cites it by section (owner instruction).
+- `design/ui-milestone-plan.md` — chunks U1–U6 with dispatch maps, acceptance criteria,
+  and the U2 spike findings (locked decisions).
+- PLANNING §9 MU entry, §13 loop addendum (implementers never spawn subagents; single
+  Opus implementer allowed only where a spike shows platform-subtle work; Opus reviews
+  every boundary).
 
-- **Details session cache** (`DetailsCache` in DetailsScreen.kt, hoisted in AppShell):
-  Reader→Details back-nav no longer refetches details+chapters (was: spinner + two fresh
-  JS contexts + politeness delay on every chapter exit). Freshness semantics unchanged —
-  every fresh open (Library/Search/Browse lambdas AND the palette's navigate, per an Opus
-  review finding) invalidates first; only Reader-back reuses. finished/latestProgress
-  always re-read live.
-- **Reader page prefetch** (`pagesToPrefetch` + effect in ReaderScreen.kt): next 5 network
-  pages enqueue into Coil before they scroll into view; offline segments and custom
-  pageContent (tests/harness) never prefetch. Pure helper unit-tested (ReaderPrefetchTest).
-- **Shared-engine bundle cache** (ExtensionRuntime/PaperbackExtension): one polyglot
-  Engine + cached Source per runtime, one runtime per extension instance; contexts stay
-  fresh per call. MEASURED first (owner threshold ~100ms): 300KB Toonily bundle eval was
-  81–174ms per call, now 23–35ms (~4x). Opus sandbox review: 0 blockers — shared Engine
-  shares compiled code only, never guest state (verified against GraalVM docs); Engine is
-  thread-safe for concurrent contexts; SandboxTest now pins denials on BOTH context paths
-  (standalone and shared-engine, closing the review's coverage-gap finding).
-- **Streaming bundle cap** (InkdexRepo): prepareGet+execute (implementer discovery: Ktor
-  3.5's default SaveBody plugin eagerly buffers the WHOLE body inside http.get before
-  caller code runs — execute{} is what actually keeps it a stream), Content-Length
-  pre-reject, capped readRemaining(MAX+1). Chunked encoding is caught by the capped read.
-- **Explicit HTTP timeouts** (AppGraph): HttpTimeout connect 10s / request 120s / socket
-  30s, CIO engine requestTimeout disabled (its implicit 15s default silently governed —
-  and could abort — large image downloads). scheduleRequest keeps its own 30s cap.
-- **Extensions action-error containment**: a failed install/remove now shows a banner
-  above the still-visible list instead of blanking the screen (was: action failures wrote
-  the load-error state). Test proves the list survives.
-- **Shared challenge-solve UI** (new ChallengeUi.kt): ChallengeErrorContent +
-  SolveProgressHint, replacing near-identical blocks in Reader/Details/Browse and the
-  duplicated hint in Search. Url-capture semantics preserved (review-verified).
-- **Cookie purge**: deleteExpiredCookies (<= now, matching the read filter) at AppGraph
-  init; expired rows no longer accumulate forever.
-- **Details sort memoization**: both chapter sorts behind remember(chapters).
+## U1 shipped (a9a187d)
 
-Reviews: two guided single Opus dispatches (app diff; core/engine diff — mandatory,
-sandbox-adjacent). App review: 0 blockers, 1 SHOULD-FIX (palette navigate skipped cache
-invalidation — fixed at the shared lambda). Core review: 0 blockers, sandbox invariant
-confirmed; accepted NITs fixed (SandboxTest engine-path probe, expiry <=, bundleSource
-rename); rejected as fine: unclosed Engine (GC-sound on JVM, documented in-code),
-cached(true) (explicit-of-default).
+Token theme system per the lookbook: `MangoTheme` data class + `LocalMangoTheme` /
+`ProvideMangoTheme` (Material interop with `surfaceTint` pinned to bg1 — tonal elevation
+must never tint toward the accent; that bug was caught by screenshot eyeball, not code
+review). ThemeJson validated import/export (trust boundary: never throws, failed import
+leaves theme untouched) + ThemeStore at `<dataDir>/theme.json`. Appearance settings
+(accent presets, export/import) registered in SETTINGS_ENTRIES with palette hits.
+kanagawa-dragon/midnight registry retired; Mango Dark is the only built-in — custom
+looks come from accent override + JSON import. All screens read tokens; zero
+`colorScheme` color reads remain.
 
-Execution followed the loop: 3 parallel disjoint-file implementers (chunk 1), then two
-sequenced single dispatches (chunks 2–3), engine change inline by the decision maker
-after measurement. All briefs enforced timeless comments.
+Execution: 1 Sonnet (theme core, ~14 min, honest 4-deviation report all review-verified),
+then 3 parallel recolor agents (2 Haiku + 1 Sonnet, grep self-checks instead of Gradle —
+concurrent agents must not share the daemon). Guided Opus review: SHIP, 0 blockers,
+5 NITs (3 fixed, 1 dissolved, 1 deferred to U6 and recorded in the plan doc).
 
-## Ledger updates
+## U2 chrome spike — findings locked (in ui-milestone-plan.md)
 
-- PLANNING §10: reader page images share the downloads host-policy-bypass ceiling family
-  (Coil sends no jar cookies / pinned UA → CF-walled pages can 403 in the reader even
-  after a solve). Route image fetches through host policy when that layer lands.
-- Details cache is session-lifetime; palette/list opens always refetch, so "new chapters"
-  behavior is unchanged. Reader-back is the only cached path.
-- Prefetch dedup key is page.url (unique per resource; re-enqueue after re-anchor is a
-  harmless cache hit).
+JBR `WindowDecorations.CustomTitleBar` is the chrome mechanism (IntelliJ's): native drag,
+double-click, Win+arrows, snap layouts, edge resize, OS-drawn buttons — all verified on
+the owner's machine, running on the IDEA-bundled JBR 25 via a temporary
+`compose.desktop.application.javaHome` switch. Compose needs the forceHitTest handshake
+(pattern snippet preserved in the plan doc). Blur measured free; owner decision: sidebar
+alpha-only, blur reserved for the palette. Fallback on stock JDK: OS-decorated window,
+our bar below it (this is what CI/tests exercise).
 
 ## Next steps
 
-1. Owner should feel out the reader: back-nav from a chapter should be instant now,
-   binge-scroll and auto-scroll should hit far fewer loading boxes.
-2. Refinement backlog unchanged (PLANNING §12 + recorded ceilings): nav-origin back-stack,
-   fuzzyScore full-DP, purge-source-data, library unread badges, per-manhwa Continue
-   palette hit.
+1. U2 dispatch (chrome + sidebar): Sonnet per the spike verdict. Open decision for the
+   brief: how dev-runs get a JBR (owner's IDEA jbr path is machine-local; a pinned
+   jbrsdk download is the clean answer, also needed later for packaging).
+2. Then U3 component kit → U4 Library → U5 Reader → U6 remaining screens + palette
+   (U6 carries the deferred swatch cosmetics + may run as a hands-off batch experiment,
+   owner-approved idea).
+3. Owner should run the app and feel the new theme: accent swatches apply live,
+   export → edit JSON → import round-trips.
 
 ## The working loop (unchanged, for a fresh session)
 
@@ -77,4 +60,6 @@ Fable/session model = decision maker (briefs, arbitration, commits); implementat
 to Sonnet/Haiku subagents with verified-delegation briefs (locked decisions, STOP rule,
 pasted evidence); parallel dispatches only on disjoint file sets; review at every chunk
 boundary = ONE guided Opus Agent dispatch (never the review workflow); independent
-verification (forced --rerun-tasks, JUnit XML check) before every commit.
+verification (forced --rerun-tasks, JUnit XML check) before every commit. MU addendum:
+concurrent implementers never run Gradle — grep/compile self-checks in briefs, the
+decision maker runs the suites once after all groups land.
