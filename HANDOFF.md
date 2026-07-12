@@ -27,6 +27,14 @@ core 101 tests + app 87 tests, all verified via forced rerun + JUnit XML.
   removed as links, not followed). Ceilings: clear-during-active-download orphans that
   one chapter's files (next clear removes them); DONE rows with hand-deleted files read
   as downloaded until cleared.
+- `45f7132` — R8 SHIPPED: comment scrub + NEW OWNER RULE (codified in CLAUDE.md "Code
+  documentation" section, auto-memory `timeless-code-comments`): comments never reference
+  project history — no milestone/chunk tags, dates, "owner call", "review finding",
+  planning-doc citations. Constraints stated timelessly or not at all; KDoc = what a
+  thing guarantees, never how it came to be; ponytail markers stay, timeless. 46 files
+  scrubbed by two parallel Sonnet agents (app/ and core/ halves), verified by grep sweep
+  (zero remaining refs in .kt and .sq/.sqm) + forced rerun (core 107, app 97, 0 failures).
+  EVERY future brief and review enforces this rule.
 - `442e5c1` — R7 SHIPPED: finished-chapter tracking. Owner decision: in-progress ≠ read —
   only FULLY read chapters dim. Sticky `read_progress.finished` (3.sqm; upsert MAX keeps
   it set), `finishedChapterIds` replaces `readChapterIds` app-wide, `latestProgress`
