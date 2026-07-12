@@ -486,6 +486,10 @@ pages, downloads metadata + library-on-download + download-all, configurable the
 - search-everywhere palette, online tab: a Tab-reachable second tab in the M6 palette that
   runs cross-extension search (reuses the M4.4 machinery, debounced); local and online
   results never mix
+- purge-source-data action (R6 ceiling, 2026-07-11): extension removal deliberately keeps
+  the source's library entries / read progress / downloads (downloads stay readable
+  offline); a destructive "also purge this source's data" action is the follow-up if
+  orphaned entries ever annoy
 - Apple targets (ex-M5, parked 2026-07-11): macOS/iOS thin client against `:core` behind a
   future `:server`; revisit only if an Apple device actually materializes
 

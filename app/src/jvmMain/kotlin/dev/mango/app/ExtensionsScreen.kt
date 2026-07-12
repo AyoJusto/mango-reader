@@ -15,6 +15,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,6 +41,7 @@ fun ExtensionsScreenContent(
     isLoading: Boolean,
     error: String?,
     onInstall: (AvailableSource) -> Unit,
+    onRemove: (AvailableSource) -> Unit,
 ) {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -81,13 +83,23 @@ fun ExtensionsScreenContent(
                                     installedVersion == null -> Button(onClick = { onInstall(source) }) {
                                         Text("Install")
                                     }
-                                    installedVersion == source.version -> Text(
-                                        text = "Installed",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.primary,
-                                    )
-                                    else -> Button(onClick = { onInstall(source) }) {
-                                        Text("Update to ${source.version}")
+                                    installedVersion == source.version -> Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "Installed",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.primary,
+                                        )
+                                        TextButton(onClick = { onRemove(source) }) {
+                                            Text("Remove")
+                                        }
+                                    }
+                                    else -> Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Button(onClick = { onInstall(source) }) {
+                                            Text("Update to ${source.version}")
+                                        }
+                                        TextButton(onClick = { onRemove(source) }) {
+                                            Text("Remove")
+                                        }
                                     }
                                 }
                             }
@@ -151,6 +163,25 @@ fun ExtensionsScreen(repo: ExtensionRepo, catalog: CatalogRepository) {
                         throw e
                     } catch (e: Exception) {
                         error = e.message ?: "Install failed"
+                    } finally {
+                        busy = busy - source.sourceId
+                    }
+                }
+            }
+        },
+        onRemove = { source ->
+            // same busy-guard shape as onInstall: set synchronously so a second click on the
+            // same row bails here instead of launching a duplicate uninstall
+            if (source.sourceId !in busy) {
+                busy = busy + source.sourceId
+                scope.launch {
+                    try {
+                        catalog.uninstall(source.sourceId)
+                        refreshInstalled()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        error = e.message ?: "Remove failed"
                     } finally {
                         busy = busy - source.sourceId
                     }

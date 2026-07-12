@@ -33,3 +33,6 @@ ON CONFLICT(source_id) DO UPDATE SET
 
 updateUserAgent:
 UPDATE installed_source SET user_agent = ? WHERE source_id = ?;
+
+deleteInstalledSource:
+DELETE FROM installed_source WHERE source_id = ?;

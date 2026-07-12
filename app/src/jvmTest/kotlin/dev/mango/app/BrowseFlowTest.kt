@@ -51,6 +51,9 @@ private class ScriptedHomeSectionsCatalogRepository(
         error("ScriptedHomeSectionsCatalogRepository.pages is not stubbed")
 
     override suspend fun setUserAgent(sourceId: String, userAgent: String) = Unit
+
+    override suspend fun uninstall(sourceId: String): Unit =
+        error("ScriptedHomeSectionsCatalogRepository.uninstall is not stubbed")
 }
 
 /**
@@ -83,6 +86,8 @@ private class SectionCountingCatalogRepository(private val delegate: CatalogRepo
 
     override suspend fun setUserAgent(sourceId: String, userAgent: String) =
         delegate.setUserAgent(sourceId, userAgent)
+
+    override suspend fun uninstall(sourceId: String) = delegate.uninstall(sourceId)
 }
 
 /**

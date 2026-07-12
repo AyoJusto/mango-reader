@@ -53,6 +53,8 @@ private class CountingCatalogRepository(private val delegate: CatalogRepository)
 
     override suspend fun setUserAgent(sourceId: String, userAgent: String) =
         delegate.setUserAgent(sourceId, userAgent)
+
+    override suspend fun uninstall(sourceId: String) = delegate.uninstall(sourceId)
 }
 
 /**

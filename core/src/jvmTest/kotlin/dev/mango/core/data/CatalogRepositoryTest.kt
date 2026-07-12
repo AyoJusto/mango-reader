@@ -9,6 +9,8 @@ import dev.mango.core.engine.ApplicationHost
 import dev.mango.core.engine.BundleVerificationException
 import dev.mango.core.engine.FLAME_COMICS_FIXTURE
 import dev.mango.core.engine.FLAME_COMICS_SHA256
+import dev.mango.core.engine.MANGABAT_FIXTURE
+import dev.mango.core.engine.MANGABAT_SHA256
 import dev.mango.core.engine.PaperbackExtension
 import dev.mango.core.engine.RecordedHttp
 import dev.mango.core.engine.readFixture
@@ -220,6 +222,40 @@ class CatalogRepositoryTest {
             repo.install(SourceInfo(sourceId = "../evil", name = "Evil"), FLAME_COMICS_SHA256)
         }
         assertFailsWith<IllegalArgumentException> { repo.search("..\\evil", "") }
+    }
+
+    @Test
+    fun uninstallRemovesRowFileAndCachedEngine() = runTest {
+        val dir = bundleDirWithFlameComics()
+        val repo = newRepository(dir)
+        repo.install(SourceInfo(sourceId = "FlameComics", name = "Flame Comics"), FLAME_COMICS_SHA256)
+        repo.search("FlameComics", "")
+
+        repo.uninstall("FlameComics")
+
+        assertEquals(emptyList(), repo.installedSources())
+        assertTrue(Files.notExists(dir.resolve("FlameComics.index.js")))
+        assertFailsWith<UnknownSourceException> { repo.search("FlameComics", "") }
+    }
+
+    @Test
+    fun uninstallOneSourceLeavesTheOtherServing() = runTest {
+        // two distinct sourceIds need two distinct bundles: the runtime looks up the extension
+        // by a member named exactly for the sourceId (see ExtensionHandle.extension), so a
+        // second "FlameComics"-content bundle installed under a different sourceId would 404
+        // inside the JS. MangaBat is the other fixture with recorded HTTP replay coverage
+        // (ReadPathMatrixTest), so it doubles as an independent second installed source here.
+        val dir = bundleDirWithFlameComics()
+        Files.write(dir.resolve("MangaBat.index.js"), readFixture(MANGABAT_FIXTURE))
+        val repo = newRepository(dir)
+        repo.install(SourceInfo(sourceId = "FlameComics", name = "Flame Comics"), FLAME_COMICS_SHA256)
+        repo.install(SourceInfo(sourceId = "MangaBat", name = "MangaBat"), MANGABAT_SHA256)
+
+        repo.uninstall("FlameComics")
+
+        assertFailsWith<UnknownSourceException> { repo.search("FlameComics", "") }
+        val results = repo.search("MangaBat", "solo")
+        assertTrue(results.isNotEmpty(), "expected the remaining source to still serve")
     }
 
     @Test

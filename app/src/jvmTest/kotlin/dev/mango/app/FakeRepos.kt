@@ -114,6 +114,10 @@ class FakeCatalogRepository(
     override suspend fun setUserAgent(sourceId: String, userAgent: String) {
         userAgentsBySourceId[sourceId] = userAgent
     }
+
+    override suspend fun uninstall(sourceId: String) {
+        sourcesState.value = sourcesState.value.filterNot { it.sourceId == sourceId }
+    }
 }
 
 /**

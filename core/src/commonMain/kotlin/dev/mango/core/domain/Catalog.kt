@@ -28,4 +28,12 @@ interface CatalogRepository {
 
     /** Pins the UA used for [sourceId]'s host requests (cf_clearance is UA-bound). Evicts the source's cached engine instance. */
     suspend fun setUserAgent(sourceId: String, userAgent: String)
+
+    /**
+     * Removes the installed source: its DB row, its bundle file on disk, and any cached engine
+     * instance (the bundle stops being executable). The source's library entries, read progress,
+     * and downloads are deliberately untouched — downloads stay readable offline; live catalog
+     * calls for the source throw an unknown-source error until it is reinstalled.
+     */
+    suspend fun uninstall(sourceId: String)
 }

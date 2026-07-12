@@ -105,6 +105,20 @@ class PaperbackCatalogRepository(
         Unit
     }
 
+    override suspend fun uninstall(sourceId: String) = withContext(context) {
+        requireSafeSourceId(sourceId)
+        db.sourcesQueries.deleteInstalledSource(source_id = sourceId)
+        // Evict directly after the row delete — resolveSource's compute bin-lock means an
+        // in-flight resolve either finishes before this remove (and gets removed) or reads the
+        // now-deleted row and throws UnknownSourceException; nothing can repopulate the cache.
+        // The file delete comes LAST because it can throw (Windows lock from a racing bundle
+        // read): a removed source must stop executing even when the file sweep fails — the
+        // orphaned bundle is inert without its row, and a retry click deletes it (review, R6).
+        resolved.remove(sourceId)
+        Files.deleteIfExists(bundleDir.resolve("$sourceId.index.js"))
+        Unit
+    }
+
     private suspend fun resolveSource(sourceId: String): MangaSource {
         requireSafeSourceId(sourceId)
         resolved[sourceId]?.let { return it }

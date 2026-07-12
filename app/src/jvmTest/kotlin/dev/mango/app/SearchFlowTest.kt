@@ -52,6 +52,9 @@ private class PerSourceCatalogRepository(
         error("PerSourceCatalogRepository.pages is not stubbed")
 
     override suspend fun setUserAgent(sourceId: String, userAgent: String) = Unit
+
+    override suspend fun uninstall(sourceId: String): Unit =
+        error("PerSourceCatalogRepository.uninstall is not stubbed")
 }
 
 /**
