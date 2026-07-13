@@ -101,4 +101,32 @@ class SettingsTest {
         val reloaded = Settings(dataDir)
         assertEquals(null, reloaded.fontFamilyName)
     }
+
+    @Test
+    fun libraryCheckedAtDefaultsToNullAndRoundTripsAcrossInstances() {
+        val dataDir = Files.createTempDirectory("settings-test")
+        val settings = Settings(dataDir)
+        assertEquals(null, settings.libraryCheckedAt)
+
+        settings.libraryCheckedAt = 1_700_000_000_000L
+
+        val reloaded = Settings(dataDir)
+        assertEquals(1_700_000_000_000L, reloaded.libraryCheckedAt)
+    }
+
+    @Test
+    fun libraryCheckedAtSetToNullClearsThePersistedValueAndMalformedValueReadsAsNull() {
+        val dataDir = Files.createTempDirectory("settings-test")
+        val file = dataDir.resolve("settings.properties")
+        Files.write(file, "libraryCheckedAt=not-a-number\n".toByteArray())
+
+        val settings = Settings(dataDir)
+        assertEquals(null, settings.libraryCheckedAt)
+
+        settings.libraryCheckedAt = 42L
+        settings.libraryCheckedAt = null
+
+        val reloaded = Settings(dataDir)
+        assertEquals(null, reloaded.libraryCheckedAt)
+    }
 }

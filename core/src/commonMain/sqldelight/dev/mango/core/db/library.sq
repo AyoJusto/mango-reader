@@ -38,6 +38,7 @@ SELECT
   li.cover AS cover,
   li.added_at AS added_at,
   li.chapter_count AS chapter_count,
+  li.last_opened_at AS last_opened_at,
   MAX(0, li.chapter_count - COUNT(rp.chapter_id)) AS unread_count,
   MAX(rp.updated_at) AS last_read_at,
   (SELECT COUNT(*) FROM chapter_cache cc

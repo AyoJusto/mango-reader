@@ -44,6 +44,8 @@ fun main() {
         var libraryView by remember { mutableStateOf(settings.libraryView) }
         // Same hoist pattern again: the Settings screen's App font dropdown applies live.
         var fontFamilyName by remember { mutableStateOf(settings.fontFamilyName) }
+        // Same hoist pattern again: the Library header's "checked X ago" caption applies live.
+        var libraryCheckedAt by remember { mutableStateOf(settings.libraryCheckedAt) }
         // Enumerating a few hundred system font families isn't free; do it once, off the UI
         // thread. The dropdown shows only "System default" until the list lands.
         var installedFonts by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -140,6 +142,8 @@ fun main() {
                     installedFonts = installedFonts,
                     onFontFamilyChange = { fontFamilyName = it; settings.fontFamilyName = it },
                     jbrBar = jbrBar,
+                    libraryCheckedAt = libraryCheckedAt,
+                    onLibraryChecked = { libraryCheckedAt = it; settings.libraryCheckedAt = it },
                 )
             }
         }

@@ -78,6 +78,19 @@ class Settings(dataDir: Path) {
             save()
         }
 
+    // Epoch millis of the last completed library-wide update check; null means never checked.
+    // Same nullable-property pattern as fontFamilyName above.
+    var libraryCheckedAt: Long?
+        get() = props.getProperty("libraryCheckedAt")?.toLongOrNull()
+        set(value) {
+            if (value == null) {
+                props.remove("libraryCheckedAt")
+            } else {
+                props.setProperty("libraryCheckedAt", value.toString())
+            }
+            save()
+        }
+
     private fun save() {
         try {
             Files.createDirectories(file.parent)

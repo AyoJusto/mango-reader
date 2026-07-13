@@ -37,6 +37,8 @@ import dev.mango.core.domain.LibraryItem
 import dev.mango.core.domain.LibraryRepository
 import dev.mango.core.domain.MangaEntry
 import kotlin.math.roundToInt
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 /** Grid vs list mode, persisted by [Settings.libraryView] and mirrored in [SETTINGS_ENTRIES]. */
 internal const val LIBRARY_VIEW_GRID = "grid"
@@ -73,8 +75,12 @@ fun LibraryScreenContent(
     onLibraryViewChange: (String) -> Unit = {},
     onOpenDetails: (MangaEntry) -> Unit,
     onBrowse: () -> Unit = {},
+    checkedAt: Long? = null,
+    checking: Boolean = false,
+    onCheckForUpdates: () -> Unit = {},
 ) {
     val theme = LocalMangoTheme.current
+    val now = Clock.System.now()
     Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
         ContentColumn(max = MangoSpace.gridMaxWidth) {
             Column(modifier = Modifier.fillMaxSize()) {
@@ -91,9 +97,21 @@ fun LibraryScreenContent(
                         modifier = Modifier.weight(1f),
                     )
                     Text(
-                        text = "${items.size} series",
+                        text = if (checkedAt != null) {
+                            "${items.size} series · checked ${formatRelativeTime(Instant.fromEpochMilliseconds(checkedAt), now)}"
+                        } else {
+                            "${items.size} series"
+                        },
                         style = MangoType.caption,
                         color = theme.textTertiary,
+                        modifier = Modifier.padding(end = MangoSpace.sm),
+                    )
+                    RefreshGlyphButton(
+                        checking = checking,
+                        onClick = onCheckForUpdates,
+                        fill = theme.bg2,
+                        hoverFill = theme.surface,
+                        testTag = "library-refresh",
                         modifier = Modifier.padding(end = MangoSpace.sm),
                     )
                     SegmentedControl(
@@ -137,6 +155,7 @@ fun LibraryScreenContent(
                                 progress = item.readFraction(),
                                 finished = item.isFinished(),
                                 onClick = { onOpenDetails(item.entry) },
+                                newCount = item.newCount,
                             )
                         }
                     }
@@ -224,6 +243,9 @@ fun LibraryScreen(
     onLibraryViewChange: (String) -> Unit = {},
     onBrowse: () -> Unit = {},
     onOpenDetails: (MangaEntry) -> Unit,
+    checkedAt: Long? = null,
+    checking: Boolean = false,
+    onCheckForUpdates: () -> Unit = {},
 ) {
     val items by library.observeLibrary().collectAsState(initial = emptyList())
     LibraryScreenContent(
@@ -232,5 +254,8 @@ fun LibraryScreen(
         onLibraryViewChange = onLibraryViewChange,
         onOpenDetails = onOpenDetails,
         onBrowse = onBrowse,
+        checkedAt = checkedAt,
+        checking = checking,
+        onCheckForUpdates = onCheckForUpdates,
     )
 }

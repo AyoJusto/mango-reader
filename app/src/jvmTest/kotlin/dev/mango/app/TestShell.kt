@@ -9,6 +9,7 @@ import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import dev.mango.core.domain.CatalogCache
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.ChallengeSolver
 import dev.mango.core.domain.DownloadManager
@@ -26,20 +27,26 @@ fun TestAppShell(
     downloads: DownloadManager,
     challengeSolver: ChallengeSolver? = null,
     palette: PaletteState? = null,
+    catalogCache: CatalogCache = remember { FakeCatalogCache() },
+    onLibraryChecked: (Long) -> Unit = {},
 ) {
     var sidebarOpen by remember { mutableStateOf(false) }
     var libraryView by remember { mutableStateOf(LIBRARY_VIEW_GRID) }
+    var libraryCheckedAt by remember { mutableStateOf<Long?>(null) }
     ProvideMangoTheme(MangoDark) {
         AppShell(
             library = library,
             catalog = catalog,
             downloads = downloads,
             challengeSolver = challengeSolver ?: remember { FakeChallengeSolver() },
+            catalogCache = catalogCache,
             palette = palette ?: remember { PaletteState() },
             sidebarOpen = sidebarOpen,
             onSidebarChange = { sidebarOpen = it },
             libraryView = libraryView,
             onLibraryViewChange = { libraryView = it },
+            libraryCheckedAt = libraryCheckedAt,
+            onLibraryChecked = { libraryCheckedAt = it; onLibraryChecked(it) },
         )
     }
 }

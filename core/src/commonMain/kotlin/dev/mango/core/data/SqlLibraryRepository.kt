@@ -36,6 +36,7 @@ class SqlLibraryRepository(
                     unreadCount = (row.unread_count ?: 0L).toInt(),
                     lastReadAt = row.last_read_at?.let { Instant.fromEpochMilliseconds(it) },
                     newCount = row.new_count.toInt(),
+                    lastOpenedAt = row.last_opened_at.takeIf { it != 0L }?.let { Instant.fromEpochMilliseconds(it) },
                 )
             }
         }

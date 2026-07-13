@@ -45,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import dev.mango.core.domain.CatalogCache
@@ -59,7 +60,10 @@ import dev.mango.core.domain.LibraryRepository
 import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
 import dev.mango.core.domain.ReadProgress
+import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -80,12 +84,16 @@ fun DetailsScreenContent(
     downloadsByChapterId: Map<String, Download> = emptyMap(),
     hasDownloads: Boolean = false,
     latestProgress: ReadProgress? = null,
+    newChapterIds: Set<String> = emptySet(),
+    checkedAt: Instant? = null,
+    revalidating: Boolean = false,
     onToggleLibrary: () -> Unit,
     onOpenChapter: (Chapter, List<Chapter>) -> Unit,
     onDownloadChapter: (MangaEntry, Chapter) -> Unit,
     onDownloadAll: (MangaEntry, List<Chapter>) -> Unit,
     onClearStorage: () -> Unit = {},
     onMarkAllFinished: () -> Unit = {},
+    onRefresh: () -> Unit = {},
 ) {
     val theme = LocalMangoTheme.current
     // Local UI state for the range dialog — presentation-only, never leaves this composable.
@@ -237,12 +245,32 @@ fun DetailsScreenContent(
                         )
                     }
                     Spacer(modifier = Modifier.height(MangoSpace.lg))
-                    Text(
-                        text = "${chapters.size} chapters",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = theme.textPrimary,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "${chapters.size} chapters",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = theme.textPrimary,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            text = if (checkedAt != null) {
+                                "sorted newest first · checked ${formatRelativeTime(checkedAt, Clock.System.now())}"
+                            } else {
+                                "sorted newest first"
+                            },
+                            fontSize = 12.5.sp,
+                            color = theme.textTertiary,
+                        )
+                        RefreshGlyphButton(
+                            checking = revalidating,
+                            onClick = onRefresh,
+                            fill = theme.surface,
+                            hoverFill = theme.bg2,
+                            testTag = "details-refresh",
+                            modifier = Modifier.padding(start = MangoSpace.sm),
+                        )
+                    }
                     Spacer(modifier = Modifier.height(MangoSpace.xs))
                     LazyColumn(
                         modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -255,6 +283,7 @@ fun DetailsScreenContent(
                                 downloaded = chapter.chapterId in downloadedChapterIds,
                                 download = downloadsByChapterId[chapter.chapterId],
                                 inProgress = latestProgress?.takeIf { it.chapterId == chapter.chapterId && !it.finished },
+                                isNew = chapter.chapterId in newChapterIds,
                                 onOpen = { onOpenChapter(chapter, chapters) },
                                 onDownload = { onDownloadChapter(details.entry, chapter) },
                             )
@@ -376,6 +405,7 @@ private fun ChapterRow(
     downloaded: Boolean,
     download: Download?,
     inProgress: ReadProgress?,
+    isNew: Boolean = false,
     onOpen: () -> Unit,
     onDownload: () -> Unit,
 ) {
@@ -413,6 +443,21 @@ private fun ChapterRow(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
+        if (isNew) {
+            Box(
+                modifier = Modifier
+                    .background(theme.accent.copy(alpha = 0.16f), RoundedCornerShape(MangoRadius.pill))
+                    .padding(horizontal = 7.dp, vertical = 1.5.dp),
+            ) {
+                Text(
+                    text = "NEW",
+                    fontSize = 10.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.06.em,
+                    color = theme.accent,
+                )
+            }
+        }
         when {
             // Chapter page counts aren't loaded on this screen, so the in-progress state
             // shows the saved page (the Continue button's grammar), not a percentage.
@@ -580,6 +625,13 @@ fun DetailsScreen(
     var challengeUrl by remember(sourceId, mangaId) { mutableStateOf<String?>(null) }
     var solving by remember(sourceId, mangaId) { mutableStateOf(false) }
     var reloadKey by remember(sourceId, mangaId) { mutableStateOf(0) }
+    var checkedAt by remember(sourceId, mangaId) { mutableStateOf<Instant?>(null) }
+    var firstSeenAt by remember(sourceId, mangaId) { mutableStateOf<Map<String, Instant>>(emptyMap()) }
+    var openedSnapshot by remember(sourceId, mangaId) { mutableStateOf<Instant?>(null) }
+    var revalidating by remember(sourceId, mangaId) { mutableStateOf(false) }
+    // Guards the openedSnapshot capture + markOpened call to run exactly once per series visit,
+    // not on every reloadKey-triggered re-run of the load effect below.
+    var openedCaptured by remember(sourceId, mangaId) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val libraryItems by library.observeLibrary().collectAsState(initial = emptyList())
     val mangaDownloads by remember(sourceId, mangaId) {
@@ -597,10 +649,22 @@ fun DetailsScreen(
     LaunchedEffect(sourceId, mangaId, reloadKey) {
         error = null
         challengeUrl = null
+        // Snapshot the series' previous open time BEFORE stamping a new one, then stamp — once
+        // per series visit, not on every reloadKey-triggered re-run of this effect. A manga not
+        // in the library has no matching item, so the snapshot stays null and markOpened no-ops.
+        if (!openedCaptured) {
+            openedSnapshot = library.observeLibrary().first()
+                .find { it.entry.sourceId == sourceId && it.entry.mangaId == mangaId }
+                ?.lastOpenedAt
+            library.markOpened(sourceId, mangaId)
+            openedCaptured = true
+        }
         val cached = catalogCache.get(sourceId, mangaId)
         if (cached != null) {
             details = cached.details
             chapters = cached.chapters
+            checkedAt = cached.checkedAt
+            firstSeenAt = cached.firstSeenAt
             // Unconditional: a manga not in the library has no library_item row, so the UPDATE
             // simply no-ops rather than needing a membership check here.
             library.setChapterCount(sourceId, mangaId, chapters.size)
@@ -612,12 +676,19 @@ fun DetailsScreen(
         // the stale render stays instead of being replaced by an error or challenge card. Once
         // a manga is cached, no Details open surfaces a challenge for it; the Reader's Solve
         // button (live page fetches still throw there) is the path that refreshes clearance.
+        revalidating = true
         try {
             val loadedDetails = catalog.details(sourceId, mangaId)
             val loadedChapters = catalog.chapters(sourceId, mangaId)
             catalogCache.put(sourceId, mangaId, loadedDetails, loadedChapters)
             details = loadedDetails
             chapters = loadedChapters
+            // The cache is the only stamper of checkedAt/firstSeenAt; re-read what put() just
+            // wrote rather than computing stamps here.
+            catalogCache.get(sourceId, mangaId)?.let { refreshed ->
+                checkedAt = refreshed.checkedAt
+                firstSeenAt = refreshed.firstSeenAt
+            }
             // Unconditional: revalidation may have changed the chapter count.
             library.setChapterCount(sourceId, mangaId, chapters.size)
             if (cached == null) {
@@ -636,6 +707,7 @@ fun DetailsScreen(
                 error = e.message ?: "Failed to load"
             }
         }
+        revalidating = false
         chaptersSettled = true
     }
 
@@ -661,6 +733,15 @@ fun DetailsScreen(
             }
             chaptersSettled -> passThrough.value = false
         }
+    }
+
+    val snapshot = openedSnapshot
+    val newChapterIds = if (snapshot == null) {
+        emptySet()
+    } else {
+        chapters.filter { firstSeenAt[it.chapterId]?.let { seenAt -> seenAt > snapshot } == true }
+            .map { it.chapterId }
+            .toSet()
     }
 
     val currentDetails = details
@@ -704,6 +785,10 @@ fun DetailsScreen(
             downloadsByChapterId = downloadsByChapterId,
             hasDownloads = hasDownloads,
             latestProgress = latestProgress,
+            newChapterIds = newChapterIds,
+            checkedAt = checkedAt,
+            revalidating = revalidating,
+            onRefresh = { reloadKey++ },
             onToggleLibrary = {
                 scope.launch {
                     if (inLibrary) {

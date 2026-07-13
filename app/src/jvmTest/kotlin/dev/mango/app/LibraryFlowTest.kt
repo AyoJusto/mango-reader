@@ -2,6 +2,7 @@ package dev.mango.app
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -10,9 +11,12 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.pressKey
 import dev.mango.core.domain.LibraryItem
+import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
+import dev.mango.core.domain.MangaStatus
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import kotlin.time.Clock
 import org.junit.Rule
 import org.junit.Test
@@ -96,5 +100,77 @@ class LibraryFlowTest {
         rule.waitForIdle()
 
         assertEquals(LIBRARY_VIEW_LIST, applied)
+    }
+
+    @Test
+    fun aSeriesWithNewChaptersShowsThePlusNewCaptionInTheGrid() {
+        val items = listOf(
+            LibraryItem(
+                MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling"),
+                Clock.System.now(),
+                newCount = 3,
+            ),
+        )
+
+        rule.setContent { ProvideMangoTheme(MangoDark) { LibraryScreenContent(items = items, onOpenDetails = {}) } }
+        rule.waitForIdle()
+
+        rule.onNodeWithText("+3 new").assertExists()
+    }
+
+    @Test
+    fun aNonNullCheckedAtShowsCheckedInTheHeaderCaption() {
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                LibraryScreenContent(
+                    items = libraryItems(),
+                    onOpenDetails = {},
+                    checkedAt = Clock.System.now().toEpochMilliseconds(),
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        rule.onNode(hasText("checked", substring = true)).assertExists()
+    }
+
+    @Test
+    fun clickingTheRefreshButtonInvokesTheCallback() {
+        var invoked = false
+
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                LibraryScreenContent(items = libraryItems(), onOpenDetails = {}, onCheckForUpdates = { invoked = true })
+            }
+        }
+        rule.waitForIdle()
+
+        rule.onNodeWithTag("library-refresh").performClick()
+        rule.waitForIdle()
+
+        assertTrue(invoked)
+    }
+
+    // AppShell-level wiring: clicking the header's refresh button must run a real library-wide
+    // check through LibraryUpdater — the call count on the fake catalog is the observable proof
+    // (TestAppShell's onLibraryChecked isn't asserted separately here since the call count
+    // already proves checkForUpdates ran end to end through the shell).
+    @Test
+    fun clickingLibraryRefreshRunsALibraryWideUpdateCheckThroughAppShell() {
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val library = FakeLibraryRepository(listOf(LibraryItem(entry, Clock.System.now())))
+        val catalog = FakeCatalogRepository(
+            details = mapOf(("FlameComics" to "manga-1") to MangaDetails(entry = entry, status = MangaStatus.ONGOING)),
+            chapters = mapOf(("FlameComics" to "manga-1") to emptyList()),
+        )
+        val catalogCache = FakeCatalogCache()
+
+        rule.setContent { TestAppShell(library, catalog, FakeDownloadManager(), catalogCache = catalogCache) }
+        rule.waitForIdle()
+
+        rule.onNodeWithTag("library-refresh").performClick()
+        rule.waitForIdle()
+
+        assertTrue(catalog.chaptersCallCount >= 1)
     }
 }

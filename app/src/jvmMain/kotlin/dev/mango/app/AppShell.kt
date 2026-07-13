@@ -35,7 +35,9 @@ import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.DownloadStatus
 import dev.mango.core.domain.ExtensionRepo
 import dev.mango.core.domain.LibraryRepository
+import dev.mango.core.domain.LibraryUpdater
 import dev.mango.core.domain.MangaDetails
+import kotlin.time.Clock
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -120,6 +122,8 @@ fun AppShell(
     installedFonts: List<String> = emptyList(),
     onFontFamilyChange: (String?) -> Unit = {},
     jbrBar: JbrBar? = null,
+    libraryCheckedAt: Long? = null,
+    onLibraryChecked: (Long) -> Unit = {},
 ) {
     var screen by remember { mutableStateOf<Screen>(Screen.Library) }
     // Reader has no fromBrowse of its own; remember which Details screen led to it so its
@@ -133,6 +137,25 @@ fun AppShell(
     // switching to another tab and back.
     val searchState = remember { SearchState() }
     val scope = rememberCoroutineScope()
+
+    val updater = remember(catalog, catalogCache, library) { LibraryUpdater(catalog, catalogCache, library) }
+    var checking by remember { mutableStateOf(false) }
+    // Single flight: a second click while a check is running is a no-op. The checked-at stamp
+    // only advances after a full run completes, so a cancelled run leaves it untouched.
+    fun checkForUpdates() {
+        if (checking) return
+        // Set before launch: the launched body runs on a later event-loop turn, so flipping the
+        // flag inside it would let a second click pass the guard first.
+        checking = true
+        scope.launch {
+            try {
+                updater.checkAll()
+            } finally {
+                checking = false
+            }
+            onLibraryChecked(Clock.System.now().toEpochMilliseconds())
+        }
+    }
 
     // Continue cards are loaded once per sidebar open — the panel is transient, so a snapshot
     // is enough; no need to observe progress while it is closed.
@@ -221,6 +244,9 @@ fun AppShell(
                                 onOpenDetails = { entry ->
                                     screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = false)
                                 },
+                                checkedAt = libraryCheckedAt,
+                                checking = checking,
+                                onCheckForUpdates = { checkForUpdates() },
                             )
                             Screen.Search -> SearchScreen(catalog, challengeSolver, searchState) { entry ->
                                 // Details has no fromSearch case yet: back from a Search-opened
@@ -338,6 +364,7 @@ fun AppShell(
                     onToggleLibraryView = {
                         onLibraryViewChange(if (currentLibraryView == LIBRARY_VIEW_LIST) LIBRARY_VIEW_GRID else LIBRARY_VIEW_LIST)
                     },
+                    onCheckForUpdates = { checkForUpdates() },
                 )
             }
             PaletteOverlay(state = palette, tabs = tabs)

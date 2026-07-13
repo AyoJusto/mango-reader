@@ -57,6 +57,9 @@ class ScreenScreenshotsTest {
                     else -> 142 - (index * 20)
                 },
                 lastReadAt = if (index == 0) null else Clock.System.now(),
+                // manga-0 also has chapters newer than its last open, exercising the grid's
+                // "+n new" caption prefix.
+                newCount = if (index == 0) 5 else 0,
             )
         }
     }
@@ -231,6 +234,10 @@ class ScreenScreenshotsTest {
                         "ch-6" to download("ch-6", DownloadStatus.QUEUED),
                         "ch-5" to download("ch-5", DownloadStatus.FAILED, done = 3, total = 45),
                     ),
+                    // ch-1 (the newest chapter, sorted first) arrived since the last open —
+                    // exercises the amber NEW chip.
+                    newChapterIds = setOf("ch-1"),
+                    checkedAt = Clock.System.now(),
                     onToggleLibrary = {},
                     onOpenChapter = { _, _ -> },
                     onDownloadChapter = { _, _ -> },

@@ -17,6 +17,7 @@ data class LibraryItem(
     val unreadCount: Int = 0,
     val lastReadAt: Instant? = null,
     val newCount: Int = 0,
+    val lastOpenedAt: Instant? = null,
 )
 
 /** Where the user left off in one chapter. */

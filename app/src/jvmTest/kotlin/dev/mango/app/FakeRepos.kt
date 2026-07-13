@@ -19,6 +19,7 @@ import dev.mango.core.domain.Page
 import dev.mango.core.domain.ReadProgress
 import dev.mango.core.domain.SourceInfo
 import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -230,15 +231,29 @@ class FakeDownloadManager(
  */
 class FakeCatalogCache(initial: Map<Pair<String, String>, CachedManga> = emptyMap()) : CatalogCache {
     private val entries = initial.toMutableMap()
+    private var stampCounter = 0L
 
     var putCount: Int = 0
         private set
 
     override suspend fun get(sourceId: String, mangaId: String): CachedManga? = entries[sourceId to mangaId]
 
+    // Mirrors SqlCatalogCache's stamping contract: surviving chapter ids keep their existing
+    // first_seen_at, unseen ids on a manga that already had rows get a fresh (counter-based,
+    // deterministic) stamp, and a first fill stamps everything at epoch 0.
     override suspend fun put(sourceId: String, mangaId: String, details: MangaDetails, chapters: List<Chapter>) {
         putCount++
-        entries[sourceId to mangaId] = CachedManga(details, chapters)
+        val existing = entries[sourceId to mangaId]
+        val previousFirstSeenAt = existing?.firstSeenAt.orEmpty()
+        val isFirstFill = previousFirstSeenAt.isEmpty()
+        val stamp = Instant.fromEpochMilliseconds(++stampCounter)
+        val firstSeenAt = chapters.associate { chapter ->
+            chapter.chapterId to when {
+                isFirstFill -> Instant.fromEpochMilliseconds(0)
+                else -> previousFirstSeenAt[chapter.chapterId] ?: stamp
+            }
+        }
+        entries[sourceId to mangaId] = CachedManga(details, chapters, checkedAt = stamp, firstSeenAt = firstSeenAt)
     }
 }
 

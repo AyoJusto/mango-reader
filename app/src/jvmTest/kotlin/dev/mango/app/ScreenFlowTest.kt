@@ -3,7 +3,9 @@ package dev.mango.app
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
@@ -13,6 +15,7 @@ import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.ChallengeRequiredException
 import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.HomeSection
+import dev.mango.core.domain.LibraryItem
 import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
 import dev.mango.core.domain.MangaStatus
@@ -20,7 +23,9 @@ import dev.mango.core.domain.Page
 import dev.mango.core.domain.ReadProgress
 import dev.mango.core.domain.SourceInfo
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -787,5 +792,90 @@ class ScreenFlowTest {
         rule.waitForIdle()
 
         rule.onNodeWithText("boom").assertExists()
+    }
+
+    // A chapter first seen after the series' last open is NEW; one seen before it is not —
+    // markOpened must still fire so the next visit's snapshot moves forward.
+    @Test
+    fun aChapterFirstSeenAfterTheLastOpenShowsExactlyOneNewChip() {
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        val chapters = listOf(
+            Chapter(chapterId = "c1", number = 1.0, title = null, publishedAt = null),
+            Chapter(chapterId = "c2", number = 2.0, title = null, publishedAt = null),
+        )
+        val lastOpenedAt = Instant.fromEpochMilliseconds(1_000)
+        val firstSeenAt = mapOf(
+            "c1" to Instant.fromEpochMilliseconds(500), // seen before last open: not new
+            "c2" to Instant.fromEpochMilliseconds(2_000), // seen after last open: new
+        )
+        val catalogCache = FakeCatalogCache(
+            mapOf(("FlameComics" to "manga-1") to CachedManga(details, chapters, firstSeenAt = firstSeenAt)),
+        )
+        val catalog = FakeCatalogRepository(
+            details = mapOf(("FlameComics" to "manga-1") to details),
+            chapters = mapOf(("FlameComics" to "manga-1") to chapters),
+        )
+        val library = FakeLibraryRepository(listOf(LibraryItem(entry, Clock.System.now(), lastOpenedAt = lastOpenedAt)))
+
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                DetailsScreen(
+                    sourceId = "FlameComics",
+                    mangaId = "manga-1",
+                    catalog = catalog,
+                    library = library,
+                    downloads = FakeDownloadManager(),
+                    challengeSolver = FakeChallengeSolver(),
+                    catalogCache = catalogCache,
+                    onOpenChapter = { _, _ -> },
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        rule.onAllNodesWithText("NEW").assertCountEquals(1)
+        assertNotNull(library.openedAt["FlameComics" to "manga-1"])
+    }
+
+    // A series that has never been opened (null lastOpenedAt) has nothing to compare
+    // first-seen stamps against, so no chapter can be NEW regardless of when it was cached.
+    @Test
+    fun aSeriesNeverOpenedShowsNoNewChips() {
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        val chapters = listOf(Chapter(chapterId = "c1", number = 1.0, title = null, publishedAt = null))
+        val catalogCache = FakeCatalogCache(
+            mapOf(
+                ("FlameComics" to "manga-1") to CachedManga(
+                    details,
+                    chapters,
+                    firstSeenAt = mapOf("c1" to Instant.fromEpochMilliseconds(2_000)),
+                ),
+            ),
+        )
+        val catalog = FakeCatalogRepository(
+            details = mapOf(("FlameComics" to "manga-1") to details),
+            chapters = mapOf(("FlameComics" to "manga-1") to chapters),
+        )
+        val library = FakeLibraryRepository(listOf(LibraryItem(entry, Clock.System.now())))
+
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                DetailsScreen(
+                    sourceId = "FlameComics",
+                    mangaId = "manga-1",
+                    catalog = catalog,
+                    library = library,
+                    downloads = FakeDownloadManager(),
+                    challengeSolver = FakeChallengeSolver(),
+                    catalogCache = catalogCache,
+                    onOpenChapter = { _, _ -> },
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        rule.onAllNodesWithText("NEW").assertCountEquals(0)
     }
 }

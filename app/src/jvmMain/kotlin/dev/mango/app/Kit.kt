@@ -1,11 +1,13 @@
 package dev.mango.app
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.animateColor
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -78,6 +80,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -152,6 +155,48 @@ fun rememberHoverFill(rest: Color, hover: Color): HoverFill {
         animationSpec = tween(MangoMotion.HOVER_MS),
     )
     return HoverFill(interaction, fill)
+}
+
+/**
+ * The "↻" refresh affordance shared by Library and Details headers: a 32×30 dp glyph button
+ * that spins continuously and ignores clicks while [checking] is true. The rotation transition
+ * runs unconditionally (an [rememberInfiniteTransition] can't be entered/left conditionally) but
+ * only ever shows while [checking].
+ */
+@Composable
+fun RefreshGlyphButton(
+    checking: Boolean,
+    onClick: () -> Unit,
+    fill: Color,
+    hoverFill: Color,
+    testTag: String,
+    modifier: Modifier = Modifier,
+) {
+    val theme = LocalMangoTheme.current
+    val hover = rememberHoverFill(rest = fill, hover = hoverFill)
+    val angle by rememberInfiniteTransition(label = "refresh-spin").animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(animation = tween(900, easing = LinearEasing)),
+        label = "refresh-angle",
+    )
+    Box(
+        modifier = modifier
+            .size(width = 32.dp, height = 30.dp)
+            .clip(RoundedCornerShape(MangoRadius.control))
+            .background(hover.fill)
+            .hoverable(hover.interaction)
+            .clickable(interactionSource = hover.interaction, indication = null, enabled = !checking, onClick = onClick)
+            .testTag(testTag),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "↻",
+            fontSize = 13.sp,
+            color = theme.textSecondary,
+            modifier = if (checking) Modifier.graphicsLayer { rotationZ = angle } else Modifier,
+        )
+    }
 }
 
 /** The four button treatments every action in the app uses; see [KitButton]. */
@@ -544,9 +589,23 @@ fun CoverCard(
     finished: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    newCount: Int = 0,
 ) {
     val theme = LocalMangoTheme.current
     val interaction = remember { MutableInteractionSource() }
+    // Pulses the unread pill once when unreadCount rises while the card stays composed (a
+    // fresh chapter landing during this session) — never on first composition, since that
+    // would fire for every card the moment the library loads.
+    val pillRing = remember { Animatable(0f) }
+    var previousUnreadCount by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(unreadCount) {
+        val previous = previousUnreadCount
+        if (previous != null && unreadCount != null && unreadCount > previous) {
+            pillRing.snapTo(1f)
+            pillRing.animateTo(0f, tween(600))
+        }
+        previousUnreadCount = unreadCount
+    }
     val hovered by interaction.collectIsHoveredAsState()
     val scale by animateFloatAsState(
         targetValue = if (hovered) MangoMotion.COVER_HOVER_SCALE else 1f,
@@ -586,13 +645,20 @@ fun CoverCard(
                     content = theme.success,
                     modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
                 )
-                unreadCount != null && unreadCount > 0 -> Pill(
-                    text = unreadCount.toString(),
-                    container = theme.accent.copy(alpha = 0.92f),
-                    content = theme.accentOn,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
-                    fontWeight = FontWeight.Bold,
-                )
+                unreadCount != null && unreadCount > 0 -> Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .border(3.dp, theme.accent.copy(alpha = 0.25f * pillRing.value), RoundedCornerShape(MangoRadius.pill))
+                        .padding(3.dp),
+                ) {
+                    Pill(
+                        text = unreadCount.toString(),
+                        container = theme.accent.copy(alpha = 0.92f),
+                        content = theme.accentOn,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
             }
             Box(
                 modifier = Modifier
@@ -620,11 +686,16 @@ fun CoverCard(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 6.dp),
         )
-        Text(
-            text = if (finished) "Completed" else metaLine,
-            style = MangoType.meta,
-            color = theme.textTertiary,
-        )
+        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            if (newCount > 0 && !finished) {
+                Text(text = "+$newCount new", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = theme.accent)
+            }
+            Text(
+                text = if (finished) "Completed" else metaLine,
+                style = MangoType.meta,
+                color = theme.textTertiary,
+            )
+        }
     }
 }
 

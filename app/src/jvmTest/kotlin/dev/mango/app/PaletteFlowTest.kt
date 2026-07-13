@@ -321,6 +321,28 @@ class PaletteFlowTest {
         rule.onNodeWithTag(SIDEBAR_TEST_TAG).assertExists()
     }
 
+    // Completeness test for the actions registry: the library-wide update check must surface a
+    // palette hit (search-everywhere rule); running it is covered end to end by
+    // LibraryFlowTest.clickingLibraryRefreshRunsALibraryWideUpdateCheckThroughAppShell.
+    @Test
+    fun checkForUpdatesActionSurfacesAPaletteHit() {
+        val library = FakeLibraryRepository(libraryItems())
+        val palette = PaletteState()
+
+        rule.setContent { TestAppShell(library, FakeCatalogRepository(), FakeDownloadManager(), palette = palette) }
+        rule.waitForIdle()
+
+        palette.visible = true
+        rule.waitForIdle()
+
+        // A subsequence, not the full title: the query text must never equal the hit's own
+        // title, or the input field's own EditableText would double-match the lookup below.
+        rule.onNodeWithText("Search everywhere…").performTextInput("for updates")
+        rule.waitForIdle()
+
+        rule.onNode(hasText("Check for updates") and inPalette).assertExists()
+    }
+
     @Test
     fun aThrowingProviderDoesNotBlankTheGoodProvidersHits() {
         val state = PaletteState()
