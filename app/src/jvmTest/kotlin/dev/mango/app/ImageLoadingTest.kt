@@ -40,4 +40,31 @@ class ImageLoadingTest {
         assertEquals(9000, success.image.height, "tall strip was downsampled — maxBitmapSize regressed")
         assertEquals(800, success.image.width)
     }
+
+    /**
+     * Real sources slice chapters into segments far taller than a GPU texture: FlameComics
+     * serves 800 x ~24000-28600px pages. A height cap below that shrinks WIDTH proportionally
+     * at decode (e.g. 800 → ~460px), which the reader then upscales back to strip width —
+     * visibly blurry pages, but only for the tall segments of a chapter.
+     */
+    @Test
+    fun extremelyTallStripsKeepTheirNativeWidth() {
+        val file = Files.createTempFile("strip-tall", ".png")
+        ImageIO.write(BufferedImage(800, 27_582, BufferedImage.TYPE_INT_RGB), "png", file.toFile())
+
+        val loader = coil3.ImageLoader.Builder(PlatformContext.INSTANCE).build()
+        val result = runBlocking {
+            loader.execute(
+                ImageRequest.Builder(PlatformContext.INSTANCE)
+                    .data(file.toOkioPath())
+                    .size(coil3.size.Size.ORIGINAL)
+                    .maxBitmapSize(WebtoonMaxBitmapSize)
+                    .build()
+            )
+        }
+
+        val success = assertIs<SuccessResult>(result)
+        assertEquals(800, success.image.width, "tall strip lost width at decode — maxBitmapSize height cap too low")
+        assertEquals(27_582, success.image.height)
+    }
 }
