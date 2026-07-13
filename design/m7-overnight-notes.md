@@ -62,6 +62,17 @@ lookbook HTML — the online README copy is stale; consider having web Claude re
   Deviations accepted: COALESCE('') for the dialect's non-null GROUP_CONCAT mapper; the
   v6→v7 migration test gained a collection_member stand-in (existing precedent); stub
   overrides in LibraryUpdaterTest's private fake.
+- C2: core 143 + app 182, forced rerun, XML verified 0 failures. Commit `5796a88`.
+  Run resumed the morning after a power cut (C1 was fully landed; C2 had not started).
+  Dispatch note: three consecutive implementer dispatches died to the API content-filter
+  kill (same failure mode as V2/U3–U6, but not converging on retry); re-briefed as three
+  narrow slices (chip row + wiring, manage dialog, tests) and all completed cleanly.
+  Review: SHIP, 2 SHOULD-FIXes applied — the ▾ picker on a not-in-library series orphaned
+  collection_member rows (now toggle-implies-add: addToLibrary first, then setMembership
+  with exactly the checked set; danger row hidden when not in library), and rapid picker
+  toggles computed from a stale observed set (picker now keeps local checkbox state for
+  the popup's lifetime). NIT applied: unused theme local. NIT rejected as recorded rough
+  edge: generic EmptyState copy when a non-empty library's selected shelf is empty.
 - S1: app 174, forced rerun, XML verified 0 failures (core untouched). Commit `ca4a4c0`.
   Review: SHIP, 3 NITs — applied the hover-gate on the invisible remove ✕ (a click on a row's
   right edge must replay, not silently remove); accepted "clearing the query hides live
