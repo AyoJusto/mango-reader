@@ -61,8 +61,8 @@ class AppGraphTest {
         // rewind the db to the v1 shape: drop every column/table added after v1 (v2: download
         // metadata; v3: installed_source version/user_agent; v4: read_progress.finished;
         // v5: library_item.chapter_count, read_progress.chapter_number; v6: details_cache,
-        // chapter_cache; v7: chapter_cache.first_seen_at, library_item.last_opened_at), stamp
-        // user_version = 1
+        // chapter_cache; v7: chapter_cache.first_seen_at, library_item.last_opened_at;
+        // v8: collection, collection_member), stamp user_version = 1
         val driver = JdbcSqliteDriver("jdbc:sqlite:${dataDir.resolve("mango.db")}", Properties())
         driver.execute(null, "ALTER TABLE download DROP COLUMN manga_title", 0)
         driver.execute(null, "ALTER TABLE download DROP COLUMN chapter_number", 0)
@@ -74,6 +74,8 @@ class AppGraphTest {
         driver.execute(null, "ALTER TABLE library_item DROP COLUMN last_opened_at", 0)
         driver.execute(null, "DROP TABLE details_cache", 0)
         driver.execute(null, "DROP TABLE chapter_cache", 0)
+        driver.execute(null, "DROP TABLE collection_member", 0)
+        driver.execute(null, "DROP TABLE collection", 0)
         driver.execute(null, "PRAGMA user_version = 1", 0)
         driver.close()
 

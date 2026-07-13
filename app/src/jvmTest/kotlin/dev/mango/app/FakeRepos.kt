@@ -6,6 +6,7 @@ import dev.mango.core.domain.CatalogCache
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.ChallengeSolver
 import dev.mango.core.domain.Chapter
+import dev.mango.core.domain.CollectionInfo
 import dev.mango.core.domain.Download
 import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.DownloadStatus
@@ -36,6 +37,13 @@ class FakeChallengeSolver(private val result: Boolean = false) : ChallengeSolver
 class FakeLibraryRepository(initial: List<LibraryItem> = emptyList()) : LibraryRepository {
     private val state = MutableStateFlow(initial)
 
+    private val collections = MutableStateFlow(listOf(CollectionInfo(1, "Reading", 0, true)))
+    private val membership = mutableMapOf<Pair<String, String>, Set<Long>>()
+
+    init {
+        initial.forEach { membership[it.entry.sourceId to it.entry.mangaId] = it.collectionIds }
+    }
+
     // Keyed by (sourceId, mangaId, chapterId) — a real in-memory stand-in for persistence,
     // not canned responses, since the reader reads its own writes (progress round-trips).
     private val progressByChapter = mutableMapOf<Triple<String, String, String>, ReadProgress>()
@@ -59,11 +67,15 @@ class FakeLibraryRepository(initial: List<LibraryItem> = emptyList()) : LibraryR
 
     override suspend fun addToLibrary(entry: MangaEntry) {
         if (state.value.none { it.entry.sourceId == entry.sourceId && it.entry.mangaId == entry.mangaId }) {
+            // only a fresh add files into the default; a re-add (download path) leaves memberships alone
+            membership[entry.sourceId to entry.mangaId] = setOf(collections.value.first { it.isDefault }.id)
             state.value = state.value + LibraryItem(entry, Clock.System.now())
+            reflectMembership()
         }
     }
 
     override suspend fun removeFromLibrary(sourceId: String, mangaId: String) {
+        membership.remove(sourceId to mangaId)
         state.value = state.value.filterNot { it.entry.sourceId == sourceId && it.entry.mangaId == mangaId }
     }
 
@@ -109,6 +121,54 @@ class FakeLibraryRepository(initial: List<LibraryItem> = emptyList()) : LibraryR
 
     override suspend fun markOpened(sourceId: String, mangaId: String) {
         openedAt[sourceId to mangaId] = Clock.System.now().toEpochMilliseconds()
+    }
+
+    override fun observeCollections(): Flow<List<CollectionInfo>> = collections
+
+    override suspend fun createCollection(name: String): Long {
+        require(collections.value.none { it.name == name }) { "collection \"$name\" already exists" }
+        val id = (collections.value.maxOfOrNull { it.id } ?: 0L) + 1
+        val position = (collections.value.maxOfOrNull { it.position } ?: -1) + 1
+        collections.value = collections.value + CollectionInfo(id, name, position, isDefault = false)
+        return id
+    }
+
+    override suspend fun renameCollection(id: Long, name: String) {
+        require(collections.value.none { it.name == name && it.id != id }) { "collection \"$name\" already exists" }
+        collections.value = collections.value.map { if (it.id == id) it.copy(name = name) else it }
+    }
+
+    override suspend fun deleteCollection(id: Long) {
+        check(collections.value.size > 1) { "cannot delete the last collection" }
+        val wasDefault = collections.value.first { it.id == id }.isDefault
+        var remaining = collections.value.filterNot { it.id == id }
+        if (wasDefault) {
+            val promotedId = remaining.minBy { it.position }.id
+            remaining = remaining.map { it.copy(isDefault = it.id == promotedId) }
+        }
+        collections.value = remaining
+        membership.entries.forEach { it.setValue(it.value - id) }
+        reflectMembership()
+    }
+
+    override suspend fun reorderCollections(orderedIds: List<Long>) {
+        val byId = collections.value.associateBy { it.id }
+        collections.value = orderedIds.mapIndexed { index, id -> byId.getValue(id).copy(position = index) }
+    }
+
+    override suspend fun setDefaultCollection(id: Long) {
+        collections.value = collections.value.map { it.copy(isDefault = it.id == id) }
+    }
+
+    override suspend fun setMembership(sourceId: String, mangaId: String, collectionIds: Set<Long>) {
+        membership[sourceId to mangaId] = collectionIds
+        reflectMembership()
+    }
+
+    private fun reflectMembership() {
+        state.value = state.value.map {
+            it.copy(collectionIds = membership[it.entry.sourceId to it.entry.mangaId].orEmpty())
+        }
     }
 }
 

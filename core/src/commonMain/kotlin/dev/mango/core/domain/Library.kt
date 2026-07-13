@@ -8,7 +8,8 @@ import kotlinx.coroutines.flow.Flow
  * [chapterCount] is the last count recorded via [LibraryRepository.setChapterCount];
  * [unreadCount] and [lastReadAt] are derived from it and read progress at the query layer, not
  * recomputed from a chapter list here. [newCount] is the number of cached chapters first seen
- * after [LibraryRepository.markOpened] was last called for this series.
+ * after [LibraryRepository.markOpened] was last called for this series. [collectionIds] is the
+ * set of collections the series is filed in.
  */
 data class LibraryItem(
     val entry: MangaEntry,
@@ -18,7 +19,11 @@ data class LibraryItem(
     val lastReadAt: Instant? = null,
     val newCount: Int = 0,
     val lastOpenedAt: Instant? = null,
+    val collectionIds: Set<Long> = emptySet(),
 )
+
+/** One shelf. [isDefault] is true for exactly one collection — the target of one-click adds. */
+data class CollectionInfo(val id: Long, val name: String, val position: Int, val isDefault: Boolean)
 
 /** Where the user left off in one chapter. */
 data class ReadProgress(
@@ -54,4 +59,16 @@ interface LibraryRepository {
     suspend fun setChapterCount(sourceId: String, mangaId: String, count: Int)
     /** Stamps the moment the user opened Details for this series; chapters cached before this stamp stop counting as new. */
     suspend fun markOpened(sourceId: String, mangaId: String)
+    fun observeCollections(): Flow<List<CollectionInfo>>
+    /** Appends at the end. A name that already exists (exact match) is rejected with IllegalArgumentException. */
+    suspend fun createCollection(name: String): Long
+    suspend fun renameCollection(id: Long, name: String)   // same duplicate rule
+    /** Members are unfiled, never removed from the library. Deleting the default promotes the first remaining
+     *  collection by position. Deleting the last collection is rejected with IllegalStateException. */
+    suspend fun deleteCollection(id: Long)
+    /** [orderedIds] must be the complete id set; positions become list indexes. */
+    suspend fun reorderCollections(orderedIds: List<Long>)
+    suspend fun setDefaultCollection(id: Long)
+    /** Replaces the series' memberships wholesale (checkbox-picker semantics). */
+    suspend fun setMembership(sourceId: String, mangaId: String, collectionIds: Set<Long>)
 }

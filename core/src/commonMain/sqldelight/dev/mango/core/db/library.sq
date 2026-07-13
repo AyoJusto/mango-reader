@@ -27,9 +27,9 @@ CREATE TABLE read_progress (
 -- NULL). A read_progress row counts as "started" regardless of finished, so unread_count only
 -- drops once a chapter has been opened at all, never requiring it be finished.
 --
--- new_count is a correlated scalar subquery rather than a second join: joining chapter_cache
--- alongside read_progress would multiply rows across both one-to-many relations, corrupting
--- unread_count and last_read_at's aggregates.
+-- new_count and collection_ids are correlated scalar subqueries rather than further joins:
+-- joining another one-to-many relation alongside read_progress would multiply rows,
+-- corrupting unread_count and last_read_at's aggregates.
 selectAllLibraryItems:
 SELECT
   li.source_id AS source_id,
@@ -43,7 +43,9 @@ SELECT
   MAX(rp.updated_at) AS last_read_at,
   (SELECT COUNT(*) FROM chapter_cache cc
     WHERE cc.source_id = li.source_id AND cc.manga_id = li.manga_id
-      AND cc.first_seen_at > li.last_opened_at) AS new_count
+      AND cc.first_seen_at > li.last_opened_at) AS new_count,
+  (SELECT COALESCE(GROUP_CONCAT(cm.collection_id), '') FROM collection_member cm
+    WHERE cm.source_id = li.source_id AND cm.manga_id = li.manga_id) AS collection_ids
 FROM library_item li
 LEFT JOIN read_progress rp ON rp.source_id = li.source_id AND rp.manga_id = li.manga_id
 GROUP BY li.source_id, li.manga_id, li.title, li.cover, li.added_at, li.chapter_count, li.last_opened_at
@@ -60,6 +62,9 @@ VALUES (
   COALESCE((SELECT chapter_count FROM library_item WHERE source_id = ?1 AND manga_id = ?2), 0),
   COALESCE((SELECT last_opened_at FROM library_item WHERE source_id = ?1 AND manga_id = ?2), 0)
 );
+
+libraryItemExists:
+SELECT EXISTS(SELECT 1 FROM library_item WHERE source_id = ? AND manga_id = ?);
 
 deleteLibraryItem:
 DELETE FROM library_item WHERE source_id = ? AND manga_id = ?;

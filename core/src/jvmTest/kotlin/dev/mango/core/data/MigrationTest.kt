@@ -167,6 +167,20 @@ class MigrationTest {
             """.trimIndent(),
             0,
         )
+        // collection_member is likewise untouched (it arrives in a later migration), but
+        // selectAllLibraryItems reads it via a scalar subquery, so an empty stand-in must exist
+        driver.execute(
+            null,
+            """
+            CREATE TABLE collection_member (
+              collection_id INTEGER NOT NULL,
+              source_id TEXT NOT NULL,
+              manga_id TEXT NOT NULL,
+              PRIMARY KEY (collection_id, source_id, manga_id)
+            )
+            """.trimIndent(),
+            0,
+        )
         driver.execute(
             null,
             "INSERT INTO chapter_cache(source_id, manga_id, chapter_id, number, title, published_at, position) " +
@@ -207,6 +221,24 @@ class MigrationTest {
         db.libraryQueries.markOpened(last_opened_at = 999, source_id = "src", manga_id = "m1")
         val touchedLibraryRow = db.libraryQueries.selectAllLibraryItems().executeAsList().single()
         assertEquals(1L, touchedLibraryRow.new_count)
+    }
+
+    @Test
+    fun v7ToV8MigrationCreatesTheCollectionTablesWithTheSeededDefault() {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())
+        // frozen v7 shape: no collection tables existed, and the migration touches nothing
+        // else, so no prior DDL is needed for it to apply
+
+        MangoDatabase.Schema.migrate(driver, 7, 8)
+        val db = MangoDatabase(driver)
+
+        val seeded = db.collectionsQueries.selectAllCollections().executeAsList().single()
+        assertEquals("Reading", seeded.name)
+        assertEquals(0L, seeded.position)
+        assertEquals(1L, seeded.is_default)
+
+        db.collectionsQueries.insertMember(collection_id = seeded.id, source_id = "src", manga_id = "m1")
+        assertEquals(listOf(seeded.id), db.collectionsQueries.selectMembership("src", "m1").executeAsList())
     }
 
     /** A migrated v1 db and a fresh v3 create must land on the same schema, or drift hides. */

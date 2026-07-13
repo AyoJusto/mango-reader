@@ -1,0 +1,69 @@
+-- Named shelves within the library. Exactly one collection has is_default = 1 — the target of
+-- one-click adds; repository code maintains that invariant (promotion on delete, self-heal on
+-- first filing). No foreign keys: membership cleanup is owned by repository code, and SQLite
+-- FK enforcement is off by default in this driver anyway.
+
+CREATE TABLE collection (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  position INTEGER NOT NULL,
+  is_default INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE collection_member (
+  collection_id INTEGER NOT NULL,
+  source_id TEXT NOT NULL,
+  manga_id TEXT NOT NULL,
+  PRIMARY KEY (collection_id, source_id, manga_id)
+);
+
+selectAllCollections:
+SELECT * FROM collection ORDER BY position;
+
+selectByName:
+SELECT * FROM collection WHERE name = ?;
+
+selectDefaultId:
+SELECT id FROM collection WHERE is_default = 1 LIMIT 1;
+
+selectFirstByPosition:
+SELECT * FROM collection ORDER BY position LIMIT 1;
+
+selectMaxPosition:
+SELECT COALESCE(MAX(position), -1) FROM collection;
+
+countCollections:
+SELECT COUNT(*) FROM collection;
+
+lastInsertRowId:
+SELECT last_insert_rowid();
+
+insertCollection:
+INSERT INTO collection(name, position, is_default) VALUES (?, ?, ?);
+
+renameCollection:
+UPDATE collection SET name = ? WHERE id = ?;
+
+deleteCollection:
+DELETE FROM collection WHERE id = ?;
+
+updatePosition:
+UPDATE collection SET position = ? WHERE id = ?;
+
+clearDefault:
+UPDATE collection SET is_default = 0;
+
+setDefault:
+UPDATE collection SET is_default = 1 WHERE id = ?;
+
+insertMember:
+INSERT OR IGNORE INTO collection_member(collection_id, source_id, manga_id) VALUES (?, ?, ?);
+
+deleteMembersOfCollection:
+DELETE FROM collection_member WHERE collection_id = ?;
+
+deleteMembersOfSeries:
+DELETE FROM collection_member WHERE source_id = ? AND manga_id = ?;
+
+selectMembership:
+SELECT collection_id FROM collection_member WHERE source_id = ? AND manga_id = ?;

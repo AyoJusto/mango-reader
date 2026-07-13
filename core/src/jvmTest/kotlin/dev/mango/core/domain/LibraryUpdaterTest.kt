@@ -36,6 +36,14 @@ private class FakeLibraryRepository(items: List<LibraryItem>) : LibraryRepositor
     }
 
     override suspend fun markOpened(sourceId: String, mangaId: String) = error("not used by LibraryUpdater")
+    override fun observeCollections(): Flow<List<CollectionInfo>> = error("not used by LibraryUpdater")
+    override suspend fun createCollection(name: String): Long = error("not used by LibraryUpdater")
+    override suspend fun renameCollection(id: Long, name: String) = error("not used by LibraryUpdater")
+    override suspend fun deleteCollection(id: Long) = error("not used by LibraryUpdater")
+    override suspend fun reorderCollections(orderedIds: List<Long>) = error("not used by LibraryUpdater")
+    override suspend fun setDefaultCollection(id: Long) = error("not used by LibraryUpdater")
+    override suspend fun setMembership(sourceId: String, mangaId: String, collectionIds: Set<Long>) =
+        error("not used by LibraryUpdater")
 }
 
 /**
