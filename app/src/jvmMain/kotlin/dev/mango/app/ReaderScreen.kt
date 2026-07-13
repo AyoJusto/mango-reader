@@ -218,8 +218,8 @@ fun ReaderScreen(
     val listState = remember(sourceId, mangaId, anchorChapterId) { LazyListState() }
     val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
-    // Bumped on every genuine reveal (a pointer move past ReaderOverlayState's delta gate, or
-    // any click); the effect below (keyed on this) is what actually schedules the hide.
+    // Bumped on every genuine reveal (a pointer move past ReaderOverlayState's delta gate, or a
+    // click while hidden); the effect below (keyed on this) is what actually schedules the hide.
     var revealVersion by remember { mutableStateOf(0) }
     var controlsVisible by remember { mutableStateOf(true) }
     // Deliberately unkeyed on any per-chapter identity: auto-appending the next chapter (the
@@ -526,9 +526,15 @@ fun ReaderScreen(
                             revealVersion++
                         }
                     }
-                    .onPointerEvent(PointerEventType.Press) {
-                        // A click always reveals.
-                        revealVersion++
+                    .onPointerEvent(PointerEventType.Press) { event ->
+                        // Presses on the overlay's own controls arrive here already consumed by
+                        // their clickable (the Main pass runs children first) and must not also
+                        // toggle. An unconsumed click toggles: reveals when hidden, dismisses
+                        // when up — so the overlay can be waved away without waiting out the
+                        // idle timer.
+                        if (event.changes.none { it.isConsumed }) {
+                            if (controlsVisible) controlsVisible = false else revealVersion++
+                        }
                     }
                     .onPreviewKeyEvent { keyEvent ->
                         if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false

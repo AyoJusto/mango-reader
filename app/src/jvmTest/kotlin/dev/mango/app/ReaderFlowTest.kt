@@ -402,6 +402,12 @@ class ReaderFlowTest {
         rule.mainClock.advanceTimeBy(500)
         rule.onNodeWithText("Ch. 1").assertExists()
 
+        // A second click on the page area (not an overlay control) dismisses without waiting
+        // out the idle timer.
+        rule.onRoot().performMouseInput { click(Offset(400f, 400f)) }
+        rule.mainClock.advanceTimeBy(500)
+        rule.onNodeWithText("Ch. 1").assertDoesNotExist()
+
         rule.mainClock.autoAdvance = true
     }
 
