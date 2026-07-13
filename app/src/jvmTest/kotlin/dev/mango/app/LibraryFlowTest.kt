@@ -281,14 +281,36 @@ class LibraryFlowTest {
         assertEquals(listOf("Dropped"), afterDelete.map { it.name })
         assertTrue(afterDelete.single().isDefault)
 
-        // Create a new shelf via the dialog's own affordance; its chip appears with a fresh 0 count.
+        // Create a new shelf via the dialog's own affordance: the footer appends an empty row
+        // already in rename mode, so typing straight into it and pressing Enter commits it —
+        // no separate dialog anywhere.
         rule.onNodeWithText("＋ New collection", useUnmergedTree = true).performClick()
         rule.waitForIdle()
-        rule.onNodeWithText("Name").performTextInput("Finished")
+        rule.onNode(hasSetTextAction(), useUnmergedTree = true).performTextInput("Finished")
         rule.waitForIdle()
-        rule.onNodeWithText("Create").performClick()
+        rule.onRoot().performKeyInput { pressKey(Key.Enter) }
         rule.waitForIdle()
 
         rule.onNodeWithText("Finished · 0").assertExists()
+    }
+
+    // The Library "＋" chip creates inline: no NewCollectionDialog, just a text field swapped in
+    // for the chip itself.
+    @Test
+    fun libraryPlusChipTurnsIntoAnInlineFieldThatCreatesTheShelf() {
+        val library = FakeLibraryRepository(libraryItems())
+
+        rule.setContent { TestAppShell(library, FakeCatalogRepository(), FakeDownloadManager()) }
+        rule.waitForIdle()
+
+        rule.onNodeWithText("＋").performClick()
+        rule.waitForIdle()
+
+        rule.onNode(hasSetTextAction()).performTextInput("Dropped")
+        rule.waitForIdle()
+        rule.onRoot().performKeyInput { pressKey(Key.Enter) }
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Dropped · 0").assertExists()
     }
 }

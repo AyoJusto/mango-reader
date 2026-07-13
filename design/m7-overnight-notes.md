@@ -73,6 +73,18 @@ lookbook HTML — the online README copy is stale; consider having web Claude re
   toggles computed from a stale observed set (picker now keeps local checkbox state for
   the popup's lifetime). NIT applied: unused theme local. NIT rejected as recorded rough
   edge: generic EmptyState copy when a non-empty library's selected shelf is empty.
+- C2 inline-create rework: core 143 + app 184, forced rerun, XML verified 0 failures.
+  Owner updated 04b: collection creation is inline everywhere (picker row → text field,
+  Enter creates + checks + files in one step; manage dialog appends a row in rename mode;
+  ＋ chip becomes an in-place field) — NewCollectionDialog deleted. Local handoff addendum
+  updated to match. Design re-pull also confirmed the picker's danger "Remove from
+  library" row and the delete confirm are plan-locked additions absent from the lookbook —
+  kept, not regressions. Review: SHIP, 2 NITs rejected as recorded gaps — double-Enter
+  create race is backstopped by the UNIQUE name constraint (surfaces as the inline
+  duplicate error, no duplicate shelf possible), and the picker keeps its field open on
+  empty Enter where the other two surfaces close (cosmetic; arguably better in the
+  picker). Esc/focus-loss cancel chosen where the design is silent, matching inline
+  rename.
 - S1: app 174, forced rerun, XML verified 0 failures (core untouched). Commit `ca4a4c0`.
   Review: SHIP, 3 NITs — applied the hover-gate on the invisible remove ✕ (a click on a row's
   right edge must replay, not silently remove); accepted "clearing the query hides live

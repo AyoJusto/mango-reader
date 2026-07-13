@@ -3,15 +3,20 @@ package dev.mango.app
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
+import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.pressKey
 import dev.mango.core.domain.CachedManga
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.ChallengeRequiredException
@@ -312,6 +317,58 @@ class ScreenFlowTest {
         val stored = runBlocking { library.observeLibrary().first() }.single()
         assertEquals("manga-1", stored.entry.mangaId)
         assertEquals(setOf(2L), stored.collectionIds)
+    }
+
+    // The picker's "＋ New collection…" row turns into a text field in place; Enter creates the
+    // collection, checks it, and files the series in one step — membership ends up the previously
+    // checked set plus the new id, not just the new id alone.
+    @Test
+    fun creatingACollectionInThePickerChecksItAndFilesTheSeriesAlongsideWhatWasAlreadyChecked() {
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        val library = FakeLibraryRepository(listOf(LibraryItem(entry, Clock.System.now(), collectionIds = setOf(1))))
+        runBlocking { library.createCollection("Later") }
+        val catalog = FakeCatalogRepository(
+            details = mapOf(("FlameComics" to "manga-1") to details),
+            chapters = mapOf(("FlameComics" to "manga-1") to emptyList()),
+        )
+
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                DetailsScreen(
+                    sourceId = "FlameComics",
+                    mangaId = "manga-1",
+                    catalog = catalog,
+                    library = library,
+                    downloads = FakeDownloadManager(),
+                    challengeSolver = FakeChallengeSolver(),
+                    catalogCache = FakeCatalogCache(),
+                    onOpenChapter = { _, _ -> },
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        rule.onNodeWithTag("split-button-arrow").performClick()
+        rule.waitForIdle()
+
+        // Check the pre-existing "Later" collection first, so the new one must join it rather
+        // than replace it.
+        rule.onNodeWithText("Later").performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithText("＋ New collection…").performClick()
+        rule.waitForIdle()
+        // The picker renders in a Popup, a second semantics root alongside the window's own —
+        // onRoot() would be ambiguous, so the key input targets the field node directly instead.
+        val field = rule.onNode(hasSetTextAction())
+        field.performTextInput("Finished")
+        rule.waitForIdle()
+        field.performKeyInput { pressKey(Key.Enter) }
+        rule.waitForIdle()
+
+        val stored = runBlocking { library.observeLibrary().first() }.single()
+        assertEquals(setOf(1L, 2L, 3L), stored.collectionIds)
     }
 
     // The picker's danger row is the only checkbox-adjacent action that actually leaves the

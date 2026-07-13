@@ -210,7 +210,8 @@ say "library" for a shelf.
 
 - **Library nav — Option A (recommended, adopted):** chip tab row under the title:
   active chip accent fill + accent.on text ("All · 24"), inactive text.secondary with hover
-  bg2, padding 5/13, radius 999; a "＋" tab creates a shelf inline. Counts always visible.
+  bg2, padding 5/13, radius 999; a "＋" tab creates a shelf inline (a small in-place name
+  field, no dialog). Counts always visible.
   Drag a cover onto a tab to file it; Ctrl 1–9 jumps tabs; overflow past ~8 shelves scrolls
   horizontally, never wraps. (Option B filter-dropdown rejected: hides shelves.)
 - **Details add flow — split button (300 dp):** main segment "Add to library" (accent,
@@ -218,11 +219,14 @@ say "library" for a shelf.
   dialog, and shows a toast "Added to **Reading** · Change" (overlay fill, radius 12, 5 s;
   Change opens the picker). The ▾ opens a checkbox picker: micro-label "ADD TO", rows with
   15 dp checkboxes (checked = accent fill + ✓; row bg accent @ 10% when checked), DEFAULT
-  badge (10.5 bold accent) on the default row, hairline, then "＋ New collection…". Once in
-  library the button reads "In library ✓ ▾"; the same picker edits membership.
+  badge (10.5 bold accent) on the default row, hairline, then "＋ New collection…" — inline,
+  not a dialog: the row becomes a text field; Enter creates it, checks it, and files the
+  series in one step. Once in library the button reads "In library ✓ ▾"; the same picker
+  edits membership.
 - **Manage collections dialog (520 dp, bg1, radius 18):** rows = ⠿ drag handle (drag sets
   tab order) · name (13.5 semibold; double-click renames inline — mid-edit row shows accent
   underline + focus ring) · count (12 tertiary) · DEFAULT pill or hover "Make default" ·
   delete ✕ (danger @ 80%). Deleting a collection never deletes series — they stay in All;
   if the default is deleted, the first shelf becomes default. Footer: "＋ New collection"
-  left, accent "Done" right.
+  left (appends an empty row already in rename mode — no separate dialog anywhere), accent
+  "Done" right.

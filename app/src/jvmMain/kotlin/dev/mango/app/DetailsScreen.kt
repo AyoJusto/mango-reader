@@ -93,7 +93,7 @@ fun DetailsScreenContent(
     onAddToLibrary: () -> Unit = {},
     onRemoveFromLibrary: () -> Unit = {},
     onSetMembership: (Set<Long>) -> Unit = {},
-    onCreateCollection: suspend (String) -> Unit = {},
+    onCreateCollection: suspend (String) -> Long = { 0L },
     onOpenChapter: (Chapter, List<Chapter>) -> Unit,
     onDownloadChapter: (MangaEntry, Chapter) -> Unit,
     onDownloadAll: (MangaEntry, List<Chapter>) -> Unit,
@@ -109,7 +109,6 @@ fun DetailsScreenContent(
     var showClearStorageDialog by remember { mutableStateOf(false) }
     // Same rationale: the picker's open state and the toast it can show are presentation-only.
     var showPicker by remember { mutableStateOf(false) }
-    var showNewCollectionDialog by remember { mutableStateOf(false) }
     val toastState = remember { ToastState() }
     val descendingChapters = remember(chapters) { chapters.sortedByDescending { it.number } }
     // Chapters already moving through the queue must not be re-enqueued by the bulk actions.
@@ -208,7 +207,12 @@ fun DetailsScreenContent(
                                     checkedIds = newIds
                                     onSetMembership(newIds)
                                 },
-                                onNewCollection = { showNewCollectionDialog = true },
+                                onCreateAndFile = { name ->
+                                    val newId = onCreateCollection(name)
+                                    val newIds = checkedIds + newId
+                                    checkedIds = newIds
+                                    onSetMembership(newIds)
+                                },
                                 inLibrary = inLibrary,
                                 onRemoveFromLibrary = {
                                     onRemoveFromLibrary()
@@ -347,9 +351,6 @@ fun DetailsScreenContent(
             }
             Toast(state = toastState)
         }
-    }
-    if (showNewCollectionDialog) {
-        NewCollectionDialog(onDismissRequest = { showNewCollectionDialog = false }, onCreate = onCreateCollection)
     }
     if (showRangeDialog) {
         val from = fromText.toDoubleOrNull()

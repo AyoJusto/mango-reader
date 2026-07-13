@@ -52,7 +52,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -72,6 +71,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -1011,6 +1011,34 @@ fun Toast(state: ToastState, modifier: Modifier = Modifier) {
     }
 }
 
+/** Enter commits, Escape cancels — the key handling shared by every inline collection-name edit. */
+internal fun Modifier.inlineEditKeys(onCommit: () -> Unit, onCancel: () -> Unit): Modifier =
+    onPreviewKeyEvent { event ->
+        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+        when (event.key) {
+            Key.Enter, Key.NumPadEnter -> { onCommit(); true }
+            Key.Escape -> { onCancel(); true }
+            else -> false
+        }
+    }
+
+/**
+ * Calls [onCancel] once a field that had focus loses it — not on the unfocused state every
+ * freshly composed field reports before its `requestFocus()` (fired from a [LaunchedEffect]) has
+ * actually run, which would otherwise cancel the field the instant it appears.
+ */
+@Composable
+internal fun Modifier.cancelOnFocusLoss(onCancel: () -> Unit): Modifier {
+    var hasBeenFocused by remember { mutableStateOf(false) }
+    return onFocusChanged { state ->
+        if (state.isFocused) {
+            hasBeenFocused = true
+        } else if (hasBeenFocused) {
+            onCancel()
+        }
+    }
+}
+
 /** One row of [AddToCollectionsPicker]: [checked] reflects current membership, [isDefault] draws the DEFAULT badge. */
 data class CollectionCheckboxRow(val id: Long, val name: String, val isDefault: Boolean, val checked: Boolean)
 
@@ -1068,10 +1096,16 @@ private fun PickerActionRow(text: String, color: Color, onClick: () -> Unit) {
 
 /**
  * The Details split button's ▾ popup: a micro-label header, one checkbox row per [rows] entry,
- * a hairline, "＋ New collection…", and — only while [inLibrary] — another hairline then a danger
- * "Remove from library" row, the only row here that leaves the library; toggling checkboxes never
- * does, even down to zero. Anchors under whatever composable shares its parent [Box], the same
- * Popup anatomy [KitDropdown] uses.
+ * a hairline, an inline "＋ New collection…" row, and — only while [inLibrary] — another hairline
+ * then a danger "Remove from library" row, the only row here that leaves the library; toggling
+ * checkboxes never does, even down to zero. Anchors under whatever composable shares its parent
+ * [Box], the same Popup anatomy [KitDropdown] uses.
+ *
+ * Clicking "＋ New collection…" turns that row into a text field in place: Enter calls
+ * [onCreateAndFile] with the trimmed name, which the caller implements as create-then-file so the
+ * series ends up a member of the new collection in one step; a thrown duplicate-name rejection
+ * (see [dev.mango.core.domain.LibraryRepository.createCollection]) renders inline under the field
+ * instead of closing it. Escape or losing focus (a click elsewhere) cancels back to the plain row.
  */
 @Composable
 fun AddToCollectionsPicker(
@@ -1079,12 +1113,41 @@ fun AddToCollectionsPicker(
     onDismissRequest: () -> Unit,
     rows: List<CollectionCheckboxRow>,
     onToggle: (Long) -> Unit,
-    onNewCollection: () -> Unit,
+    onCreateAndFile: suspend (String) -> Unit,
     inLibrary: Boolean,
     onRemoveFromLibrary: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val theme = LocalMangoTheme.current
+    var creating by remember(expanded) { mutableStateOf(false) }
+    var draft by remember(expanded) { mutableStateOf("") }
+    var error by remember(expanded) { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val focusRequester = remember(expanded) { FocusRequester() }
+
+    fun cancelCreate() {
+        creating = false
+        draft = ""
+        error = null
+    }
+
+    fun commitCreate() {
+        val trimmed = draft.trim()
+        if (trimmed.isEmpty()) return
+        scope.launch {
+            try {
+                onCreateAndFile(trimmed)
+                creating = false
+                draft = ""
+                error = null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                error = e.message ?: "Could not create collection"
+            }
+        }
+    }
+
     DropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismissRequest,
@@ -1100,59 +1163,33 @@ fun AddToCollectionsPicker(
         )
         rows.forEach { row -> CollectionCheckboxItem(row = row, onToggle = { onToggle(row.id) }) }
         Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(theme.divider))
-        PickerActionRow(text = "＋ New collection…", color = theme.textSecondary, onClick = onNewCollection)
+        if (creating) {
+            LaunchedEffect(Unit) { focusRequester.requestFocus() }
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = MangoSpace.sm, vertical = MangoSpace.sm),
+            ) {
+                BasicTextField(
+                    value = draft,
+                    onValueChange = { draft = it; error = null },
+                    singleLine = true,
+                    textStyle = MangoType.body.copy(color = theme.textPrimary),
+                    cursorBrush = SolidColor(theme.accent),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester)
+                        .inlineEditKeys(onCommit = ::commitCreate, onCancel = ::cancelCreate)
+                        .cancelOnFocusLoss(::cancelCreate),
+                )
+                error?.let { message -> Text(text = message, style = MangoType.caption, color = theme.danger) }
+            }
+        } else {
+            PickerActionRow(text = "＋ New collection…", color = theme.textSecondary, onClick = { creating = true })
+        }
         if (inLibrary) {
             Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(theme.divider))
             PickerActionRow(text = "Remove from library", color = theme.danger, onClick = onRemoveFromLibrary)
         }
     }
-}
-
-/**
- * A name-entry [AlertDialog] for creating a collection: on confirm, calls [onCreate] and closes;
- * if it throws (a duplicate name — see the contract on
- * [dev.mango.core.domain.LibraryRepository.createCollection]), the message renders inline instead
- * of closing or crashing.
- */
-@Composable
-fun NewCollectionDialog(onDismissRequest: () -> Unit, onCreate: suspend (String) -> Unit) {
-    val theme = LocalMangoTheme.current
-    var name by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
-    AlertDialog(
-        onDismissRequest = onDismissRequest,
-        title = { Text("New collection") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(MangoSpace.xs)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it; error = null },
-                    singleLine = true,
-                    label = { Text("Name") },
-                )
-                error?.let { message -> Text(text = message, style = MangoType.caption, color = theme.danger) }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = name.isNotBlank(),
-                onClick = {
-                    scope.launch {
-                        try {
-                            onCreate(name.trim())
-                            onDismissRequest()
-                        } catch (e: CancellationException) {
-                            throw e
-                        } catch (e: Exception) {
-                            error = e.message ?: "Could not create collection"
-                        }
-                    }
-                },
-            ) { Text("Create") }
-        },
-        dismissButton = { TextButton(onClick = onDismissRequest) { Text("Cancel") } },
-    )
 }
 
 /**
@@ -1164,7 +1201,9 @@ fun NewCollectionDialog(onDismissRequest: () -> Unit, onCreate: suspend (String)
  * (see [dev.mango.core.domain.LibraryRepository.createCollection]) can be caught and shown
  * in-place instead of crashing; [onDelete]/[onReorder]/[onSetDefault] need no such handling
  * because the UI already keeps them within the repo's accepted states (e.g. the last collection
- * can't be deleted because its row never draws a delete affordance).
+ * can't be deleted because its row never draws a delete affordance). The footer's "＋ New
+ * collection" appends an empty row at the list's bottom already in rename mode; Enter commits via
+ * [onCreate], Escape or losing focus cancels and removes the pending row.
  */
 @Composable
 fun ManageCollectionsDialog(
@@ -1178,7 +1217,7 @@ fun ManageCollectionsDialog(
     onDismiss: () -> Unit,
 ) {
     val theme = LocalMangoTheme.current
-    var showNewCollectionDialog by remember { mutableStateOf(false) }
+    var creatingNew by remember { mutableStateOf(false) }
     val ordered = collections.sortedBy { it.position }
     Box(
         modifier = Modifier
@@ -1226,6 +1265,9 @@ fun ManageCollectionsDialog(
                         },
                     )
                 }
+                if (creatingNew) {
+                    PendingCollectionRow(onCreate = onCreate, onClose = { creatingNew = false })
+                }
             }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = MangoSpace.sm),
@@ -1238,7 +1280,7 @@ fun ManageCollectionsDialog(
                     modifier = Modifier.clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                        onClick = { showNewCollectionDialog = true },
+                        onClick = { creatingNew = true },
                     ),
                 )
                 Spacer(modifier = Modifier.weight(1f))
@@ -1246,8 +1288,81 @@ fun ManageCollectionsDialog(
             }
         }
     }
-    if (showNewCollectionDialog) {
-        NewCollectionDialog(onDismissRequest = { showNewCollectionDialog = false }, onCreate = onCreate)
+}
+
+/**
+ * The bottom-of-list row [ManageCollectionsDialog] appends while creating a shelf: the same
+ * accent-underline text field [ManageCollectionsRow] uses for renaming, with no backing
+ * [CollectionInfo] yet. Enter calls [onCreate]; a thrown duplicate-name rejection renders under
+ * the row instead of closing it. Escape or losing focus calls [onClose] without creating anything.
+ */
+@Composable
+private fun PendingCollectionRow(onCreate: suspend (String) -> Unit, onClose: () -> Unit) {
+    val theme = LocalMangoTheme.current
+    var draft by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val focusRequester = remember { FocusRequester() }
+
+    fun commit() {
+        val trimmed = draft.trim()
+        if (trimmed.isEmpty()) {
+            onClose()
+            return
+        }
+        scope.launch {
+            try {
+                onCreate(trimmed)
+                onClose()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                error = e.message ?: "Could not create collection"
+            }
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = MangoSpace.xs),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm),
+        ) {
+            Text(text = "⠿", style = MangoType.body, color = theme.textTertiary.copy(alpha = 0.3f))
+            LaunchedEffect(Unit) { focusRequester.requestFocus() }
+            BasicTextField(
+                value = draft,
+                onValueChange = { draft = it; error = null },
+                singleLine = true,
+                textStyle = MangoType.body.copy(
+                    color = theme.textPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.5.sp,
+                ),
+                cursorBrush = SolidColor(theme.accent),
+                modifier = Modifier
+                    .weight(1f)
+                    .focusRequester(focusRequester)
+                    .drawBehind {
+                        drawLine(
+                            color = theme.accent,
+                            start = Offset(0f, size.height),
+                            end = Offset(size.width, size.height),
+                            strokeWidth = 1.5.dp.toPx(),
+                        )
+                    }
+                    .inlineEditKeys(onCommit = ::commit, onCancel = onClose)
+                    .cancelOnFocusLoss(onClose),
+            )
+        }
+        error?.let { message ->
+            Text(
+                text = message,
+                style = MangoType.caption,
+                color = theme.danger,
+                modifier = Modifier.padding(start = MangoSpace.md),
+            )
+        }
     }
 }
 
@@ -1337,14 +1452,7 @@ private fun ManageCollectionsRow(
                                 strokeWidth = 1.5.dp.toPx(),
                             )
                         }
-                        .onPreviewKeyEvent { event ->
-                            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                            when (event.key) {
-                                Key.Enter, Key.NumPadEnter -> { commitRename(); true }
-                                Key.Escape -> { cancelRename(); true }
-                                else -> false
-                            }
-                        },
+                        .inlineEditKeys(onCommit = ::commitRename, onCancel = ::cancelRename),
                 )
             } else {
                 Text(

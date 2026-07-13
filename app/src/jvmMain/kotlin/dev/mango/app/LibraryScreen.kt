@@ -14,23 +14,30 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
@@ -44,6 +51,8 @@ import dev.mango.core.domain.MangaEntry
 import kotlin.math.roundToInt
 import kotlin.time.Clock
 import kotlin.time.Instant
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 /** Grid vs list mode, persisted by [Settings.libraryView] and mirrored in [SETTINGS_ENTRIES]. */
 internal const val LIBRARY_VIEW_GRID = "grid"
@@ -295,9 +304,9 @@ fun LibraryScreen(
 
 /**
  * The library's shelf tabs: "All · N" first, then one chip per [collections] entry in position
- * order, a "＋" chip that opens [NewCollectionDialog], and a "⋯" affordance pushed to the far
- * right for [onManageCollections]. Counts are always computed against the full [items] list, not
- * whatever [selectedCollectionId] currently filters to.
+ * order, a "＋" chip that swaps itself for an inline name field to create a shelf, and a "⋯"
+ * affordance pushed to the far right for [onManageCollections]. Counts are always computed
+ * against the full [items] list, not whatever [selectedCollectionId] currently filters to.
  */
 @Composable
 private fun CollectionsChipRow(
@@ -309,7 +318,7 @@ private fun CollectionsChipRow(
     onCreateCollection: suspend (String) -> Unit,
     onManageCollections: () -> Unit,
 ) {
-    var showNewCollectionDialog by remember { mutableStateOf(false) }
+    var creatingChip by remember { mutableStateOf(false) }
     // ponytail: plain Row, no overflow scroll — revisit past ~8 shelves
     Row(
         modifier = Modifier
@@ -330,15 +339,13 @@ private fun CollectionsChipRow(
                 onClick = { onSelectCollection(collection.id) },
             )
         }
-        CollectionChip(text = "＋", active = false, onClick = { showNewCollectionDialog = true })
+        if (creatingChip) {
+            NewCollectionChip(onCreate = onCreateCollection, onClose = { creatingChip = false })
+        } else {
+            CollectionChip(text = "＋", active = false, onClick = { creatingChip = true })
+        }
         Spacer(modifier = Modifier.weight(1f))
         CollectionChip(text = "⋯", active = false, onClick = onManageCollections)
-    }
-    if (showNewCollectionDialog) {
-        NewCollectionDialog(
-            onDismissRequest = { showNewCollectionDialog = false },
-            onCreate = onCreateCollection,
-        )
     }
 }
 
@@ -363,5 +370,62 @@ private fun CollectionChip(text: String, active: Boolean, onClick: () -> Unit) {
             style = MangoType.body,
             color = if (active) theme.accentOn else theme.textSecondary,
         )
+    }
+}
+
+/**
+ * The "＋" chip's in-place replacement while creating a shelf: a chip-shaped text field (same
+ * radius/padding family as [CollectionChip]). Enter calls [onCreate]; a thrown duplicate-name
+ * rejection renders as a caption under the field, which stays open so the name can be fixed.
+ * Escape or losing focus (a click elsewhere) calls [onClose] without creating anything.
+ */
+@Composable
+private fun NewCollectionChip(onCreate: suspend (String) -> Unit, onClose: () -> Unit) {
+    val theme = LocalMangoTheme.current
+    var draft by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val focusRequester = remember { FocusRequester() }
+
+    fun commit() {
+        val trimmed = draft.trim()
+        if (trimmed.isEmpty()) {
+            onClose()
+            return
+        }
+        scope.launch {
+            try {
+                onCreate(trimmed)
+                onClose()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                error = e.message ?: "Could not create collection"
+            }
+        }
+    }
+
+    Column {
+        LaunchedEffect(Unit) { focusRequester.requestFocus() }
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(MangoRadius.pill))
+                .background(theme.bg2)
+                .padding(vertical = 5.dp, horizontal = 13.dp),
+        ) {
+            BasicTextField(
+                value = draft,
+                onValueChange = { draft = it; error = null },
+                singleLine = true,
+                textStyle = MangoType.body.copy(color = theme.textPrimary),
+                cursorBrush = SolidColor(theme.accent),
+                modifier = Modifier
+                    .widthIn(min = 64.dp)
+                    .focusRequester(focusRequester)
+                    .inlineEditKeys(onCommit = ::commit, onCancel = onClose)
+                    .cancelOnFocusLoss(onClose),
+            )
+        }
+        error?.let { message -> Text(text = message, style = MangoType.caption, color = theme.danger) }
     }
 }
