@@ -11,15 +11,21 @@ import java.util.Properties
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlinx.coroutines.test.runTest
 
 /** Integration tests for [SqlCatalogCache], driven only through the [CatalogCache] contract. */
 class SqlCatalogCacheTest {
-    private fun newCache(): CatalogCache {
+    /** A programmable [Clock] stand-in: tests advance [instant] between puts to control first_seen_at stamps. */
+    private class FixedClock(var instant: Instant) : Clock {
+        override fun now(): Instant = instant
+    }
+
+    private fun newCache(clock: Clock = Clock.System): CatalogCache {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())
         MangoDatabase.Schema.create(driver)
-        return SqlCatalogCache(MangoDatabase(driver))
+        return SqlCatalogCache(MangoDatabase(driver), clock = clock)
     }
 
     private val entry = MangaEntry(sourceId = "MangaBat", mangaId = "m1", title = "Solo Leveling", cover = "https://x/cover.jpg")
@@ -115,5 +121,43 @@ class SqlCatalogCacheTest {
         cache.put("MangaBat", "m1", details, emptyList())
 
         assertEquals(emptyList(), cache.get("MangaBat", "m1")?.chapters)
+    }
+
+    @Test
+    fun firstFillStampsEveryChapterFirstSeenAtToEpochZero() = runTest {
+        val clock = FixedClock(Instant.fromEpochMilliseconds(5_000))
+        val cache = newCache(clock)
+
+        cache.put("MangaBat", "m1", details, chapters)
+
+        val firstSeenAt = cache.get("MangaBat", "m1")?.firstSeenAt
+        assertEquals(Instant.fromEpochMilliseconds(0), firstSeenAt?.get("c1"))
+        assertEquals(Instant.fromEpochMilliseconds(0), firstSeenAt?.get("c2"))
+    }
+
+    @Test
+    fun rePutWithANewChapterKeepsSurvivorsStampsAndStampsOnlyTheNewOne() = runTest {
+        val clock = FixedClock(Instant.fromEpochMilliseconds(1_000))
+        val cache = newCache(clock)
+        cache.put("MangaBat", "m1", details, chapters)
+
+        clock.instant = Instant.fromEpochMilliseconds(9_000)
+        val withNewChapter = chapters + Chapter(chapterId = "c3", number = 3.0, title = "Ch. 3", publishedAt = null)
+        cache.put("MangaBat", "m1", details, withNewChapter)
+
+        val firstSeenAt = cache.get("MangaBat", "m1")?.firstSeenAt
+        assertEquals(Instant.fromEpochMilliseconds(0), firstSeenAt?.get("c1"))
+        assertEquals(Instant.fromEpochMilliseconds(0), firstSeenAt?.get("c2"))
+        assertEquals(Instant.fromEpochMilliseconds(9_000), firstSeenAt?.get("c3"))
+    }
+
+    @Test
+    fun checkedAtRoundTripsFromPutTime() = runTest {
+        val clock = FixedClock(Instant.fromEpochMilliseconds(4_242))
+        val cache = newCache(clock)
+
+        cache.put("MangaBat", "m1", details, chapters)
+
+        assertEquals(Instant.fromEpochMilliseconds(4_242), cache.get("MangaBat", "m1")?.checkedAt)
     }
 }

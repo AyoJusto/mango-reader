@@ -7,7 +7,8 @@ import kotlinx.coroutines.flow.Flow
  * A series the user has saved, normalized at the persistence boundary. No infrastructure here.
  * [chapterCount] is the last count recorded via [LibraryRepository.setChapterCount];
  * [unreadCount] and [lastReadAt] are derived from it and read progress at the query layer, not
- * recomputed from a chapter list here.
+ * recomputed from a chapter list here. [newCount] is the number of cached chapters first seen
+ * after [LibraryRepository.markOpened] was last called for this series.
  */
 data class LibraryItem(
     val entry: MangaEntry,
@@ -15,6 +16,7 @@ data class LibraryItem(
     val chapterCount: Int = 0,
     val unreadCount: Int = 0,
     val lastReadAt: Instant? = null,
+    val newCount: Int = 0,
 )
 
 /** Where the user left off in one chapter. */
@@ -49,4 +51,6 @@ interface LibraryRepository {
     suspend fun latestProgress(sourceId: String, mangaId: String): ReadProgress?
     /** Caches the series' total chapter count so the library's unread-count query can derive it in SQL. */
     suspend fun setChapterCount(sourceId: String, mangaId: String, count: Int)
+    /** Stamps the moment the user opened Details for this series; chapters cached before this stamp stop counting as new. */
+    suspend fun markOpened(sourceId: String, mangaId: String)
 }

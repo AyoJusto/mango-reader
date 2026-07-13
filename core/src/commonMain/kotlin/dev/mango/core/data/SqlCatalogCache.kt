@@ -23,7 +23,8 @@ class SqlCatalogCache(
         val detailsRow = db.catalog_cacheQueries.selectDetailsCache(sourceId, mangaId).executeAsOneOrNull()
             ?: return@withContext null
 
-        val chapters = db.catalog_cacheQueries.selectChapterCache(sourceId, mangaId).executeAsList().map { row ->
+        val chapterRows = db.catalog_cacheQueries.selectChapterCache(sourceId, mangaId).executeAsList()
+        val chapters = chapterRows.map { row ->
             Chapter(
                 chapterId = row.chapter_id,
                 number = row.number,
@@ -46,6 +47,8 @@ class SqlCatalogCache(
                 tags = splitList(detailsRow.tags),
             ),
             chapters = chapters,
+            checkedAt = Instant.fromEpochMilliseconds(detailsRow.updated_at),
+            firstSeenAt = chapterRows.associate { it.chapter_id to Instant.fromEpochMilliseconds(it.first_seen_at) },
         )
     }
 
@@ -68,10 +71,23 @@ class SqlCatalogCache(
                 updated_at = clock.now().toEpochMilliseconds(),
             )
 
+            // read before the delete so surviving chapters keep the first_seen_at they already had
+            val previousFirstSeenAt = db.catalog_cacheQueries.selectChapterFirstSeen(source_id = sourceId, manga_id = mangaId)
+                .executeAsList()
+                .associate { it.chapter_id to it.first_seen_at }
+            // no prior rows at all means this is the manga's first fill: every chapter is
+            // "already there" as far as the user is concerned, so none of them count as new
+            val isFirstFill = previousFirstSeenAt.isEmpty()
+            val now = clock.now().toEpochMilliseconds()
+
             // atomic replace: delete then re-insert with fresh positions, so a shrunk chapter
             // list can't leave orphaned rows behind
             db.catalog_cacheQueries.deleteChapterCache(source_id = sourceId, manga_id = mangaId)
             chapters.forEachIndexed { index, chapter ->
+                val firstSeenAt = when {
+                    isFirstFill -> 0L
+                    else -> previousFirstSeenAt[chapter.chapterId] ?: now
+                }
                 db.catalog_cacheQueries.insertChapterCache(
                     source_id = sourceId,
                     manga_id = mangaId,
@@ -80,6 +96,7 @@ class SqlCatalogCache(
                     title = chapter.title,
                     published_at = chapter.publishedAt?.toEpochMilliseconds(),
                     position = index.toLong(),
+                    first_seen_at = firstSeenAt,
                 )
             }
         }

@@ -35,6 +35,7 @@ class SqlLibraryRepository(
                     chapterCount = row.chapter_count.toInt(),
                     unreadCount = (row.unread_count ?: 0L).toInt(),
                     lastReadAt = row.last_read_at?.let { Instant.fromEpochMilliseconds(it) },
+                    newCount = row.new_count.toInt(),
                 )
             }
         }
@@ -106,6 +107,11 @@ class SqlLibraryRepository(
 
     override suspend fun setChapterCount(sourceId: String, mangaId: String, count: Int) = withContext(context) {
         db.libraryQueries.updateChapterCount(chapter_count = count.toLong(), source_id = sourceId, manga_id = mangaId)
+        Unit
+    }
+
+    override suspend fun markOpened(sourceId: String, mangaId: String) = withContext(context) {
+        db.libraryQueries.markOpened(last_opened_at = clock.now().toEpochMilliseconds(), source_id = sourceId, manga_id = mangaId)
         Unit
     }
 }

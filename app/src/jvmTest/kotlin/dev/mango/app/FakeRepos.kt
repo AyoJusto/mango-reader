@@ -50,6 +50,10 @@ class FakeLibraryRepository(initial: List<LibraryItem> = emptyList()) : LibraryR
     // the unread-count math itself is covered by LibraryRepositoryTest against the real SQL.
     val chapterCountBySeries = mutableMapOf<Pair<String, String>, Int>()
 
+    // Records markOpened calls; like chapterCountBySeries, not wired into observeLibrary() output —
+    // LibraryItem.newCount is derived from real SQL in LibraryRepositoryTest, not reproduced here.
+    val openedAt = mutableMapOf<Pair<String, String>, Long>()
+
     override fun observeLibrary(): Flow<List<LibraryItem>> = state
 
     override suspend fun addToLibrary(entry: MangaEntry) {
@@ -100,6 +104,10 @@ class FakeLibraryRepository(initial: List<LibraryItem> = emptyList()) : LibraryR
 
     override suspend fun setChapterCount(sourceId: String, mangaId: String, count: Int) {
         chapterCountBySeries[sourceId to mangaId] = count
+    }
+
+    override suspend fun markOpened(sourceId: String, mangaId: String) {
+        openedAt[sourceId to mangaId] = Clock.System.now().toEpochMilliseconds()
     }
 }
 

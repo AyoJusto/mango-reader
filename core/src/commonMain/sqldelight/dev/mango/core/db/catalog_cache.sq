@@ -7,6 +7,9 @@
 --
 -- chapter_cache.position preserves the source's chapter ordering independently of number: number
 -- is a display value, not guaranteed unique or monotonic across every source.
+--
+-- chapter_cache.first_seen_at is 0 for a chapter that predates this column or that arrived in a
+-- manga's first-ever cache fill; either way 0 means "don't count as new", never "just arrived".
 
 CREATE TABLE details_cache (
   source_id TEXT NOT NULL,
@@ -29,6 +32,7 @@ CREATE TABLE chapter_cache (
   title TEXT,
   published_at INTEGER,
   position INTEGER NOT NULL,
+  first_seen_at INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (source_id, manga_id, chapter_id)
 );
 
@@ -51,8 +55,11 @@ selectChapterCache:
 SELECT * FROM chapter_cache WHERE source_id = ? AND manga_id = ? ORDER BY position ASC;
 
 insertChapterCache:
-INSERT INTO chapter_cache(source_id, manga_id, chapter_id, number, title, published_at, position)
-VALUES (?, ?, ?, ?, ?, ?, ?);
+INSERT INTO chapter_cache(source_id, manga_id, chapter_id, number, title, published_at, position, first_seen_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
 deleteChapterCache:
 DELETE FROM chapter_cache WHERE source_id = ? AND manga_id = ?;
+
+selectChapterFirstSeen:
+SELECT chapter_id, first_seen_at FROM chapter_cache WHERE source_id = ? AND manga_id = ?;

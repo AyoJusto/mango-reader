@@ -2,8 +2,11 @@ package dev.mango.core.data
 
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import dev.mango.core.db.MangoDatabase
+import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.LibraryRepository
+import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
+import dev.mango.core.domain.MangaStatus
 import java.util.Properties
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -23,6 +26,11 @@ class LibraryRepositoryTest {
     private class TickingClock : Clock {
         private var millis = 0L
         override fun now(): Instant = Instant.fromEpochMilliseconds(++millis)
+    }
+
+    /** A clock a test can move forward on demand, to control first_seen_at vs. last_opened_at ordering. */
+    private class ManualClock(var instant: Instant) : Clock {
+        override fun now(): Instant = instant
     }
 
     private fun newRepository(clock: Clock = TickingClock()): LibraryRepository {
@@ -223,5 +231,84 @@ class LibraryRepositoryTest {
         repo.addToLibrary(entry.copy(title = "Solo Leveling (renamed)"))
 
         assertEquals(42, repo.observeLibrary().first().single().unreadCount)
+    }
+
+    private val newChapterDetails = MangaDetails(
+        entry = MangaEntry(sourceId = "MangaBat", mangaId = "m1", title = "Solo Leveling"),
+        authors = emptyList(),
+        description = null,
+        status = MangaStatus.ONGOING,
+        tags = emptyList(),
+    )
+
+    @Test
+    fun observeLibraryReflectsNewChapterCountAndMarkOpenedClearsIt() = runTest {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())
+        MangoDatabase.Schema.create(driver)
+        val db = MangoDatabase(driver)
+        val clock = ManualClock(Instant.fromEpochMilliseconds(1_000))
+        val repo = SqlLibraryRepository(db, clock = clock)
+        val cache = SqlCatalogCache(db, clock = clock)
+        val entry = MangaEntry(sourceId = "MangaBat", mangaId = "m1", title = "Solo Leveling")
+
+        repo.addToLibrary(entry)
+        val initialChapters = listOf(
+            Chapter(chapterId = "c1", number = 1.0, title = "Ch. 1", publishedAt = null),
+            Chapter(chapterId = "c2", number = 2.0, title = "Ch. 2", publishedAt = null),
+        )
+        cache.put("MangaBat", "m1", newChapterDetails, initialChapters)
+        repo.setChapterCount("MangaBat", "m1", initialChapters.size)
+
+        // first cache fill: nothing counts as new yet
+        assertEquals(0, repo.observeLibrary().first().single().newCount)
+
+        clock.instant = Instant.fromEpochMilliseconds(5_000)
+        val withTwoMoreChapters = initialChapters + listOf(
+            Chapter(chapterId = "c3", number = 3.0, title = "Ch. 3", publishedAt = null),
+            Chapter(chapterId = "c4", number = 4.0, title = "Ch. 4", publishedAt = null),
+        )
+        cache.put("MangaBat", "m1", newChapterDetails, withTwoMoreChapters)
+        repo.setChapterCount("MangaBat", "m1", withTwoMoreChapters.size)
+
+        assertEquals(2, repo.observeLibrary().first().single().newCount)
+
+        repo.markOpened("MangaBat", "m1")
+
+        assertEquals(0, repo.observeLibrary().first().single().newCount)
+    }
+
+    @Test
+    fun reAddingToLibraryDoesNotResetLastOpenedAt() = runTest {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())
+        MangoDatabase.Schema.create(driver)
+        val db = MangoDatabase(driver)
+        val clock = ManualClock(Instant.fromEpochMilliseconds(1_000))
+        val repo = SqlLibraryRepository(db, clock = clock)
+        val cache = SqlCatalogCache(db, clock = clock)
+        val entry = MangaEntry(sourceId = "MangaBat", mangaId = "m1", title = "Solo Leveling")
+
+        repo.addToLibrary(entry)
+        cache.put("MangaBat", "m1", newChapterDetails, listOf(Chapter(chapterId = "c1", number = 1.0, title = "Ch. 1", publishedAt = null)))
+        repo.setChapterCount("MangaBat", "m1", 1)
+
+        clock.instant = Instant.fromEpochMilliseconds(5_000)
+        cache.put(
+            "MangaBat",
+            "m1",
+            newChapterDetails,
+            listOf(
+                Chapter(chapterId = "c1", number = 1.0, title = "Ch. 1", publishedAt = null),
+                Chapter(chapterId = "c2", number = 2.0, title = "Ch. 2", publishedAt = null),
+            ),
+        )
+        repo.setChapterCount("MangaBat", "m1", 2)
+        repo.markOpened("MangaBat", "m1")
+        assertEquals(0, repo.observeLibrary().first().single().newCount)
+
+        // re-add (fires on every chapter download of an already-library series) must not
+        // reset last_opened_at back to 0, or every download would resurrect the "new" pill
+        repo.addToLibrary(entry.copy(title = "Solo Leveling (renamed)"))
+
+        assertEquals(0, repo.observeLibrary().first().single().newCount)
     }
 }

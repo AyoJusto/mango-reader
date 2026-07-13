@@ -114,6 +114,101 @@ class MigrationTest {
         assertEquals("1.2.3", newRow.version)
     }
 
+    @Test
+    fun v6ToV7MigrationPreservesExistingRowsAndAddsTheNewColumns() {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())
+        // frozen v6 DDL: chapter_cache and library_item's shape before first_seen_at/last_opened_at existed
+        driver.execute(
+            null,
+            """
+            CREATE TABLE chapter_cache (
+              source_id TEXT NOT NULL,
+              manga_id TEXT NOT NULL,
+              chapter_id TEXT NOT NULL,
+              number REAL NOT NULL,
+              title TEXT,
+              published_at INTEGER,
+              position INTEGER NOT NULL,
+              PRIMARY KEY (source_id, manga_id, chapter_id)
+            )
+            """.trimIndent(),
+            0,
+        )
+        driver.execute(
+            null,
+            """
+            CREATE TABLE library_item (
+              source_id TEXT NOT NULL,
+              manga_id TEXT NOT NULL,
+              title TEXT NOT NULL,
+              cover TEXT,
+              added_at INTEGER NOT NULL,
+              chapter_count INTEGER NOT NULL DEFAULT 0,
+              PRIMARY KEY (source_id, manga_id)
+            )
+            """.trimIndent(),
+            0,
+        )
+        // read_progress is untouched by this migration, but selectAllLibraryItems joins it, so it
+        // must exist for that query to run at all
+        driver.execute(
+            null,
+            """
+            CREATE TABLE read_progress (
+              source_id TEXT NOT NULL,
+              manga_id TEXT NOT NULL,
+              chapter_id TEXT NOT NULL,
+              page INTEGER NOT NULL,
+              finished INTEGER NOT NULL DEFAULT 0,
+              updated_at INTEGER NOT NULL,
+              chapter_number REAL NOT NULL DEFAULT 0,
+              PRIMARY KEY (source_id, manga_id, chapter_id)
+            )
+            """.trimIndent(),
+            0,
+        )
+        driver.execute(
+            null,
+            "INSERT INTO chapter_cache(source_id, manga_id, chapter_id, number, title, published_at, position) " +
+                "VALUES ('src', 'm1', 'c1', 1.0, 'Ch. 1', 1000, 0)",
+            0,
+        )
+        driver.execute(
+            null,
+            "INSERT INTO library_item(source_id, manga_id, title, cover, added_at, chapter_count) " +
+                "VALUES ('src', 'm1', 'Solo Leveling', NULL, 500, 3)",
+            0,
+        )
+
+        MangoDatabase.Schema.migrate(driver, 6, 7)
+        val db = MangoDatabase(driver)
+
+        val oldChapterRow = db.catalog_cacheQueries.selectChapterCache("src", "m1").executeAsList().single()
+        assertEquals("c1", oldChapterRow.chapter_id)
+        assertEquals(0L, oldChapterRow.first_seen_at)
+
+        val oldLibraryRow = db.libraryQueries.selectAllLibraryItems().executeAsList().single()
+        assertEquals("Solo Leveling", oldLibraryRow.title)
+        assertEquals(3L, oldLibraryRow.chapter_count)
+
+        db.catalog_cacheQueries.insertChapterCache(
+            source_id = "src",
+            manga_id = "m1",
+            chapter_id = "c2",
+            number = 2.0,
+            title = "Ch. 2",
+            published_at = 2000,
+            position = 1,
+            first_seen_at = 1500,
+        )
+        val newChapterRow = db.catalog_cacheQueries.selectChapterCache("src", "m1").executeAsList().first { it.chapter_id == "c2" }
+        assertEquals(1500L, newChapterRow.first_seen_at)
+
+        db.libraryQueries.markOpened(last_opened_at = 999, source_id = "src", manga_id = "m1")
+        val touchedLibraryRow = db.libraryQueries.selectAllLibraryItems().executeAsList().single()
+        assertEquals(1L, touchedLibraryRow.new_count)
+    }
+
     /** A migrated v1 db and a fresh v3 create must land on the same schema, or drift hides. */
     @Test
     fun migratedSchemaMatchesFreshCreateSchema() {
