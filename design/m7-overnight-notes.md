@@ -55,6 +55,13 @@ lookbook HTML — the online README copy is stale; consider having web Claude re
 - V1: core 133 + app 147, forced rerun, JUnit XML verified 0 failures. Commits `0f2589a`
   (docs), `bf13720` (V1).
 - V2: core 133 + app 161, forced rerun, JUnit XML verified 0 failures. Commit `9dbe118`.
+- C1: core 143 + app 174, forced rerun, XML verified 0 failures. Commit `ae66a21`.
+  Review: SHIP, 2 NITs accepted — the app-test fake pre-seeds the default "Reading" shelf
+  (real repo self-heals it on first add; a truly virgin DB shows no shelves until then —
+  conscious call), and fake/real diverge on a contract-violating partial reorder list.
+  Deviations accepted: COALESCE('') for the dialect's non-null GROUP_CONCAT mapper; the
+  v6→v7 migration test gained a collection_member stand-in (existing precedent); stub
+  overrides in LibraryUpdaterTest's private fake.
 - S1: app 174, forced rerun, XML verified 0 failures (core untouched). Commit `ca4a4c0`.
   Review: SHIP, 3 NITs — applied the hover-gate on the invisible remove ✕ (a click on a row's
   right edge must replay, not silently remove); accepted "clearing the query hides live
