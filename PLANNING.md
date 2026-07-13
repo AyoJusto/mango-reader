@@ -321,9 +321,8 @@ De-risk the unknown before building around it.
   invoke the pull API through the existing invokeAwaitJson shape, `MangaSource` gains a
   home-sections method + domain `HomeSection` type, verify against all four fixtures; shim
   work, mandatory review. (b) UI — tabbed Browse, one tab per installed source, horizontal
-  section rows; sources without the method fall back to the plain search view. Full
-  research + draft engine brief: HANDOFF.md (2026-07-11). Sequenced before the
-  design-refinement pass so that pass styles the real Browse, not a throwaway.
+  section rows; sources without the method fall back to the plain search view. Sequenced
+  before the design-refinement pass so that pass styles the real Browse, not a throwaway.
   **Chunk (a) DONE (2026-07-11).** Domain `HomeSection`; `MangaSource.getHomeSections`
   (default empty) + `CatalogRepository.homeSections` (abstract — deliberate, a repo default
   would mask a forgotten override); `PaperbackExtension` invokes the pull API duck-typed,
@@ -398,14 +397,23 @@ De-risk the unknown before building around it.
   behavior). RESOLVED (R4, 2026-07-11): auto-scroll now pauses while the palette overlay
   is open (paletteVisible in the drive loop's keys/guard) and auto-resumes on close.
 - ~~M5+ — Apple targets~~ moved to §12 backlog (2026-07-11): not needed now or anytime soon.
-- **MU — UI overhaul (planned 2026-07-12).** Full visual direction from the owner's
-  claude.ai/design lookbook: token theme system with JSON export/import, borderless
-  window chrome, Arc-style overlay sidebar (Ctrl+B), immersive reader overlay, Spotlight-
-  styled palette, per-screen restyles. Spec of record: `design/lookbook-handoff.md`;
-  execution plan (chunks U1–U6, dispatch maps, acceptance criteria):
-  `design/ui-milestone-plan.md`. Covers the §12 backlog items "proper UI design pass"
-  and library unread badges. The U2 undecorated-window spike is the scheduled unknown;
-  fallback keeps OS chrome and de-scopes nothing else.
+- **MU — UI overhaul (DONE 2026-07-13).** Chunks U1–U6: token theme system with JSON
+  export/import, JBR merged window chrome (mechanism and stock-JDK fallback documented in
+  `Chrome.kt`; dev-run needs the machine-local `mango.jbrHome` property, packaged builds
+  must bundle a JBR — §12), frosted overlay sidebar (haze blur, Ctrl+S), component kit,
+  Library grid/list with unread badges, immersive reader overlay, per-screen restyles +
+  Spotlight palette. Spec of record: `design/lookbook-handoff.md`. Behaviors that read as
+  bugs but are decisions: filled buttons have no hover fill (the design defines no such
+  token), the "Completed" pill means all chapters started (not finished), the title bar
+  stays over the windowed reader (native controls live in it — F is total immersion), and
+  Mark finished rewrites saved page positions to each chapter's end.
+- **M7 — Chapter arrivals, search history, collections (DONE 2026-07-13).** NEW chips and
+  "+n new" counts from `first_seen_at` stamps (the first cache fill is the baseline, never
+  "new"; a series added via download counts chapters as new until its first Details open),
+  last-10 search history replayed from an empty query field (click-only), collection
+  shelves with a filing picker and inline creation. Ceilings: collection filter selection
+  is session-only; search-history keyboard navigation, drag-a-cover-onto-a-tab, and
+  Ctrl+1–9 tab jumps deferred.
 
 ---
 
@@ -487,17 +495,28 @@ owner approval. Sequential feature-building never qualifies.
 
 ## 12. Later roadmap (design for it, do not build it yet)
 
-**Dogfood backlog (triaged 2026-07-10, M3.5).** Functionality shipped in M3.5a–c: full-res
-pages, downloads metadata + library-on-download + download-all, configurable theme
-(`settings.properties`), browse state retention. Still open, in rough priority order:
-- reader serves downloaded pages when present (offline reading — downloads are write-only today)
-- download selection: range / unread-only (unread = no read_progress row)
-- cross-extension search: query all installed sources, results grouped per source
-- settings page (theme picker first — the registry and persistence already exist)
-- proper UI design pass (icon strategy, spacing/type rhythm, window-resize behavior)
+**Dogfood backlog (retriaged 2026-07-13).** Shipped since the 2026-07-10 triage: offline
+reading, download selection, cross-extension search, the settings page (M4); the full
+design pass and unread badges (MU). Still open, in rough priority order:
+- Browse pagination: the lookbook's infinite-scroll footer needs real paging state —
+  `CatalogRepository.search` takes a page param but no screen tracks pages or fetches
+  page 2+; a feature ticket (paging state machinery), not a restyle
 - search-everywhere palette, online tab: a Tab-reachable second tab in the M6 palette that
   runs cross-extension search (reuses the M4.4 machinery, debounced); local and online
   results never mix
+- Downloads screen controls: "Pause all" (needs a pause API on `DownloadManager`) and bulk
+  "Clear done"
+- Search "In library" pill (needs `LibraryRepository` threaded into SearchScreen)
+- Settings "Download location" row (needs real storage-config infra)
+- custom accent swatch in Settings
+- slider restyle: Strip-width/Auto-scroll still render Material's default thumb/track;
+  the design wants a 4dp track with a 14dp round thumb
+- Details chapter rows: "· X%" instead of "reading · p. N" needs per-chapter page counts
+  loaded on Details
+- packaging chunk: distributable image must bundle a JBR so the merged window chrome
+  ships (dev-run relies on the machine-local `mango.jbrHome` property)
+- HoverListRow extraction: re-evaluate now that `rememberHoverFill` landed — remaining
+  duplication may be too thin to justify a slotted component
 - purge-source-data action (R6 ceiling, 2026-07-11): extension removal deliberately keeps
   the source's library entries / read progress / downloads (downloads stay readable
   offline); a destructive "also purge this source's data" action is the follow-up if
