@@ -129,4 +129,40 @@ class SettingsTest {
         val reloaded = Settings(dataDir)
         assertEquals(null, reloaded.libraryCheckedAt)
     }
+
+    @Test
+    fun searchHistoryDefaultsToEmptyAndRoundTripsAcrossInstances() {
+        val dataDir = Files.createTempDirectory("settings-test")
+        val settings = Settings(dataDir)
+        assertEquals(emptyList(), settings.searchHistory)
+
+        val history = listOf(SearchHistoryEntry("solo leveling", 100L), SearchHistoryEntry("tower of god", 200L))
+        settings.searchHistory = history
+
+        val reloaded = Settings(dataDir)
+        assertEquals(history, reloaded.searchHistory)
+    }
+
+    @Test
+    fun searchHistoryMalformedJsonFallsBackToEmpty() {
+        val dataDir = Files.createTempDirectory("settings-test")
+        val file = dataDir.resolve("settings.properties")
+        Files.write(file, "searchHistory=not-json\n".toByteArray())
+
+        val settings = Settings(dataDir)
+
+        assertEquals(emptyList(), settings.searchHistory)
+    }
+
+    @Test
+    fun searchHistorySetToEmptyRemovesThePersistedValue() {
+        val dataDir = Files.createTempDirectory("settings-test")
+        val settings = Settings(dataDir)
+
+        settings.searchHistory = listOf(SearchHistoryEntry("solo leveling", 100L))
+        settings.searchHistory = emptyList()
+
+        val reloaded = Settings(dataDir)
+        assertEquals(emptyList(), reloaded.searchHistory)
+    }
 }

@@ -507,12 +507,14 @@ private fun actionsProvider(
     onToggleSidebar: () -> Unit,
     onToggleLibraryView: () -> Unit,
     onCheckForUpdates: () -> Unit,
+    onClearSearchHistory: () -> Unit,
 ): PaletteProvider =
     PaletteProvider { _ ->
         listOf(
             PaletteHit(category = "Actions", title = "Toggle sidebar", run = onToggleSidebar),
             PaletteHit(category = "Actions", title = "Toggle library view", run = onToggleLibraryView),
             PaletteHit(category = "Actions", title = "Check for updates", run = onCheckForUpdates),
+            PaletteHit(category = "Actions", title = "Clear search history", run = onClearSearchHistory),
         )
     }
 
@@ -549,12 +551,13 @@ fun paletteTabs(
     onToggleSidebar: () -> Unit = {},
     onToggleLibraryView: () -> Unit = {},
     onCheckForUpdates: () -> Unit = {},
+    onClearSearchHistory: () -> Unit = {},
 ): List<PaletteTab> {
     val screens = screenProvider(navigate)
     val accents = accentProvider(theme, onThemeChange)
     val manhwa = libraryProvider(library, navigate)
     val settings = settingsProvider(navigate)
-    val actions = actionsProvider(onToggleSidebar, onToggleLibraryView, onCheckForUpdates)
+    val actions = actionsProvider(onToggleSidebar, onToggleLibraryView, onCheckForUpdates, onClearSearchHistory)
     return listOf(
         PaletteTab("All", listOf(screens, accents, manhwa, settings, actions)),
         PaletteTab("Manhwa", listOf(manhwa)),

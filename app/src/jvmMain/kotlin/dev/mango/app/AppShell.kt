@@ -124,6 +124,8 @@ fun AppShell(
     jbrBar: JbrBar? = null,
     libraryCheckedAt: Long? = null,
     onLibraryChecked: (Long) -> Unit = {},
+    searchHistory: List<SearchHistoryEntry> = emptyList(),
+    onSearchHistoryChange: (List<SearchHistoryEntry>) -> Unit = {},
 ) {
     var screen by remember { mutableStateOf<Screen>(Screen.Library) }
     // Reader has no fromBrowse of its own; remember which Details screen led to it so its
@@ -248,12 +250,19 @@ fun AppShell(
                                 checking = checking,
                                 onCheckForUpdates = { checkForUpdates() },
                             )
-                            Screen.Search -> SearchScreen(catalog, challengeSolver, searchState) { entry ->
-                                // Details has no fromSearch case yet: back from a Search-opened
-                                // Details returns to Library, same as fromBrowse = false
-                                // everywhere else that isn't Browse itself.
-                                screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = false)
-                            }
+                            Screen.Search -> SearchScreen(
+                                catalog = catalog,
+                                challengeSolver = challengeSolver,
+                                state = searchState,
+                                onOpenDetails = { entry ->
+                                    // Details has no fromSearch case yet: back from a Search-opened
+                                    // Details returns to Library, same as fromBrowse = false
+                                    // everywhere else that isn't Browse itself.
+                                    screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = false)
+                                },
+                                searchHistory = searchHistory,
+                                onSearchHistoryChange = onSearchHistoryChange,
+                            )
                             Screen.Browse -> BrowseScreen(catalog, challengeSolver, browseState) { entry ->
                                 screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = true)
                             }
@@ -365,6 +374,7 @@ fun AppShell(
                         onLibraryViewChange(if (currentLibraryView == LIBRARY_VIEW_LIST) LIBRARY_VIEW_GRID else LIBRARY_VIEW_LIST)
                     },
                     onCheckForUpdates = { checkForUpdates() },
+                    onClearSearchHistory = { onSearchHistoryChange(emptyList()) },
                 )
             }
             PaletteOverlay(state = palette, tabs = tabs)

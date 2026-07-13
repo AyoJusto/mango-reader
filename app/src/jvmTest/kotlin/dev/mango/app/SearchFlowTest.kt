@@ -1,9 +1,14 @@
 package dev.mango.app
 
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextInput
 import dev.mango.core.domain.CatalogRepository
@@ -13,6 +18,8 @@ import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
 import dev.mango.core.domain.Page
 import dev.mango.core.domain.SourceInfo
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -130,5 +137,116 @@ class SearchFlowTest {
         gate.complete(Unit)
         rule.waitForIdle()
         rule.onNodeWithText("No results").assertExists()
+    }
+
+    private val inHistory = hasAnyAncestor(hasTestTag("search-history"))
+
+    @Test
+    fun emptyQueryWithSeededHistoryShowsRecentRowsNewestFirstAndTypingHidesThem() {
+        val library = FakeLibraryRepository()
+        val catalog = FakeCatalogRepository(sources = listOf(SourceInfo("FlameComics", "FlameComics")))
+        val history = listOf(
+            SearchHistoryEntry("solo leveling", 200L),
+            SearchHistoryEntry("tower of god", 100L),
+        )
+
+        rule.setContent { TestAppShell(library, catalog, FakeDownloadManager(), searchHistory = history) }
+        rule.navigateVia("Search")
+
+        rule.onNodeWithTag("search-history").assertExists()
+        val newestTop = rule.onNode(hasText("solo leveling") and inHistory).fetchSemanticsNode().boundsInRoot.top
+        val oldestTop = rule.onNode(hasText("tower of god") and inHistory).fetchSemanticsNode().boundsInRoot.top
+        assertTrue(newestTop < oldestTop, "expected the newest search to render above the older one")
+
+        rule.onNodeWithText("Search all sources…").performTextInput("s")
+        rule.waitForIdle()
+
+        rule.onNodeWithTag("search-history").assertDoesNotExist()
+    }
+
+    @Test
+    fun clickingAHistoryRowReplaysTheSearchAndMovesItToTheTop() {
+        val library = FakeLibraryRepository()
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val catalog = FakeCatalogRepository(
+            sources = listOf(SourceInfo("FlameComics", "FlameComics")),
+            results = mapOf("solo leveling" to listOf(entry)),
+        )
+        val history = listOf(
+            SearchHistoryEntry("tower of god", 100L),
+            SearchHistoryEntry("solo leveling", 50L),
+        )
+        var latestHistory: List<SearchHistoryEntry> = history
+
+        rule.setContent {
+            TestAppShell(
+                library,
+                catalog,
+                FakeDownloadManager(),
+                searchHistory = history,
+                onSearchHistoryChange = { latestHistory = it },
+            )
+        }
+        rule.navigateVia("Search")
+
+        rule.onNode(hasText("solo leveling") and inHistory).performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Solo Leveling").assertExists()
+        assertEquals("solo leveling", latestHistory.first().query)
+    }
+
+    @Test
+    fun removingAHistoryEntryDoesNotReplayTheSearch() {
+        val library = FakeLibraryRepository()
+        val catalog = FakeCatalogRepository(sources = listOf(SourceInfo("FlameComics", "FlameComics")))
+        // FakeCatalogRepository.search throws for any query with no canned results, so an
+        // accidental replay of the removed query here would surface an error section instead of
+        // the plain idle hint asserted below.
+        val history = listOf(SearchHistoryEntry("solo leveling", 100L))
+        var latestHistory: List<SearchHistoryEntry> = history
+
+        rule.setContent {
+            TestAppShell(
+                library,
+                catalog,
+                FakeDownloadManager(),
+                searchHistory = history,
+                onSearchHistoryChange = { latestHistory = it },
+            )
+        }
+        rule.navigateVia("Search")
+
+        rule.onNode(hasText("✕") and inHistory).performClick()
+        rule.waitForIdle()
+
+        assertEquals(emptyList(), latestHistory)
+        rule.onNodeWithTag("search-history").assertDoesNotExist()
+        rule.onNodeWithText("Search across all installed sources").assertExists()
+    }
+
+    @Test
+    fun clearAllEmptiesTheHistory() {
+        val library = FakeLibraryRepository()
+        val catalog = FakeCatalogRepository(sources = listOf(SourceInfo("FlameComics", "FlameComics")))
+        val history = listOf(SearchHistoryEntry("solo leveling", 100L), SearchHistoryEntry("tower of god", 50L))
+        var latestHistory: List<SearchHistoryEntry> = history
+
+        rule.setContent {
+            TestAppShell(
+                library,
+                catalog,
+                FakeDownloadManager(),
+                searchHistory = history,
+                onSearchHistoryChange = { latestHistory = it },
+            )
+        }
+        rule.navigateVia("Search")
+
+        rule.onNodeWithText("Clear all").performClick()
+        rule.waitForIdle()
+
+        assertEquals(emptyList(), latestHistory)
+        rule.onNodeWithTag("search-history").assertDoesNotExist()
     }
 }

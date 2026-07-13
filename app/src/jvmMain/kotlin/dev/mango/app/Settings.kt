@@ -6,6 +6,16 @@ import java.nio.file.Path
 import java.util.Properties
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
+
+/** One past search: the query text and when it ran, epoch millis. */
+@Serializable
+data class SearchHistoryEntry(val query: String, val at: Long)
+
+private val searchHistorySerializer = ListSerializer(SearchHistoryEntry.serializer())
 
 /**
  * Tiny persisted key-value settings over [Properties] at `<dataDir>/settings.properties`.
@@ -87,6 +97,29 @@ class Settings(dataDir: Path) {
                 props.remove("libraryCheckedAt")
             } else {
                 props.setProperty("libraryCheckedAt", value.toString())
+            }
+            save()
+        }
+
+    // Recent search queries, newest first. Same fallback stance as every property above: absent
+    // or malformed JSON reads as no history rather than failing. Setting an empty list removes
+    // the key, matching the nullable properties' clear-on-empty behavior.
+    var searchHistory: List<SearchHistoryEntry>
+        get() {
+            val json = props.getProperty("searchHistory") ?: return emptyList()
+            return try {
+                Json.decodeFromString(searchHistorySerializer, json)
+            } catch (e: SerializationException) {
+                emptyList()
+            } catch (e: IllegalArgumentException) {
+                emptyList()
+            }
+        }
+        set(value) {
+            if (value.isEmpty()) {
+                props.remove("searchHistory")
+            } else {
+                props.setProperty("searchHistory", Json.encodeToString(searchHistorySerializer, value))
             }
             save()
         }

@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,17 +31,22 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.ChallengeRequiredException
 import dev.mango.core.domain.ChallengeSolver
 import dev.mango.core.domain.MangaEntry
 import dev.mango.core.domain.SourceInfo
+import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -48,6 +54,114 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.util.logging.Level
 import java.util.logging.Logger
+
+private const val SEARCH_HISTORY_MAX = 10
+
+/** Newest first, deduped by exact query text, capped at 10; re-running a query moves it to the top. */
+internal fun recordSearch(history: List<SearchHistoryEntry>, query: String, at: Long): List<SearchHistoryEntry> {
+    val trimmed = query.trim()
+    if (trimmed.isBlank()) return history
+    val withoutDupe = history.filterNot { it.query == trimmed }
+    return (listOf(SearchHistoryEntry(trimmed, at)) + withoutDupe).take(SEARCH_HISTORY_MAX)
+}
+
+/** Removes the entry matching [query] exactly, if present. */
+internal fun removeSearch(history: List<SearchHistoryEntry>, query: String): List<SearchHistoryEntry> =
+    history.filterNot { it.query == query }
+
+/** One recent-search row: clock glyph, query, relative time, and a remove ✕ that only shows on row hover. */
+@Composable
+private fun SearchHistoryRow(entry: SearchHistoryEntry, now: Instant, onReplay: () -> Unit, onRemove: () -> Unit) {
+    val theme = LocalMangoTheme.current
+    val hover = rememberHoverFill(rest = theme.bg1.copy(alpha = 0f), hover = theme.bg1)
+    val rowHovered by hover.interaction.collectIsHoveredAsState()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(MangoRadius.control))
+            .background(hover.fill)
+            .hoverable(hover.interaction)
+            .clickable(interactionSource = hover.interaction, indication = null, onClick = onReplay)
+            .padding(horizontal = MangoSpace.sm, vertical = 9.dp)
+            .testTag("search-history-row"),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm),
+    ) {
+        Text(text = "◷", fontSize = 13.sp, color = theme.textTertiary)
+        Text(
+            text = entry.query,
+            fontSize = 13.5.sp,
+            color = theme.textPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = formatRelativeTime(Instant.fromEpochMilliseconds(entry.at), now),
+            fontSize = 11.5.sp,
+            color = theme.textTertiary,
+        )
+        val removeHover = rememberHoverFill(rest = theme.bg2.copy(alpha = 0f), hover = theme.bg2)
+        Box(
+            modifier = Modifier
+                .size(22.dp)
+                .clip(RoundedCornerShape(MangoRadius.keycap))
+                .background(removeHover.fill)
+                .hoverable(removeHover.interaction)
+                // A separate clickable from the row's above: pointer input on this inner Box
+                // consumes the click before it reaches the row's clickable, so removing an
+                // entry never also replays it. Enabled only while the row is hovered — an
+                // invisible ✕ must not swallow a replay click on the row's right edge.
+                .clickable(
+                    interactionSource = removeHover.interaction,
+                    indication = null,
+                    enabled = rowHovered,
+                    onClick = onRemove,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(text = "✕", fontSize = 12.sp, color = theme.textTertiary, modifier = Modifier.alpha(if (rowHovered) 1f else 0f))
+        }
+    }
+}
+
+/** The empty-query idle state's Recent-searches list: header ("Recent" / "Clear all") plus up to 10 rows. */
+@Composable
+private fun SearchHistorySection(
+    history: List<SearchHistoryEntry>,
+    onReplaySearch: (String) -> Unit,
+    onRemoveSearch: (String) -> Unit,
+    onClearHistory: () -> Unit,
+) {
+    val theme = LocalMangoTheme.current
+    val now = remember { Clock.System.now() }
+    Column(modifier = Modifier.fillMaxWidth().testTag("search-history")) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = MangoSpace.sm).padding(bottom = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(text = "Recent", style = MangoType.microLabel, color = theme.textTertiary, modifier = Modifier.weight(1f))
+            val clearInteraction = remember { MutableInteractionSource() }
+            val clearHovered by clearInteraction.collectIsHoveredAsState()
+            Text(
+                text = "Clear all",
+                fontSize = 11.5.sp,
+                color = if (clearHovered) theme.textPrimary else theme.textTertiary,
+                modifier = Modifier
+                    .hoverable(clearInteraction)
+                    .clickable(interactionSource = clearInteraction, indication = null, onClick = onClearHistory),
+            )
+        }
+        history.forEach { entry ->
+            SearchHistoryRow(
+                entry = entry,
+                now = now,
+                onReplay = { onReplaySearch(entry.query) },
+                onRemove = { onRemoveSearch(entry.query) },
+            )
+        }
+    }
+}
 
 /** A result row: 30x42 thumb, title, alpha-only bg1 hover — no ripple, the fill fade is the indication. */
 @Composable
@@ -196,6 +310,10 @@ fun SearchScreenContent(
     onOpenDetails: (MangaEntry) -> Unit,
     solvingSourceId: String? = null,
     onSolveChallenge: (String) -> Unit = {},
+    history: List<SearchHistoryEntry> = emptyList(),
+    onReplaySearch: (String) -> Unit = {},
+    onRemoveSearch: (String) -> Unit = {},
+    onClearHistory: () -> Unit = {},
 ) {
     val theme = LocalMangoTheme.current
     Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
@@ -239,7 +357,14 @@ fun SearchScreenContent(
                 // answers, so one slow extension never blocks the others' results.
                 val hasSearched =
                     resultsBySource.isNotEmpty() || errorsBySource.isNotEmpty() || pendingSourceIds.isNotEmpty()
-                if (!hasSearched) {
+                if (query.isEmpty() && history.isNotEmpty()) {
+                    SearchHistorySection(
+                        history = history,
+                        onReplaySearch = onReplaySearch,
+                        onRemoveSearch = onRemoveSearch,
+                        onClearHistory = onClearHistory,
+                    )
+                } else if (!hasSearched) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
                             text = if (sources.isNotEmpty() && enabledSourceIds.isEmpty()) {
@@ -312,6 +437,8 @@ fun SearchScreen(
     challengeSolver: ChallengeSolver,
     state: SearchState,
     onOpenDetails: (MangaEntry) -> Unit,
+    searchHistory: List<SearchHistoryEntry> = emptyList(),
+    onSearchHistoryChange: (List<SearchHistoryEntry>) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
 
@@ -362,6 +489,9 @@ fun SearchScreen(
         val query = state.query
         // nothing enabled: the idle hint already reads "No sources selected"
         if (enabled.isEmpty()) return
+        if (query.isNotBlank()) {
+            onSearchHistoryChange(recordSearch(searchHistory, query, Clock.System.now().toEpochMilliseconds()))
+        }
         state.searchJob?.cancel()
         state.searchJob = scope.launch {
             state.pendingSourceIds = enabled
@@ -415,5 +545,9 @@ fun SearchScreen(
         onOpenDetails = onOpenDetails,
         solvingSourceId = state.solvingSourceId,
         onSolveChallenge = { sourceId -> solveChallenge(sourceId) },
+        history = searchHistory,
+        onReplaySearch = { query -> state.query = query; search() },
+        onRemoveSearch = { query -> onSearchHistoryChange(removeSearch(searchHistory, query)) },
+        onClearHistory = { onSearchHistoryChange(emptyList()) },
     )
 }

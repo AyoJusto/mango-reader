@@ -343,6 +343,27 @@ class PaletteFlowTest {
         rule.onNode(hasText("Check for updates") and inPalette).assertExists()
     }
 
+    // Completeness test for the actions registry: clearing the search history must surface a
+    // palette hit (search-everywhere rule).
+    @Test
+    fun clearSearchHistoryActionSurfacesAPaletteHit() {
+        val library = FakeLibraryRepository(libraryItems())
+        val palette = PaletteState()
+
+        rule.setContent { TestAppShell(library, FakeCatalogRepository(), FakeDownloadManager(), palette = palette) }
+        rule.waitForIdle()
+
+        palette.visible = true
+        rule.waitForIdle()
+
+        // A subsequence, not the full title: the query text must never equal the hit's own
+        // title, or the input field's own EditableText would double-match the lookup below.
+        rule.onNodeWithText("Search everywhere…").performTextInput("search history")
+        rule.waitForIdle()
+
+        rule.onNode(hasText("Clear search history") and inPalette).assertExists()
+    }
+
     @Test
     fun aThrowingProviderDoesNotBlankTheGoodProvidersHits() {
         val state = PaletteState()

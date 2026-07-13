@@ -36,6 +36,15 @@ lookbook HTML — the online README copy is stale; consider having web Claude re
 
 ## Review arbitration log
 
+- V2 (Opus, guided): SHIP conditional on one SHOULD-FIX, applied — the single-flight
+  `checking` flag was set inside the launched coroutine, so two rapid clicks could both pass
+  the guard on the event-loop; the flag now flips synchronously before launch. NIT accepted
+  as recorded gap: the pill-pulse "no pulse on first composition" guard is untested
+  (Animatable assertions in Compose are awkward; revisit if the pulse ever misbehaves).
+- V2 dispatch note: the first implementer dispatch died to a transient API content-filter
+  kill mid-emission (same failure mode as the U3–U6 night, 4 occurrences there); the fresh
+  dispatch reconciled the partial working tree and completed. No action needed.
+
 - V1 (Opus, guided): SHIP, zero blockers/should-fixes. One NIT accepted as a recorded gap:
   LibraryUpdater's within-source sequential ordering is structurally guaranteed but untested
   (a latch harness would pin it; disproportionate for now — revisit if the updater's fan-out
@@ -45,3 +54,4 @@ lookbook HTML — the online README copy is stale; consider having web Claude re
 
 - V1: core 133 + app 147, forced rerun, JUnit XML verified 0 failures. Commits `0f2589a`
   (docs), `bf13720` (V1).
+- V2: core 133 + app 161, forced rerun, JUnit XML verified 0 failures. Commit `9dbe118`.

@@ -46,6 +46,9 @@ fun main() {
         var fontFamilyName by remember { mutableStateOf(settings.fontFamilyName) }
         // Same hoist pattern again: the Library header's "checked X ago" caption applies live.
         var libraryCheckedAt by remember { mutableStateOf(settings.libraryCheckedAt) }
+        // Same hoist pattern again: the Search tab's Recent list and its palette "Clear" action
+        // both apply live.
+        var searchHistory by remember { mutableStateOf(settings.searchHistory) }
         // Enumerating a few hundred system font families isn't free; do it once, off the UI
         // thread. The dropdown shows only "System default" until the list lands.
         var installedFonts by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -144,6 +147,8 @@ fun main() {
                     jbrBar = jbrBar,
                     libraryCheckedAt = libraryCheckedAt,
                     onLibraryChecked = { libraryCheckedAt = it; settings.libraryCheckedAt = it },
+                    searchHistory = searchHistory,
+                    onSearchHistoryChange = { searchHistory = it; settings.searchHistory = it },
                 )
             }
         }

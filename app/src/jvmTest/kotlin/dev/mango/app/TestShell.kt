@@ -29,10 +29,13 @@ fun TestAppShell(
     palette: PaletteState? = null,
     catalogCache: CatalogCache = remember { FakeCatalogCache() },
     onLibraryChecked: (Long) -> Unit = {},
+    searchHistory: List<SearchHistoryEntry> = emptyList(),
+    onSearchHistoryChange: (List<SearchHistoryEntry>) -> Unit = {},
 ) {
     var sidebarOpen by remember { mutableStateOf(false) }
     var libraryView by remember { mutableStateOf(LIBRARY_VIEW_GRID) }
     var libraryCheckedAt by remember { mutableStateOf<Long?>(null) }
+    var history by remember { mutableStateOf(searchHistory) }
     ProvideMangoTheme(MangoDark) {
         AppShell(
             library = library,
@@ -47,6 +50,8 @@ fun TestAppShell(
             onLibraryViewChange = { libraryView = it },
             libraryCheckedAt = libraryCheckedAt,
             onLibraryChecked = { libraryCheckedAt = it; onLibraryChecked(it) },
+            searchHistory = history,
+            onSearchHistoryChange = { history = it; onSearchHistoryChange(it) },
         )
     }
 }
