@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
 class SearchTest {
     @Test
     fun searchReturnsItemsFromRecordedFixtures() = runBlocking {
-        val host = ApplicationHost(http = RecordedHttp.replayClient())
+        val host = RecordedHttp.replayHost()
         val items = runFlameComicsSearch(host, title = "")["items"]!!.jsonArray
         assertTrue(items.isNotEmpty(), "expected search items from recorded fixtures")
         val first = items.first().jsonObject
@@ -21,10 +21,10 @@ class SearchTest {
     @Test
     fun titleFilterNarrowsResults() = runBlocking {
         val all = runFlameComicsSearch(
-            ApplicationHost(http = RecordedHttp.replayClient()), title = ""
+            RecordedHttp.replayHost(), title = ""
         )["items"]!!.jsonArray.size
         val filtered = runFlameComicsSearch(
-            ApplicationHost(http = RecordedHttp.replayClient()), title = "the"
+            RecordedHttp.replayHost(), title = "the"
         )["items"]!!.jsonArray.size
         assertTrue(filtered < all, "filtered=$filtered should be < all=$all")
     }

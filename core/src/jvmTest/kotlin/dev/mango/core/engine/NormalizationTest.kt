@@ -15,7 +15,7 @@ class NormalizationTest {
         val extension = PaperbackExtension(
             sourceId = "FlameComics",
             bundleJs = flameComicsBundle,
-            host = ApplicationHost(http = RecordedHttp.replayClient()),
+            host = RecordedHttp.replayHost(),
         )
         val entries = extension.search(query = "")
         assertTrue(entries.isNotEmpty(), "expected entries from recorded fixtures")

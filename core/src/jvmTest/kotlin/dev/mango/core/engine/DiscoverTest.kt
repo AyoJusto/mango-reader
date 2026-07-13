@@ -10,39 +10,37 @@ import kotlin.test.assertTrue
  * Offline tests for [PaperbackExtension.getHomeSections], replayed from recorded fixtures
  * plus synthetic inline bundles for the edge cases that need no network at all.
  *
- * WebtoonXYZ is excluded from the replay loop: the site is Cloudflare-challenged and has
+ * WebtoonXYZ is excluded from the replay tests: the site is Cloudflare-challenged and has
  * no recorded fixtures anywhere in the suite (same as search); its challenge coverage
  * lives in [LiveDetectWebtoonXyzTest].
  */
 class DiscoverTest {
-    private val replayBundles = listOf(
-        "FlameComics" to flameComicsBundle,
-        "MangaBat" to mangaBatBundle,
-        "Toonily" to toonilyBundle,
-    )
+    private fun homeSectionsReplay(sourceId: String, bundleJs: String) = runBlocking {
+        val sections = PaperbackExtension(sourceId, bundleJs, RecordedHttp.replayHost()).getHomeSections()
+        assertTrue(sections.isNotEmpty(), "[$sourceId] expected at least one home section")
+        for (section in sections) {
+            assertTrue(section.id.isNotBlank(), "[$sourceId] section has blank id: $section")
+            assertTrue(section.title.isNotBlank(), "[$sourceId] section '${section.id}' has blank title")
+            for (item in section.items) {
+                assertEquals(sourceId, item.sourceId, "[$sourceId] item has wrong sourceId: $item")
+                assertTrue(item.mangaId.isNotBlank(), "[$sourceId] item has blank mangaId: $item")
+                assertTrue(item.title.isNotBlank(), "[$sourceId] item has blank title: $item")
+            }
+        }
+        assertTrue(
+            sections.any { s -> s.items.any { it.cover != null } },
+            "[$sourceId] expected at least one item with a non-null cover",
+        )
+    }
 
     @Test
-    fun homeSectionsReplayFromRecordedFixtures() = runBlocking {
-        for ((sourceId, bundleJs) in replayBundles) {
-            val sections = PaperbackExtension(
-                sourceId, bundleJs, ApplicationHost(http = RecordedHttp.replayClient())
-            ).getHomeSections()
-            assertTrue(sections.isNotEmpty(), "[$sourceId] expected at least one home section")
-            for (section in sections) {
-                assertTrue(section.id.isNotBlank(), "[$sourceId] section has blank id: $section")
-                assertTrue(section.title.isNotBlank(), "[$sourceId] section '${section.id}' has blank title")
-                for (item in section.items) {
-                    assertEquals(sourceId, item.sourceId, "[$sourceId] item has wrong sourceId: $item")
-                    assertTrue(item.mangaId.isNotBlank(), "[$sourceId] item has blank mangaId: $item")
-                    assertTrue(item.title.isNotBlank(), "[$sourceId] item has blank title: $item")
-                }
-            }
-            assertTrue(
-                sections.any { s -> s.items.any { it.cover != null } },
-                "[$sourceId] expected at least one item with a non-null cover",
-            )
-        }
-    }
+    fun flameComicsHomeSectionsReplayFromRecordedFixtures() = homeSectionsReplay("FlameComics", flameComicsBundle)
+
+    @Test
+    fun mangaBatHomeSectionsReplayFromRecordedFixtures() = homeSectionsReplay("MangaBat", mangaBatBundle)
+
+    @Test
+    fun toonilyHomeSectionsReplayFromRecordedFixtures() = homeSectionsReplay("Toonily", toonilyBundle)
 
     @Test
     fun genresSkipDedupeAndEmptyDropArePinned() = runBlocking {

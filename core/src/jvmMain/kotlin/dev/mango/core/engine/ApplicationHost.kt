@@ -50,6 +50,8 @@ class ApplicationHost(
     private val requestTimeoutMillis: Long = 30_000,
     // pre-scoped to this host's source; persistence itself lives behind the domain port
     private val cookieStore: CookieStore? = null,
+    // injectable so fixture-replay tests don't pay real wall-clock sleeps
+    private val sleeper: (Double) -> Unit = { seconds -> Thread.sleep((seconds * 1000).toLong()) },
 ) {
     // shared across contexts and threads; values stored as JSON strings because
     // polyglot Values die with their context
@@ -116,7 +118,7 @@ class ApplicationHost(
             },
             "sleep" to ProxyExecutable { args ->
                 // ponytail: assuming seconds, matching @paperback/types; revisit if rate limits look 1000x off
-                Thread.sleep((args[0].asDouble() * 1000).toLong())
+                sleeper(args[0].asDouble())
                 null
             },
             "arrayBufferToUTF8String" to ProxyExecutable { args -> bytesOf(args[0]).decodeToString() },

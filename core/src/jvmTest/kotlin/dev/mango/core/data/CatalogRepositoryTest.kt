@@ -5,7 +5,6 @@ import dev.mango.core.db.MangoDatabase
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.MangaSource
 import dev.mango.core.domain.SourceInfo
-import dev.mango.core.engine.ApplicationHost
 import dev.mango.core.engine.BundleVerificationException
 import dev.mango.core.engine.FLAME_COMICS_FIXTURE
 import dev.mango.core.engine.FLAME_COMICS_SHA256
@@ -43,7 +42,7 @@ class CatalogRepositoryTest {
         bundleDir: Path,
         db: MangoDatabase = newDb(),
         sourceFactory: (String, String, String?) -> MangaSource = { sourceId, bundleJs, _ ->
-            PaperbackExtension(sourceId, bundleJs, ApplicationHost(http = RecordedHttp.replayClient()))
+            PaperbackExtension(sourceId, bundleJs, RecordedHttp.replayHost())
         },
     ): CatalogRepository = PaperbackCatalogRepository(db, bundleDir, sourceFactory)
 
@@ -105,7 +104,7 @@ class CatalogRepositoryTest {
             bundleDirWithFlameComics(),
             sourceFactory = { sourceId, bundleJs, _ ->
                 calls.incrementAndGet()
-                PaperbackExtension(sourceId, bundleJs, ApplicationHost(http = RecordedHttp.replayClient()))
+                PaperbackExtension(sourceId, bundleJs, RecordedHttp.replayHost())
             },
         )
         repo.install(SourceInfo(sourceId = "FlameComics", name = "Flame Comics"), FLAME_COMICS_SHA256)
@@ -138,7 +137,7 @@ class CatalogRepositoryTest {
             bundleDirWithFlameComics(),
             sourceFactory = { sourceId, bundleJs, _ ->
                 calls.incrementAndGet()
-                PaperbackExtension(sourceId, bundleJs, ApplicationHost(http = RecordedHttp.replayClient()))
+                PaperbackExtension(sourceId, bundleJs, RecordedHttp.replayHost())
             },
         )
         val info = SourceInfo(sourceId = "FlameComics", name = "Flame Comics")
@@ -162,7 +161,7 @@ class CatalogRepositoryTest {
             sourceFactory = { sourceId, bundleJs, userAgent ->
                 calls.incrementAndGet()
                 seenUserAgents += userAgent
-                PaperbackExtension(sourceId, bundleJs, ApplicationHost(http = RecordedHttp.replayClient()))
+                PaperbackExtension(sourceId, bundleJs, RecordedHttp.replayHost())
             },
         )
         repo.install(SourceInfo(sourceId = "FlameComics", name = "Flame Comics"), FLAME_COMICS_SHA256)
@@ -196,7 +195,7 @@ class CatalogRepositoryTest {
             db = db,
             sourceFactory = { sourceId, bundleJs, userAgent ->
                 seenUserAgents += userAgent
-                PaperbackExtension(sourceId, bundleJs, ApplicationHost(http = RecordedHttp.replayClient()))
+                PaperbackExtension(sourceId, bundleJs, RecordedHttp.replayHost())
             },
         )
         val info = SourceInfo(sourceId = "FlameComics", name = "Flame Comics", version = "1.0.0")

@@ -11,7 +11,7 @@ class ReadPathTest {
         PaperbackExtension(
             "FlameComics",
             flameComicsBundle,
-            ApplicationHost(http = RecordedHttp.replayClient()),
+            RecordedHttp.replayHost(),
         )
 
     @Test

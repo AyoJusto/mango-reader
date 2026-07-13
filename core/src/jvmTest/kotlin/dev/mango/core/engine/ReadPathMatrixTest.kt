@@ -13,7 +13,7 @@ import kotlin.test.assertTrue
  */
 class ReadPathMatrixTest {
     private fun mangaBat() =
-        PaperbackExtension("MangaBat", mangaBatBundle, ApplicationHost(http = RecordedHttp.replayClient()))
+        PaperbackExtension("MangaBat", mangaBatBundle, RecordedHttp.replayHost())
 
     @Test
     fun mangaBatSearchReturnsItems() = runBlocking {
