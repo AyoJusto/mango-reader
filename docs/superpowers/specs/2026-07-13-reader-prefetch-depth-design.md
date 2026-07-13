@@ -1,7 +1,7 @@
 # Reader prefetch depth
 
 Date: 2026-07-13
-Status: approved by owner (this session), pending spec review
+Status: approved by owner; implemented (plan step skipped by owner — two-constant change)
 
 ## Problem
 

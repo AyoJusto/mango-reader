@@ -77,11 +77,15 @@ private const val PAGE_SCROLL_FRACTION = 0.9f
 /** How long the controls overlay stays up after the last reveal — mirrors [MangoMotion.READER_IDLE_MS]. */
 private const val CONTROLS_AUTO_HIDE_MS = MangoMotion.READER_IDLE_MS.toLong()
 
-/** How close (in flattened rows) the last visible item must be to the strip's end before the next chapter auto-loads. */
-private const val AUTO_LOAD_THRESHOLD = 4
+/**
+ * How close (in flattened rows) the last visible item must be to the strip's end before the next
+ * chapter auto-loads. Matches [PREFETCH_PAGE_COUNT] so the appended chapter's pages fall inside
+ * the prefetch window instead of starving it at the boundary.
+ */
+private const val AUTO_LOAD_THRESHOLD = 20
 
 /** How many upcoming pages the reader prefetches ahead of the last visible row. */
-private const val PREFETCH_PAGE_COUNT = 5
+private const val PREFETCH_PAGE_COUNT = 20
 
 /**
  * Pointer moves at least this far (px) from the previous sample count as a genuine reveal.
