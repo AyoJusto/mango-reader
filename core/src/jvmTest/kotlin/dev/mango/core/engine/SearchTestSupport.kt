@@ -16,7 +16,6 @@ import java.nio.file.Paths
 import java.security.MessageDigest
 
 object RecordedHttp {
-    @OptIn(ExperimentalStdlibApi::class)
     fun fixtureName(url: String): String {
         val hash = MessageDigest.getInstance("SHA-256")
             .digest(url.encodeToByteArray()).toHexString().take(12)

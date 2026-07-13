@@ -26,6 +26,7 @@ import java.io.IOException
 import java.security.MessageDigest
 import java.util.Base64
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * The Paperback 0.9 `Application` surface, implemented entirely in Kotlin and bound
@@ -269,7 +270,7 @@ class ApplicationHost(
             val (response, bytes) = runBlocking(callJob ?: EmptyCoroutineContext) {
                 awaitHostRateLimit(requestedHost)
                 try {
-                    withTimeout(requestTimeoutMillis) {
+                    withTimeout(requestTimeoutMillis.milliseconds) {
                         val r = execute(client, request, requestedUrl)
                         r to r.body<ByteArray>()
                     }
@@ -365,7 +366,7 @@ class ApplicationHost(
             lastDispatchAtMillis[host] = now + wait
             wait
         }
-        if (waitMillis > 0) delay(waitMillis)
+        if (waitMillis > 0) delay(waitMillis.milliseconds)
     }
 
     /**

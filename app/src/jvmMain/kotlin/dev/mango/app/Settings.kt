@@ -109,9 +109,9 @@ class Settings(dataDir: Path) {
             val json = props.getProperty("searchHistory") ?: return emptyList()
             return try {
                 Json.decodeFromString(searchHistorySerializer, json)
-            } catch (e: SerializationException) {
+            } catch (_: SerializationException) {
                 emptyList()
-            } catch (e: IllegalArgumentException) {
+            } catch (_: IllegalArgumentException) {
                 emptyList()
             }
         }

@@ -13,10 +13,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import me.friwi.jcefmaven.CefAppBuilder
 import me.friwi.jcefmaven.EnumProgress
-import me.friwi.jcefmaven.IProgressHandler
 import org.cef.CefApp
-import org.cef.callback.CefCookieVisitor
-import org.cef.misc.BoolRef
 import org.cef.network.CefCookie
 import org.cef.network.CefCookieManager
 
@@ -54,14 +51,14 @@ class JcefManager(private val installDir: Path) {
             builder.setInstallDir(installDir.toFile())
             builder.cefSettings.windowless_rendering_enabled = false
             builder.cefSettings.user_agent = WebViewUserAgent
-            builder.setProgressHandler(IProgressHandler { state, percent ->
+            builder.setProgressHandler { state, percent ->
                 when (state) {
                     EnumProgress.DOWNLOADING -> onProgress(Progress.Downloading(percent))
                     EnumProgress.EXTRACTING -> onProgress(Progress.Extracting)
                     EnumProgress.INITIALIZED -> onProgress(Progress.Ready)
                     else -> Unit
                 }
-            })
+            }
             builder.build().also { app = it }
         }
     }
@@ -105,22 +102,20 @@ class JcefManager(private val installDir: Path) {
             val pollTimer = Timer(2000, null)
             pollTimer.addActionListener {
                 val harvested = mutableListOf<StoredCookie>()
-                CefCookieManager.getGlobalManager().visitAllCookies(object : CefCookieVisitor {
-                    override fun visit(cookie: CefCookie, count: Int, total: Int, delete: BoolRef): Boolean {
-                        if (isChallengeCookie(cookie.name) && hostMatches(host, cookie.domain)) {
-                            harvested += cookie.toStored()
-                        }
-                        // last cookie of this sweep: decide with the fully-collected list
-                        if (count == total - 1 && harvested.any { it.name == "cf_clearance" }) {
-                            val done = harvested.toList()
-                            SwingUtilities.invokeLater {
-                                pollTimer.stop()
-                                finish(done)
-                            }
-                        }
-                        return true
+                CefCookieManager.getGlobalManager().visitAllCookies { cookie, count, total, _ ->
+                    if (isChallengeCookie(cookie.name) && hostMatches(host, cookie.domain)) {
+                        harvested += cookie.toStored()
                     }
-                })
+                    // last cookie of this sweep: decide with the fully-collected list
+                    if (count == total - 1 && harvested.any { it.name == "cf_clearance" }) {
+                        val done = harvested.toList()
+                        SwingUtilities.invokeLater {
+                            pollTimer.stop()
+                            finish(done)
+                        }
+                    }
+                    true
+                }
             }
             pollTimer.isRepeats = true
             pollTimer.start()

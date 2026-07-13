@@ -351,7 +351,6 @@ fun AppShell(
                                     }
                                 }
                             }
-                            is Screen.Reader -> Unit // unreachable: handled in the branch above
                         }
                     }
                 }

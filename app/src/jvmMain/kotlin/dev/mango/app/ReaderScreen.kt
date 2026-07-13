@@ -75,7 +75,7 @@ import kotlinx.coroutines.launch
 private const val PAGE_SCROLL_FRACTION = 0.9f
 
 /** How long the controls overlay stays up after the last reveal — mirrors [MangoMotion.READER_IDLE_MS]. */
-private val CONTROLS_AUTO_HIDE_MS = MangoMotion.READER_IDLE_MS.toLong()
+private const val CONTROLS_AUTO_HIDE_MS = MangoMotion.READER_IDLE_MS.toLong()
 
 /** How close (in flattened rows) the last visible item must be to the strip's end before the next chapter auto-loads. */
 private const val AUTO_LOAD_THRESHOLD = 4
@@ -371,7 +371,7 @@ fun ReaderScreen(
         snapshotFlow {
             val rows = currentRows()
             val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
-                ?: return@snapshotFlow emptySet<String>()
+                ?: return@snapshotFlow emptySet()
             segments.indices.filter { segmentIndex ->
                 val lastPageRowIndex = rows.indexOfLast { row ->
                     row is ReaderRow.PageRow && row.segmentIndex == segmentIndex

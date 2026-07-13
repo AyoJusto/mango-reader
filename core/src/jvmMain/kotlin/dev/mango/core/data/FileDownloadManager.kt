@@ -23,6 +23,7 @@ import java.util.Comparator
 import java.util.logging.Level
 import kotlin.coroutines.CoroutineContext
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -47,7 +48,7 @@ class FileDownloadManager(
     private val http: HttpClient,
     private val root: Path,
     private val pageDelayMillis: Long = 500,
-    private val context: CoroutineContext = Dispatchers.Default,
+    private val context: CoroutineContext = Dispatchers.IO,
     private val clock: Clock = Clock.System,
 ) : DownloadManager {
     // ponytail: JUL because :core has no logging dependency; swap when the app picks one
@@ -136,7 +137,7 @@ class FileDownloadManager(
 
                 pagesDone = i + 1
                 markProgress(sourceId, mangaId, chapterId, DownloadStatus.RUNNING, pagesTotal, pagesDone)
-                delay(pageDelayMillis)
+                delay(pageDelayMillis.milliseconds)
             }
             markProgress(sourceId, mangaId, chapterId, DownloadStatus.DONE, pagesTotal, pagesDone)
         } catch (e: CancellationException) {
@@ -230,7 +231,6 @@ class FileDownloadManager(
      * Well-behaved ids pass through readable; anything else becomes slug + content hash
      * (deterministic, so re-enqueue lands in the same directory).
      */
-    @OptIn(ExperimentalStdlibApi::class)
     private fun safeSegment(id: String): String {
         if (id.matches(SAFE_SEGMENT) && id != "." && id != "..") return id
         val hash = MessageDigest.getInstance("SHA-256").digest(id.encodeToByteArray()).toHexString().take(12)

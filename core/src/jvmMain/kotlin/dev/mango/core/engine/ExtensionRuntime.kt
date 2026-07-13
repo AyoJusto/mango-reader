@@ -17,7 +17,7 @@ class ExtensionCallException(message: String, cause: Throwable? = null) :
     Exception(message, cause)
 
 /**
- * Raised by [ApplicationHost.scheduleRequest]'s dispatch for network-layer failures: an
+ * Raised by [ApplicationHost]'s `scheduleRequest` dispatch for network-layer failures: an
  * IOException from the underlying HTTP client, or the host's own request timeout. Distinct
  * from [ExtensionCallException] so callers can retry/report network trouble differently from
  * a bundle bug. The message always starts with [SENTINEL] — see [hostExceptionIn] for why.
@@ -195,7 +195,7 @@ internal fun describePromiseError(error: Value): String =
  * Recovers the original host-thrown [T] from a JS rejection/error value that wraps it.
  *
  * Empirically verified against a live IOException/CancellationException round-trip through
- * [ApplicationHost.scheduleRequest]'s promise chain: `Value.throwException()` never
+ * [ApplicationHost]'s `scheduleRequest` promise chain: `Value.throwException()` never
  * rethrows a wrapped host exception bare — it always surfaces as a [PolyglotException] with
  * `isHostException() == true`, whose `asHostException()` is the original Kotlin exception.
  * The `catch (t: T)` branch below is defensive only (documented Graal behavior for

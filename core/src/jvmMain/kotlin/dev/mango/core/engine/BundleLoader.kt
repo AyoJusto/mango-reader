@@ -16,7 +16,6 @@ object BundleLoader {
      * The size cap here is defense-in-depth: the bytes are already in memory. Whatever
      * downloads bundles owns the streaming cap that aborts oversized transfers.
      */
-    @OptIn(ExperimentalStdlibApi::class)
     fun verify(bytes: ByteArray, expectedSha256: String): String {
         if (bytes.size > MAX_BUNDLE_BYTES) {
             throw BundleVerificationException(

@@ -80,7 +80,7 @@ class PaperbackExtension(
                 status = statusOf((info["status"] as? JsonPrimitive)?.contentOrNull),
                 // tags are best-effort: malformed elements are skipped, never fatal
                 tags = (info["tagGroups"] as? JsonArray).orEmpty()
-                    .mapNotNull { it as? JsonObject }
+                    .filterIsInstance<JsonObject>()
                     .flatMap { group -> (group["tags"] as? JsonArray).orEmpty() }
                     .mapNotNull { tag -> ((tag as? JsonObject)?.get("title") as? JsonPrimitive)?.contentOrNull },
             )

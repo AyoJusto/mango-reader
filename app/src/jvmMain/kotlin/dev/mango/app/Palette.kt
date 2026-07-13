@@ -131,7 +131,7 @@ private fun greedyScoreFrom(q: String, t: String, anchor: Int): Int? {
     return score
 }
 
-/** Test hook: scopes [PaletteFlowTest]'s node lookups to just the palette overlay's subtree. */
+/** Test hook: scopes `PaletteFlowTest`'s node lookups to just the palette overlay's subtree. */
 internal const val PALETTE_TEST_TAG = "mango-palette"
 
 private const val PALETTE_MAX_HITS = 50

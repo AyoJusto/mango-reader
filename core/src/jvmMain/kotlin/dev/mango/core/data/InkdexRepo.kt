@@ -141,7 +141,6 @@ class InkdexRepo(
         (this[field] as? JsonPrimitive)?.contentOrNull
             ?: throw InkdexException("registry entry is missing '$field': $this")
 
-    @OptIn(ExperimentalStdlibApi::class)
     private fun sha256Hex(bytes: ByteArray): String =
         MessageDigest.getInstance("SHA-256").digest(bytes).toHexString()
 }

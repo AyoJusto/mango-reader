@@ -91,6 +91,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Shared visual primitives every screen restyle builds on: reads [LocalMangoTheme]
@@ -969,7 +970,7 @@ fun Toast(state: ToastState, modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
         if (message != null) {
             LaunchedEffect(message) {
-                delay(5000)
+                delay(5.seconds)
                 state.dismiss()
             }
             Row(

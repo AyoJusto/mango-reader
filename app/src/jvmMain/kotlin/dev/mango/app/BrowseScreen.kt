@@ -1,6 +1,5 @@
 package dev.mango.app
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -267,7 +266,7 @@ fun BrowseScreenContent(
 }
 
 /**
- * Browse's screen state, hoisted out of [BrowseScreen] so the caller can [remember] it at the
+ * Browse's screen state, hoisted out of [BrowseScreen] so the caller can `remember` it at the
  * shell level (see [AppShell]): switching tabs away from and back to Browse must not lose the
  * query, results, or selection. The source list itself reloads on each entry so fresh installs
  * from the Extensions tab appear immediately.

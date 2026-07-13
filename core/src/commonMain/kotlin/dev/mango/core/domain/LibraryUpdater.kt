@@ -2,6 +2,7 @@ package dev.mango.core.domain
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 
@@ -25,7 +26,7 @@ class LibraryUpdater(
 
         val results = bySource.values
             .map { seriesInSource -> async { seriesInSource.map { checkOne(it.entry.sourceId, it.entry.mangaId) } } }
-            .map { it.await() }
+            .awaitAll()
             .flatten()
 
         UpdateCheckSummary(
@@ -55,7 +56,7 @@ class LibraryUpdater(
         SeriesCheckResult(succeeded = true, newChapters = newChapters)
     } catch (e: CancellationException) {
         throw e
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         SeriesCheckResult(succeeded = false, newChapters = 0)
     }
 }
