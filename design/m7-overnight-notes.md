@@ -55,3 +55,7 @@ lookbook HTML — the online README copy is stale; consider having web Claude re
 - V1: core 133 + app 147, forced rerun, JUnit XML verified 0 failures. Commits `0f2589a`
   (docs), `bf13720` (V1).
 - V2: core 133 + app 161, forced rerun, JUnit XML verified 0 failures. Commit `9dbe118`.
+- S1: app 174, forced rerun, XML verified 0 failures (core untouched). Commit `ca4a4c0`.
+  Review: SHIP, 3 NITs — applied the hover-gate on the invisible remove ✕ (a click on a row's
+  right edge must replay, not silently remove); accepted "clearing the query hides live
+  results behind the history list" as designed; accepted a slightly-overnamed test.
