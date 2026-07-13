@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.font.FontFamily
 import dev.mango.core.domain.Chapter
+import dev.mango.core.domain.CollectionInfo
 import dev.mango.core.domain.Download
 import dev.mango.core.domain.DownloadStatus
 import dev.mango.core.domain.HomeSection
@@ -60,15 +61,25 @@ class ScreenScreenshotsTest {
                 // manga-0 also has chapters newer than its last open, exercising the grid's
                 // "+n new" caption prefix.
                 newCount = if (index == 0) 5 else 0,
+                // manga-0/2/4 sit in "Reading" so the chip row's counts are non-trivial.
+                collectionIds = if (index % 2 == 0) setOf(1L) else emptySet(),
             )
         }
     }
+
+    private fun libraryBoardCollections(): List<CollectionInfo> =
+        listOf(CollectionInfo(1, "Reading", 0, true), CollectionInfo(2, "Dropped", 1, false))
 
     @Test
     fun libraryPopulated() {
         val file = Screenshots.render("library-populated") {
             ProvideMangoTheme(MangoDark) {
-                LibraryScreenContent(items = libraryBoardItems(), libraryView = LIBRARY_VIEW_GRID, onOpenDetails = {})
+                LibraryScreenContent(
+                    items = libraryBoardItems(),
+                    libraryView = LIBRARY_VIEW_GRID,
+                    collections = libraryBoardCollections(),
+                    onOpenDetails = {},
+                )
             }
         }
         assertTrue(Files.size(file) > 0, "expected a non-empty PNG at $file")
@@ -78,7 +89,12 @@ class ScreenScreenshotsTest {
     fun libraryList() {
         val file = Screenshots.render("library-list") {
             ProvideMangoTheme(MangoDark) {
-                LibraryScreenContent(items = libraryBoardItems(), libraryView = LIBRARY_VIEW_LIST, onOpenDetails = {})
+                LibraryScreenContent(
+                    items = libraryBoardItems(),
+                    libraryView = LIBRARY_VIEW_LIST,
+                    collections = libraryBoardCollections(),
+                    onOpenDetails = {},
+                )
             }
         }
         assertTrue(Files.size(file) > 0, "expected a non-empty PNG at $file")
@@ -238,7 +254,6 @@ class ScreenScreenshotsTest {
                     // exercises the amber NEW chip.
                     newChapterIds = setOf("ch-1"),
                     checkedAt = Clock.System.now(),
-                    onToggleLibrary = {},
                     onOpenChapter = { _, _ -> },
                     onDownloadChapter = { _, _ -> },
                     onDownloadAll = { _, _ -> },

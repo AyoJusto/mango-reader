@@ -53,6 +53,7 @@ import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.ChallengeRequiredException
 import dev.mango.core.domain.ChallengeSolver
+import dev.mango.core.domain.CollectionInfo
 import dev.mango.core.domain.Download
 import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.DownloadStatus
@@ -87,7 +88,12 @@ fun DetailsScreenContent(
     newChapterIds: Set<String> = emptySet(),
     checkedAt: Instant? = null,
     revalidating: Boolean = false,
-    onToggleLibrary: () -> Unit,
+    collections: List<CollectionInfo> = emptyList(),
+    memberCollectionIds: Set<Long> = emptySet(),
+    onAddToLibrary: () -> Unit = {},
+    onRemoveFromLibrary: () -> Unit = {},
+    onSetMembership: (Set<Long>) -> Unit = {},
+    onCreateCollection: suspend (String) -> Unit = {},
     onOpenChapter: (Chapter, List<Chapter>) -> Unit,
     onDownloadChapter: (MangaEntry, Chapter) -> Unit,
     onDownloadAll: (MangaEntry, List<Chapter>) -> Unit,
@@ -101,6 +107,10 @@ fun DetailsScreenContent(
     var fromText by remember { mutableStateOf("") }
     var toText by remember { mutableStateOf("") }
     var showClearStorageDialog by remember { mutableStateOf(false) }
+    // Same rationale: the picker's open state and the toast it can show are presentation-only.
+    var showPicker by remember { mutableStateOf(false) }
+    var showNewCollectionDialog by remember { mutableStateOf(false) }
+    val toastState = remember { ToastState() }
     val descendingChapters = remember(chapters) { chapters.sortedByDescending { it.number } }
     // Chapters already moving through the queue must not be re-enqueued by the bulk actions.
     val activeDownloadIds = remember(downloadsByChapterId) {
@@ -110,188 +120,236 @@ fun DetailsScreenContent(
     }
     val continueTarget = remember(chapters, latestProgress) { continueTarget(chapters, latestProgress) }
     Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
-        ContentColumn(max = MangoSpace.gridMaxWidth) {
-            Row(
-                modifier = Modifier.fillMaxSize().padding(
-                    start = DETAILS_PAGE_PADDING,
-                    end = DETAILS_PAGE_PADDING,
-                    top = DETAILS_PAGE_PADDING,
-                ),
-                horizontalArrangement = Arrangement.spacedBy(40.dp),
-            ) {
-                Column(
-                    modifier = Modifier.width(DETAILS_COVER_COLUMN_WIDTH),
-                    verticalArrangement = Arrangement.spacedBy(MangoSpace.sm),
+        Box(modifier = Modifier.fillMaxSize()) {
+            ContentColumn(max = MangoSpace.gridMaxWidth) {
+                Row(
+                    modifier = Modifier.fillMaxSize().padding(
+                        start = DETAILS_PAGE_PADDING,
+                        end = DETAILS_PAGE_PADDING,
+                        top = DETAILS_PAGE_PADDING,
+                    ),
+                    horizontalArrangement = Arrangement.spacedBy(40.dp),
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(2f / 3f)
-                            .shadow(elevation = 16.dp, shape = RoundedCornerShape(MangoRadius.panel))
-                            .clip(RoundedCornerShape(MangoRadius.panel))
-                            .background(theme.bg2),
+                    Column(
+                        modifier = Modifier.width(DETAILS_COVER_COLUMN_WIDTH),
+                        verticalArrangement = Arrangement.spacedBy(MangoSpace.sm),
                     ) {
-                        val cover = details.entry.cover
-                        if (cover != null) {
-                            AsyncImage(
-                                model = cover,
-                                contentDescription = details.entry.title,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize(),
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(2f / 3f)
+                                .shadow(elevation = 16.dp, shape = RoundedCornerShape(MangoRadius.panel))
+                                .clip(RoundedCornerShape(MangoRadius.panel))
+                                .background(theme.bg2),
+                        ) {
+                            val cover = details.entry.cover
+                            if (cover != null) {
+                                AsyncImage(
+                                    model = cover,
+                                    contentDescription = details.entry.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
+                        }
+                        continueTarget?.let { (chapter, label) ->
+                            KitButton(
+                                label = label,
+                                onClick = { onOpenChapter(chapter, chapters) },
+                                style = KitButtonStyle.PRIMARY,
+                                modifier = Modifier.fillMaxWidth(),
                             )
                         }
-                    }
-                    continueTarget?.let { (chapter, label) ->
-                        KitButton(
-                            label = label,
-                            onClick = { onOpenChapter(chapter, chapters) },
-                            style = KitButtonStyle.PRIMARY,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                    if (chapters.isNotEmpty()) {
-                        KitButton(
-                            label = "Mark finished",
-                            onClick = onMarkAllFinished,
-                            style = KitButtonStyle.SECONDARY,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                    KitButton(
-                        label = if (inLibrary) "In library — remove" else "Add to library",
-                        onClick = onToggleLibrary,
-                        style = KitButtonStyle.SECONDARY,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    KitButton(
-                        label = "Download all",
-                        onClick = {
-                            onDownloadAll(
-                                details.entry,
-                                chapters.filter { it.chapterId !in downloadedChapterIds && it.chapterId !in activeDownloadIds },
+                        if (chapters.isNotEmpty()) {
+                            KitButton(
+                                label = "Mark finished",
+                                onClick = onMarkAllFinished,
+                                style = KitButtonStyle.SECONDARY,
+                                modifier = Modifier.fillMaxWidth(),
                             )
-                        },
-                        style = KitButtonStyle.GHOST,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    KitButton(
-                        label = "Download unread",
-                        onClick = {
-                            onDownloadAll(
-                                details.entry,
-                                chapters.filter {
-                                    it.chapterId !in finishedChapterIds &&
-                                        it.chapterId !in downloadedChapterIds &&
-                                        it.chapterId !in activeDownloadIds
+                        }
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            SplitButton(
+                                label = if (inLibrary) "In library ✓" else "Add to library",
+                                onMainClick = {
+                                    if (inLibrary) {
+                                        showPicker = true
+                                    } else {
+                                        onAddToLibrary()
+                                        val defaultName = collections.firstOrNull { it.isDefault }?.name ?: "library"
+                                        toastState.show(
+                                            message = "Added to $defaultName",
+                                            actionLabel = "Change",
+                                            onAction = { showPicker = true },
+                                        )
+                                    }
+                                },
+                                onArrowClick = { showPicker = true },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            // Reseeded from the observed membership each time the popup opens, then
+                            // owns the checked set for the rest of that opening: a toggle updates it
+                            // immediately so a second rapid toggle starts from the first's result
+                            // rather than from a flow snapshot that hasn't re-emitted yet.
+                            var checkedIds by remember(showPicker) { mutableStateOf(memberCollectionIds) }
+                            AddToCollectionsPicker(
+                                expanded = showPicker,
+                                onDismissRequest = { showPicker = false },
+                                rows = collections.sortedBy { it.position }.map { collection ->
+                                    CollectionCheckboxRow(
+                                        id = collection.id,
+                                        name = collection.name,
+                                        isDefault = collection.isDefault,
+                                        checked = collection.id in checkedIds,
+                                    )
+                                },
+                                onToggle = { id ->
+                                    val newIds = if (id in checkedIds) checkedIds - id else checkedIds + id
+                                    checkedIds = newIds
+                                    onSetMembership(newIds)
+                                },
+                                onNewCollection = { showNewCollectionDialog = true },
+                                inLibrary = inLibrary,
+                                onRemoveFromLibrary = {
+                                    onRemoveFromLibrary()
+                                    showPicker = false
                                 },
                             )
-                        },
-                        style = KitButtonStyle.GHOST,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    KitButton(
-                        label = "Download range…",
-                        onClick = { showRangeDialog = true },
-                        style = KitButtonStyle.GHOST,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    if (hasDownloads) {
+                        }
                         KitButton(
-                            label = "Clear storage",
-                            onClick = { showClearStorageDialog = true },
+                            label = "Download all",
+                            onClick = {
+                                onDownloadAll(
+                                    details.entry,
+                                    chapters.filter { it.chapterId !in downloadedChapterIds && it.chapterId !in activeDownloadIds },
+                                )
+                            },
                             style = KitButtonStyle.GHOST,
                             modifier = Modifier.fillMaxWidth(),
                         )
-                    }
-                    Spacer(modifier = Modifier.height(MangoSpace.base))
-                    MetadataRow(key = "Status", value = details.status.name)
-                    if (details.authors.isNotEmpty()) {
-                        MetadataRow(key = "Author", value = details.authors.joinToString(", "))
-                    }
-                    MetadataRow(key = "Source", value = details.entry.sourceId)
-                    if (chapters.isNotEmpty()) {
-                        MetadataRow(
-                            key = "Progress",
-                            value = "${finishedChapterIds.size} of ${chapters.size} read",
-                            accentValue = true,
+                        KitButton(
+                            label = "Download unread",
+                            onClick = {
+                                onDownloadAll(
+                                    details.entry,
+                                    chapters.filter {
+                                        it.chapterId !in finishedChapterIds &&
+                                            it.chapterId !in downloadedChapterIds &&
+                                            it.chapterId !in activeDownloadIds
+                                    },
+                                )
+                            },
+                            style = KitButtonStyle.GHOST,
+                            modifier = Modifier.fillMaxWidth(),
                         )
-                    }
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = details.entry.title,
-                        style = MangoType.display,
-                        color = theme.textPrimary,
-                    )
-                    if (details.tags.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(MangoSpace.sm))
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs),
-                            verticalArrangement = Arrangement.spacedBy(MangoSpace.xs),
-                        ) {
-                            details.tags.forEach { tag -> GenreChip(tag) }
+                        KitButton(
+                            label = "Download range…",
+                            onClick = { showRangeDialog = true },
+                            style = KitButtonStyle.GHOST,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        if (hasDownloads) {
+                            KitButton(
+                                label = "Clear storage",
+                                onClick = { showClearStorageDialog = true },
+                                style = KitButtonStyle.GHOST,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(MangoSpace.base))
+                        MetadataRow(key = "Status", value = details.status.name)
+                        if (details.authors.isNotEmpty()) {
+                            MetadataRow(key = "Author", value = details.authors.joinToString(", "))
+                        }
+                        MetadataRow(key = "Source", value = details.entry.sourceId)
+                        if (chapters.isNotEmpty()) {
+                            MetadataRow(
+                                key = "Progress",
+                                value = "${finishedChapterIds.size} of ${chapters.size} read",
+                                accentValue = true,
+                            )
                         }
                     }
-                    details.description?.let { description ->
-                        Spacer(modifier = Modifier.height(MangoSpace.md))
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = description,
-                            fontSize = 14.sp,
-                            lineHeight = 22.4.sp,
-                            color = theme.textSecondary,
-                            maxLines = 6,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.widthIn(max = 680.dp),
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(MangoSpace.lg))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "${chapters.size} chapters",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            text = details.entry.title,
+                            style = MangoType.display,
                             color = theme.textPrimary,
-                            modifier = Modifier.weight(1f),
                         )
-                        Text(
-                            text = if (checkedAt != null) {
-                                "sorted newest first · checked ${formatRelativeTime(checkedAt, Clock.System.now())}"
-                            } else {
-                                "sorted newest first"
-                            },
-                            fontSize = 12.5.sp,
-                            color = theme.textTertiary,
-                        )
-                        RefreshGlyphButton(
-                            checking = revalidating,
-                            onClick = onRefresh,
-                            fill = theme.surface,
-                            hoverFill = theme.bg2,
-                            testTag = "details-refresh",
-                            modifier = Modifier.padding(start = MangoSpace.sm),
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(MangoSpace.xs))
-                    LazyColumn(
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                        contentPadding = PaddingValues(bottom = MangoSpace.xl),
-                    ) {
-                        items(descendingChapters, key = { it.chapterId }) { chapter ->
-                            ChapterRow(
-                                chapter = chapter,
-                                finished = chapter.chapterId in finishedChapterIds,
-                                downloaded = chapter.chapterId in downloadedChapterIds,
-                                download = downloadsByChapterId[chapter.chapterId],
-                                inProgress = latestProgress?.takeIf { it.chapterId == chapter.chapterId && !it.finished },
-                                isNew = chapter.chapterId in newChapterIds,
-                                onOpen = { onOpenChapter(chapter, chapters) },
-                                onDownload = { onDownloadChapter(details.entry, chapter) },
+                        if (details.tags.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(MangoSpace.sm))
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs),
+                                verticalArrangement = Arrangement.spacedBy(MangoSpace.xs),
+                            ) {
+                                details.tags.forEach { tag -> GenreChip(tag) }
+                            }
+                        }
+                        details.description?.let { description ->
+                            Spacer(modifier = Modifier.height(MangoSpace.md))
+                            Text(
+                                text = description,
+                                fontSize = 14.sp,
+                                lineHeight = 22.4.sp,
+                                color = theme.textSecondary,
+                                maxLines = 6,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.widthIn(max = 680.dp),
                             )
+                        }
+                        Spacer(modifier = Modifier.height(MangoSpace.lg))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "${chapters.size} chapters",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = theme.textPrimary,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                text = if (checkedAt != null) {
+                                    "sorted newest first · checked ${formatRelativeTime(checkedAt, Clock.System.now())}"
+                                } else {
+                                    "sorted newest first"
+                                },
+                                fontSize = 12.5.sp,
+                                color = theme.textTertiary,
+                            )
+                            RefreshGlyphButton(
+                                checking = revalidating,
+                                onClick = onRefresh,
+                                fill = theme.surface,
+                                hoverFill = theme.bg2,
+                                testTag = "details-refresh",
+                                modifier = Modifier.padding(start = MangoSpace.sm),
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(MangoSpace.xs))
+                        LazyColumn(
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                            contentPadding = PaddingValues(bottom = MangoSpace.xl),
+                        ) {
+                            items(descendingChapters, key = { it.chapterId }) { chapter ->
+                                ChapterRow(
+                                    chapter = chapter,
+                                    finished = chapter.chapterId in finishedChapterIds,
+                                    downloaded = chapter.chapterId in downloadedChapterIds,
+                                    download = downloadsByChapterId[chapter.chapterId],
+                                    inProgress = latestProgress?.takeIf { it.chapterId == chapter.chapterId && !it.finished },
+                                    isNew = chapter.chapterId in newChapterIds,
+                                    onOpen = { onOpenChapter(chapter, chapters) },
+                                    onDownload = { onDownloadChapter(details.entry, chapter) },
+                                )
+                            }
                         }
                     }
                 }
             }
+            Toast(state = toastState)
         }
+    }
+    if (showNewCollectionDialog) {
+        NewCollectionDialog(onDismissRequest = { showNewCollectionDialog = false }, onCreate = onCreateCollection)
     }
     if (showRangeDialog) {
         val from = fromText.toDoubleOrNull()
@@ -634,13 +692,15 @@ fun DetailsScreen(
     var openedCaptured by remember(sourceId, mangaId) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val libraryItems by library.observeLibrary().collectAsState(initial = emptyList())
+    val collections by library.observeCollections().collectAsState(initial = emptyList())
     val mangaDownloads by remember(sourceId, mangaId) {
         downloads.observeDownloads().map { rows -> rows.filter { it.sourceId == sourceId && it.mangaId == mangaId } }
     }.collectAsState(initial = emptyList())
     val downloadedChapterIds = mangaDownloads.filter { it.status == DownloadStatus.DONE }.map { it.chapterId }.toSet()
     val downloadsByChapterId = mangaDownloads.associateBy { it.chapterId }
     val hasDownloads = mangaDownloads.isNotEmpty()
-    val inLibrary = libraryItems.any { it.entry.sourceId == sourceId && it.entry.mangaId == mangaId }
+    val currentLibraryItem = libraryItems.find { it.entry.sourceId == sourceId && it.entry.mangaId == mangaId }
+    val inLibrary = currentLibraryItem != null
 
     // True once a usable chapter list + progress pair is in state: immediately after a cache
     // hit, or after the live fetch resolves (either way) on a cold open. The auto-continue
@@ -789,19 +849,31 @@ fun DetailsScreen(
             checkedAt = checkedAt,
             revalidating = revalidating,
             onRefresh = { reloadKey++ },
-            onToggleLibrary = {
+            collections = collections,
+            memberCollectionIds = currentLibraryItem?.collectionIds ?: emptySet(),
+            onAddToLibrary = {
                 scope.launch {
-                    if (inLibrary) {
-                        library.removeFromLibrary(sourceId, mangaId)
-                    } else {
-                        library.addToLibrary(currentDetails.entry)
-                        // The freshly inserted row starts at chapter_count 0; the loaded
-                        // chapter list is at hand, so the unread badge is right immediately
-                        // instead of after the next Details visit.
-                        library.setChapterCount(sourceId, mangaId, chapters.size)
-                    }
+                    library.addToLibrary(currentDetails.entry)
+                    // The freshly inserted row starts at chapter_count 0; the loaded
+                    // chapter list is at hand, so the unread badge is right immediately
+                    // instead of after the next Details visit.
+                    library.setChapterCount(sourceId, mangaId, chapters.size)
                 }
             },
+            onRemoveFromLibrary = { scope.launch { library.removeFromLibrary(sourceId, mangaId) } },
+            onSetMembership = { newIds ->
+                scope.launch {
+                    // A checkbox toggled from outside the library must add the series first —
+                    // setMembership alone would write a membership row with no library row behind
+                    // it, invisible to the user.
+                    if (!inLibrary) {
+                        library.addToLibrary(currentDetails.entry)
+                        library.setChapterCount(sourceId, mangaId, chapters.size)
+                    }
+                    library.setMembership(sourceId, mangaId, newIds)
+                }
+            },
+            onCreateCollection = { name -> library.createCollection(name) },
             onOpenChapter = onOpenChapter,
             onDownloadChapter = onDownloadChapter,
             onDownloadAll = onDownloadAll,

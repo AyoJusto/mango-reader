@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -24,6 +25,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,6 +37,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import dev.mango.core.domain.CollectionInfo
 import dev.mango.core.domain.LibraryItem
 import dev.mango.core.domain.LibraryRepository
 import dev.mango.core.domain.MangaEntry
@@ -78,9 +83,19 @@ fun LibraryScreenContent(
     checkedAt: Long? = null,
     checking: Boolean = false,
     onCheckForUpdates: () -> Unit = {},
+    collections: List<CollectionInfo> = emptyList(),
+    selectedCollectionId: Long? = null,
+    onSelectCollection: (Long?) -> Unit = {},
+    onCreateCollection: suspend (String) -> Unit = {},
+    onManageCollections: () -> Unit = {},
 ) {
     val theme = LocalMangoTheme.current
     val now = Clock.System.now()
+    val visibleItems = if (selectedCollectionId == null) {
+        items
+    } else {
+        items.filter { selectedCollectionId in it.collectionIds }
+    }
     Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
         ContentColumn(max = MangoSpace.gridMaxWidth) {
             Column(modifier = Modifier.fillMaxSize()) {
@@ -120,8 +135,17 @@ fun LibraryScreenContent(
                         onSelect = { index -> onLibraryViewChange(if (index == 0) LIBRARY_VIEW_GRID else LIBRARY_VIEW_LIST) },
                     )
                 }
+                CollectionsChipRow(
+                    allCount = items.size,
+                    collections = collections,
+                    items = items,
+                    selectedCollectionId = selectedCollectionId,
+                    onSelectCollection = onSelectCollection,
+                    onCreateCollection = onCreateCollection,
+                    onManageCollections = onManageCollections,
+                )
                 when {
-                    items.isEmpty() -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    visibleItems.isEmpty() -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         EmptyState(
                             title = "Nothing here yet",
                             guidance = "Browse sources to add manhwa, or press Shift-Shift to search everywhere.",
@@ -133,7 +157,7 @@ fun LibraryScreenContent(
                         contentPadding = PaddingValues(horizontal = MangoSpace.screenGutter, vertical = MangoSpace.sm),
                         modifier = Modifier.fillMaxSize().testTag(LIBRARY_LIST_TEST_TAG),
                     ) {
-                        items(items, key = { "${it.entry.sourceId}/${it.entry.mangaId}" }) { item ->
+                        items(visibleItems, key = { "${it.entry.sourceId}/${it.entry.mangaId}" }) { item ->
                             LibraryListRow(item = item, onClick = { onOpenDetails(item.entry) })
                         }
                     }
@@ -144,7 +168,7 @@ fun LibraryScreenContent(
                         verticalArrangement = Arrangement.spacedBy(20.dp),
                         modifier = Modifier.fillMaxSize().testTag(LIBRARY_GRID_TEST_TAG),
                     ) {
-                        items(items, key = { "${it.entry.sourceId}/${it.entry.mangaId}" }) { item ->
+                        items(visibleItems, key = { "${it.entry.sourceId}/${it.entry.mangaId}" }) { item ->
                             // CoverCard itself checks `finished` before falling back to unreadCount
                             // for which pill to show, so unreadCount is passed unconditionally here.
                             CoverCard(
@@ -235,7 +259,7 @@ private fun LibraryListRow(item: LibraryItem, onClick: () -> Unit) {
     }
 }
 
-/** Stateful loader: wires [LibraryRepository.observeLibrary] into [LibraryScreenContent]. */
+/** Stateful loader: wires [LibraryRepository.observeLibrary]/[LibraryRepository.observeCollections] into [LibraryScreenContent]. */
 @Composable
 fun LibraryScreen(
     library: LibraryRepository,
@@ -246,8 +270,12 @@ fun LibraryScreen(
     checkedAt: Long? = null,
     checking: Boolean = false,
     onCheckForUpdates: () -> Unit = {},
+    selectedCollectionId: Long? = null,
+    onSelectCollection: (Long?) -> Unit = {},
+    onManageCollections: () -> Unit = {},
 ) {
     val items by library.observeLibrary().collectAsState(initial = emptyList())
+    val collections by library.observeCollections().collectAsState(initial = emptyList())
     LibraryScreenContent(
         items = items,
         libraryView = libraryView,
@@ -257,5 +285,83 @@ fun LibraryScreen(
         checkedAt = checkedAt,
         checking = checking,
         onCheckForUpdates = onCheckForUpdates,
+        collections = collections,
+        selectedCollectionId = selectedCollectionId,
+        onSelectCollection = onSelectCollection,
+        onCreateCollection = { name -> library.createCollection(name) },
+        onManageCollections = onManageCollections,
     )
+}
+
+/**
+ * The library's shelf tabs: "All · N" first, then one chip per [collections] entry in position
+ * order, a "＋" chip that opens [NewCollectionDialog], and a "⋯" affordance pushed to the far
+ * right for [onManageCollections]. Counts are always computed against the full [items] list, not
+ * whatever [selectedCollectionId] currently filters to.
+ */
+@Composable
+private fun CollectionsChipRow(
+    allCount: Int,
+    collections: List<CollectionInfo>,
+    items: List<LibraryItem>,
+    selectedCollectionId: Long?,
+    onSelectCollection: (Long?) -> Unit,
+    onCreateCollection: suspend (String) -> Unit,
+    onManageCollections: () -> Unit,
+) {
+    var showNewCollectionDialog by remember { mutableStateOf(false) }
+    // ponytail: plain Row, no overflow scroll — revisit past ~8 shelves
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = MangoSpace.screenGutter, vertical = MangoSpace.sm),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(MangoSpace.base),
+    ) {
+        CollectionChip(
+            text = "All · $allCount",
+            active = selectedCollectionId == null,
+            onClick = { onSelectCollection(null) },
+        )
+        collections.forEach { collection ->
+            CollectionChip(
+                text = "${collection.name} · ${items.count { collection.id in it.collectionIds }}",
+                active = selectedCollectionId == collection.id,
+                onClick = { onSelectCollection(collection.id) },
+            )
+        }
+        CollectionChip(text = "＋", active = false, onClick = { showNewCollectionDialog = true })
+        Spacer(modifier = Modifier.weight(1f))
+        CollectionChip(text = "⋯", active = false, onClick = onManageCollections)
+    }
+    if (showNewCollectionDialog) {
+        NewCollectionDialog(
+            onDismissRequest = { showNewCollectionDialog = false },
+            onCreate = onCreateCollection,
+        )
+    }
+}
+
+/** One chip in [CollectionsChipRow]: accent fill + accent-on text while active, else secondary text with a bg2 hover fill. */
+@Composable
+private fun CollectionChip(text: String, active: Boolean, onClick: () -> Unit) {
+    val theme = LocalMangoTheme.current
+    val hover = rememberHoverFill(
+        rest = if (active) theme.accent else theme.bg2.copy(alpha = 0f),
+        hover = if (active) theme.accent else theme.bg2,
+    )
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(MangoRadius.pill))
+            .background(hover.fill)
+            .hoverable(hover.interaction)
+            .clickable(interactionSource = hover.interaction, indication = null, onClick = onClick)
+            .padding(vertical = 5.dp, horizontal = 13.dp),
+    ) {
+        Text(
+            text = text,
+            style = MangoType.body,
+            color = if (active) theme.accentOn else theme.textSecondary,
+        )
+    }
 }

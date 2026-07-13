@@ -132,6 +132,10 @@ fun AppShell(
     // back button can return there. autoContinue is stripped: the back-target must land on
     // Details, not re-fire the Continue action into the Reader.
     var lastDetails by remember { mutableStateOf<Screen.Details?>(null) }
+    // Session-only, like searchState below: which collection the Library chip row is filtering
+    // to, and whether the manage-collections dialog is open.
+    var selectedCollectionId by remember { mutableStateOf<Long?>(null) }
+    var showManageCollections by remember { mutableStateOf(false) }
     // Hoisted here (not inside BrowseScreen) so it survives tab switches: Library -> Browse ->
     // Library -> Browse must show the previous query/results instead of resetting.
     val browseState = remember { BrowseState() }
@@ -187,6 +191,15 @@ fun AppShell(
             }
     }
     val downloadRows by downloads.observeDownloads().collectAsState(initial = emptyList())
+    // Collected here (not just inside LibraryScreen) so the palette's collection hits stay
+    // in sync with the same data the chip row shows.
+    val collections by library.observeCollections().collectAsState(initial = emptyList())
+    // Collected again here (LibraryScreen already collects its own copy) so the manage-collections
+    // dialog's member counts stay live while it's open.
+    val libraryItems by library.observeLibrary().collectAsState(initial = emptyList())
+    val collectionMemberCounts = remember(libraryItems) {
+        libraryItems.flatMap { it.collectionIds }.groupingBy { it }.eachCount()
+    }
     // Pending = still going to happen on its own; FAILED needs a user retry, not a badge.
     val pendingDownloadCount = downloadRows.count {
         it.status == DownloadStatus.QUEUED || it.status == DownloadStatus.RUNNING
@@ -249,6 +262,9 @@ fun AppShell(
                                 checkedAt = libraryCheckedAt,
                                 checking = checking,
                                 onCheckForUpdates = { checkForUpdates() },
+                                selectedCollectionId = selectedCollectionId,
+                                onSelectCollection = { selectedCollectionId = it },
+                                onManageCollections = { showManageCollections = true },
                             )
                             Screen.Search -> SearchScreen(
                                 catalog = catalog,
@@ -363,7 +379,7 @@ fun AppShell(
             // keyed on theme (not plain remember{}): the accent provider closes over the current
             // theme by value, so a theme change must rebuild the tab list or its hits would apply
             // an accent on top of a stale, already-replaced theme
-            val tabs = remember(theme) {
+            val tabs = remember(theme, collections) {
                 paletteTabs(
                     library = library,
                     navigate = { target -> screen = target },
@@ -375,9 +391,24 @@ fun AppShell(
                     },
                     onCheckForUpdates = { checkForUpdates() },
                     onClearSearchHistory = { onSearchHistoryChange(emptyList()) },
+                    collections = collections,
+                    onSelectCollection = { id -> selectedCollectionId = id; screen = Screen.Library },
+                    onManageCollections = { showManageCollections = true },
                 )
             }
             PaletteOverlay(state = palette, tabs = tabs)
+            if (showManageCollections) {
+                ManageCollectionsDialog(
+                    collections = collections,
+                    memberCounts = collectionMemberCounts,
+                    onRename = { id, name -> library.renameCollection(id, name) },
+                    onDelete = { id -> scope.launch { library.deleteCollection(id) } },
+                    onReorder = { ids -> scope.launch { library.reorderCollections(ids) } },
+                    onSetDefault = { id -> scope.launch { library.setDefaultCollection(id) } },
+                    onCreate = { name -> library.createCollection(name) },
+                    onDismiss = { showManageCollections = false },
+                )
+            }
         }
     }
 }

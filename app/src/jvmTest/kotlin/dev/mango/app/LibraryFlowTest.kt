@@ -1,15 +1,25 @@
 package dev.mango.app
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.test.doubleClick
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pressKey
+import dev.mango.core.domain.CollectionInfo
 import dev.mango.core.domain.LibraryItem
 import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
@@ -18,6 +28,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.time.Clock
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 
@@ -172,5 +184,111 @@ class LibraryFlowTest {
         rule.waitForIdle()
 
         assertTrue(catalog.chaptersCallCount >= 1)
+    }
+
+    // Clicking a shelf chip narrows the grid to its members; "All" always shows everything
+    // regardless of membership.
+    @Test
+    fun clickingACollectionChipFiltersToItsMembersAndAllShowsEverythingAgain() {
+        val collectionA = CollectionInfo(1, "Reading", 0, true)
+        val collectionB = CollectionInfo(2, "Dropped", 1, false)
+        val filed = LibraryItem(
+            MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling"),
+            Clock.System.now(),
+            collectionIds = setOf(1),
+        )
+        val unfiled = LibraryItem(
+            MangaEntry(sourceId = "FlameComics", mangaId = "manga-2", title = "Tower of God"),
+            Clock.System.now(),
+        )
+
+        rule.setContent {
+            var selected by remember { mutableStateOf<Long?>(null) }
+            ProvideMangoTheme(MangoDark) {
+                LibraryScreenContent(
+                    items = listOf(filed, unfiled),
+                    collections = listOf(collectionA, collectionB),
+                    selectedCollectionId = selected,
+                    onSelectCollection = { selected = it },
+                    onOpenDetails = {},
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Solo Leveling").assertExists()
+        rule.onNodeWithText("Tower of God").assertExists()
+
+        rule.onNodeWithText("Reading · 1").performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Solo Leveling").assertExists()
+        rule.onNodeWithText("Tower of God").assertDoesNotExist()
+
+        rule.onNodeWithText("All · 2").performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Solo Leveling").assertExists()
+        rule.onNodeWithText("Tower of God").assertExists()
+    }
+
+    // End to end through AppShell: the manage-collections dialog's rename, delete (with the
+    // default-promotion fallback), and create all round-trip into the chip row.
+    @Test
+    fun manageCollectionsDialogRenamesDeletesTheDefaultAndCreates() {
+        val library = FakeLibraryRepository(
+            listOf(
+                LibraryItem(
+                    MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling"),
+                    Clock.System.now(),
+                    collectionIds = setOf(1),
+                ),
+            ),
+        )
+        runBlocking { library.createCollection("Dropped") }
+
+        rule.setContent { TestAppShell(library, FakeCatalogRepository(), FakeDownloadManager()) }
+        rule.waitForIdle()
+
+        rule.onNodeWithText("⋯").performClick()
+        rule.waitForIdle()
+
+        // The dialog panel's own click-swallowing modifier (so a click on it doesn't fall
+        // through to the scrim's dismiss) merges every descendant into one semantics node, so
+        // everything inside the dialog below is looked up against the unmerged tree instead.
+
+        // Rename the default collection ("Reading", inside the dialog row — the chip row's own
+        // text always carries a " · N" suffix, so it can't collide with this exact match).
+        rule.onNodeWithText("Reading", useUnmergedTree = true).performTouchInput { doubleClick() }
+        rule.waitForIdle()
+        rule.onNode(hasSetTextAction(), useUnmergedTree = true).performTextReplacement("Currently Reading")
+        rule.waitForIdle()
+        rule.onRoot().performKeyInput { pressKey(Key.Enter) }
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Currently Reading · 1").assertExists()
+
+        // Delete the (renamed) default; the fake promotes the remaining collection to default.
+        // Both rows have a "✕" (both are deletable while two collections remain), so the first
+        // one in tree order is targeted — "Currently Reading" (still position 0) sorts first.
+        rule.onAllNodes(hasText("✕"), useUnmergedTree = true).onFirst().performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("Delete").performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Currently Reading · 1").assertDoesNotExist()
+        val afterDelete = runBlocking { library.observeCollections().first() }
+        assertEquals(listOf("Dropped"), afterDelete.map { it.name })
+        assertTrue(afterDelete.single().isDefault)
+
+        // Create a new shelf via the dialog's own affordance; its chip appears with a fresh 0 count.
+        rule.onNodeWithText("＋ New collection", useUnmergedTree = true).performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("Name").performTextInput("Finished")
+        rule.waitForIdle()
+        rule.onNodeWithText("Create").performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Finished · 0").assertExists()
     }
 }

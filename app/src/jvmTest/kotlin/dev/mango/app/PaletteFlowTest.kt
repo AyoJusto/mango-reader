@@ -126,9 +126,9 @@ class PaletteFlowTest {
         }
         rule.waitForIdle()
 
-        // Details of the second hit: "In library — remove" is Details-only text, and the two
+        // Details of the second hit: "In library ✓" is Details-only text, and the two
         // title assertions distinguish Solo Prime's Details from Solo Leveling's.
-        rule.onNodeWithText("In library — remove").assertExists()
+        rule.onNodeWithText("In library ✓").assertExists()
         rule.onNodeWithText("Solo Prime").assertExists()
         rule.onNodeWithText("Solo Leveling").assertDoesNotExist()
     }
@@ -362,6 +362,72 @@ class PaletteFlowTest {
         rule.waitForIdle()
 
         rule.onNode(hasText("Clear search history") and inPalette).assertExists()
+    }
+
+    // Completeness test for the actions registry: "Manage collections…" must surface a palette
+    // hit, and running it must actually open the manage-collections dialog.
+    @Test
+    fun manageCollectionsActionSurfacesAPaletteHitAndRunningItOpensTheDialog() {
+        val library = FakeLibraryRepository(libraryItems())
+        val palette = PaletteState()
+
+        rule.setContent { TestAppShell(library, FakeCatalogRepository(), FakeDownloadManager(), palette = palette) }
+        rule.waitForIdle()
+
+        palette.visible = true
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Search everywhere…").performTextInput("Manage collections")
+        rule.waitForIdle()
+
+        rule.onNode(hasText("Manage collections…") and inPalette).assertExists()
+
+        rule.onRoot().performKeyInput { pressKey(Key.Enter) }
+        rule.waitForIdle()
+
+        assertFalse(palette.visible)
+        // The dialog's own heading — no ellipsis, unlike the palette hit's title — proves it opened.
+        rule.onNodeWithText("Manage collections").assertExists()
+    }
+
+    // Dynamic completeness: one "Collection: <name>" hit per shelf plus "Collection: All", so a
+    // future collection with no matching provider output fails loudly here. Also covers the
+    // end-to-end behavior: picking one filters the Library screen underneath.
+    @Test
+    fun everyCollectionSurfacesADynamicPaletteHitAndSelectingOneFiltersTheLibrary() {
+        val filed = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val unfiled = MangaEntry(sourceId = "FlameComics", mangaId = "manga-2", title = "Tower of God")
+        val library = FakeLibraryRepository(
+            listOf(
+                LibraryItem(filed, Clock.System.now(), collectionIds = setOf(1)),
+                LibraryItem(unfiled, Clock.System.now()),
+            ),
+        )
+        val palette = PaletteState()
+
+        rule.setContent { TestAppShell(library, FakeCatalogRepository(), FakeDownloadManager(), palette = palette) }
+        rule.waitForIdle()
+
+        palette.visible = true
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Search everywhere…").performTextInput("Collection:")
+        rule.waitForIdle()
+
+        rule.onNode(hasText("Collection: All") and inPalette).assertExists()
+        rule.onNode(hasText("Collection: Reading") and inPalette).assertExists()
+
+        rule.onNodeWithText("Collection:").performTextClearance()
+        rule.waitForIdle()
+        rule.onNodeWithText("Search everywhere…").performTextInput("Collection: Reading")
+        rule.waitForIdle()
+
+        rule.onRoot().performKeyInput { pressKey(Key.Enter) }
+        rule.waitForIdle()
+
+        assertFalse(palette.visible)
+        rule.onNodeWithText("Solo Leveling").assertExists()
+        rule.onNodeWithText("Tower of God").assertDoesNotExist()
     }
 
     @Test

@@ -4,8 +4,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
@@ -24,9 +26,11 @@ import dev.mango.core.domain.ReadProgress
 import dev.mango.core.domain.SourceInfo
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -182,7 +186,171 @@ class ScreenFlowTest {
         rule.onNodeWithText("Add to library").performClick()
         rule.waitForIdle()
 
-        rule.onNodeWithText("In library — remove").assertExists()
+        rule.onNodeWithText("In library ✓").assertExists()
+    }
+
+    // Clicking the split button's main segment on a non-library series both adds it and files
+    // it into the default collection; the toast names that collection.
+    @Test
+    fun addingToLibraryFilesIntoTheDefaultCollectionAndTheToastNamesIt() {
+        val library = FakeLibraryRepository()
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        val catalog = FakeCatalogRepository(
+            details = mapOf(("FlameComics" to "manga-1") to details),
+            chapters = mapOf(("FlameComics" to "manga-1") to emptyList()),
+        )
+
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                DetailsScreen(
+                    sourceId = "FlameComics",
+                    mangaId = "manga-1",
+                    catalog = catalog,
+                    library = library,
+                    downloads = FakeDownloadManager(),
+                    challengeSolver = FakeChallengeSolver(),
+                    catalogCache = FakeCatalogCache(),
+                    onOpenChapter = { _, _ -> },
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        rule.onNodeWithTag("split-button-main").performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithText("In library ✓").assertExists()
+        rule.onNode(hasText("Reading", substring = true)).assertExists()
+        val stored = runBlocking { library.observeLibrary().first() }.single()
+        assertEquals(setOf(1L), stored.collectionIds)
+    }
+
+    // Opening the split button's ▾ picker on a library series and toggling checkboxes updates
+    // membership directly; unchecking every box leaves the series in the library, just unfiled.
+    @Test
+    fun togglingPickerCheckboxesUpdatesMembershipAndUncheckingEveryBoxKeepsTheSeriesInTheLibrary() {
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        val library = FakeLibraryRepository(listOf(LibraryItem(entry, Clock.System.now(), collectionIds = setOf(1))))
+        runBlocking { library.createCollection("Later") }
+        val catalog = FakeCatalogRepository(
+            details = mapOf(("FlameComics" to "manga-1") to details),
+            chapters = mapOf(("FlameComics" to "manga-1") to emptyList()),
+        )
+
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                DetailsScreen(
+                    sourceId = "FlameComics",
+                    mangaId = "manga-1",
+                    catalog = catalog,
+                    library = library,
+                    downloads = FakeDownloadManager(),
+                    challengeSolver = FakeChallengeSolver(),
+                    catalogCache = FakeCatalogCache(),
+                    onOpenChapter = { _, _ -> },
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        rule.onNodeWithTag("split-button-arrow").performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Later").performClick()
+        rule.waitForIdle()
+
+        val afterAdd = runBlocking { library.observeLibrary().first() }.single()
+        assertEquals(setOf(1L, 2L), afterAdd.collectionIds)
+
+        rule.onNodeWithText("Reading").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("Later").performClick()
+        rule.waitForIdle()
+
+        val afterRemoveAll = runBlocking { library.observeLibrary().first() }
+        assertTrue(afterRemoveAll.any { it.entry.mangaId == "manga-1" })
+        assertEquals(emptySet<Long>(), afterRemoveAll.single().collectionIds)
+    }
+
+    // Checking a picker box before the series is in the library must add it first — setMembership
+    // alone would write a membership row with no library row behind it, invisible to the user.
+    @Test
+    fun togglingAPickerCheckboxOnANotInLibrarySeriesAddsItWithExactlyThatMembership() {
+        val library = FakeLibraryRepository()
+        runBlocking { library.createCollection("Later") }
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        val catalog = FakeCatalogRepository(
+            details = mapOf(("FlameComics" to "manga-1") to details),
+            chapters = mapOf(("FlameComics" to "manga-1") to emptyList()),
+        )
+
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                DetailsScreen(
+                    sourceId = "FlameComics",
+                    mangaId = "manga-1",
+                    catalog = catalog,
+                    library = library,
+                    downloads = FakeDownloadManager(),
+                    challengeSolver = FakeChallengeSolver(),
+                    catalogCache = FakeCatalogCache(),
+                    onOpenChapter = { _, _ -> },
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        rule.onNodeWithTag("split-button-arrow").performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Later").performClick()
+        rule.waitForIdle()
+
+        val stored = runBlocking { library.observeLibrary().first() }.single()
+        assertEquals("manga-1", stored.entry.mangaId)
+        assertEquals(setOf(2L), stored.collectionIds)
+    }
+
+    // The picker's danger row is the only checkbox-adjacent action that actually leaves the
+    // library.
+    @Test
+    fun removeFromLibraryRowInThePickerRemovesTheSeries() {
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        val library = FakeLibraryRepository(listOf(LibraryItem(entry, Clock.System.now(), collectionIds = setOf(1))))
+        val catalog = FakeCatalogRepository(
+            details = mapOf(("FlameComics" to "manga-1") to details),
+            chapters = mapOf(("FlameComics" to "manga-1") to emptyList()),
+        )
+
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                DetailsScreen(
+                    sourceId = "FlameComics",
+                    mangaId = "manga-1",
+                    catalog = catalog,
+                    library = library,
+                    downloads = FakeDownloadManager(),
+                    challengeSolver = FakeChallengeSolver(),
+                    catalogCache = FakeCatalogCache(),
+                    onOpenChapter = { _, _ -> },
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        rule.onNodeWithTag("split-button-arrow").performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Remove from library").performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Add to library").assertExists()
+        val remaining = runBlocking { library.observeLibrary().first() }
+        assertTrue(remaining.none { it.entry.mangaId == "manga-1" })
     }
 
     // "Unread" means "not finished" — an in-progress (opened but unfinished) chapter still
@@ -332,7 +500,6 @@ class ScreenFlowTest {
                     chapters = chapters,
                     inLibrary = false,
                     downloadedChapterIds = setOf("c1"),
-                    onToggleLibrary = {},
                     onOpenChapter = { _, _ -> },
                     onDownloadChapter = { _, _ -> },
                     onDownloadAll = { _, _ -> },
@@ -362,7 +529,6 @@ class ScreenFlowTest {
                     chapters = chapters,
                     inLibrary = false,
                     downloadedChapterIds = setOf("c1"),
-                    onToggleLibrary = {},
                     onOpenChapter = { _, _ -> },
                     onDownloadChapter = { _, _ -> },
                     onDownloadAll = { _, chs -> downloaded = chs },
@@ -391,7 +557,6 @@ class ScreenFlowTest {
                     chapters = emptyList(),
                     inLibrary = false,
                     hasDownloads = hasDownloads,
-                    onToggleLibrary = {},
                     onOpenChapter = { _, _ -> },
                     onDownloadChapter = { _, _ -> },
                     onDownloadAll = { _, _ -> },
@@ -431,7 +596,6 @@ class ScreenFlowTest {
                     details = details,
                     chapters = chapters,
                     inLibrary = false,
-                    onToggleLibrary = {},
                     onOpenChapter = { chapter, _ -> opened = chapter },
                     onDownloadChapter = { _, _ -> },
                     onDownloadAll = { _, _ -> },
@@ -463,7 +627,6 @@ class ScreenFlowTest {
                     chapters = chapters,
                     inLibrary = false,
                     latestProgress = ReadProgress(chapterId = "c1", page = 2, updatedAt = Clock.System.now(), finished = false),
-                    onToggleLibrary = {},
                     onOpenChapter = { chapter, _ -> opened = chapter },
                     onDownloadChapter = { _, _ -> },
                     onDownloadAll = { _, _ -> },
@@ -495,7 +658,6 @@ class ScreenFlowTest {
                     chapters = chapters,
                     inLibrary = false,
                     latestProgress = ReadProgress(chapterId = "c1", page = 4, updatedAt = Clock.System.now(), finished = true),
-                    onToggleLibrary = {},
                     onOpenChapter = { chapter, _ -> opened = chapter },
                     onDownloadChapter = { _, _ -> },
                     onDownloadAll = { _, _ -> },

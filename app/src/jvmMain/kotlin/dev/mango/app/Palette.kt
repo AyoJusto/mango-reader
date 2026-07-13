@@ -50,6 +50,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.mango.core.domain.CollectionInfo
 import dev.mango.core.domain.LibraryRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
@@ -508,6 +509,7 @@ private fun actionsProvider(
     onToggleLibraryView: () -> Unit,
     onCheckForUpdates: () -> Unit,
     onClearSearchHistory: () -> Unit,
+    onManageCollections: () -> Unit,
 ): PaletteProvider =
     PaletteProvider { _ ->
         listOf(
@@ -515,7 +517,24 @@ private fun actionsProvider(
             PaletteHit(category = "Actions", title = "Toggle library view", run = onToggleLibraryView),
             PaletteHit(category = "Actions", title = "Check for updates", run = onCheckForUpdates),
             PaletteHit(category = "Actions", title = "Clear search history", run = onClearSearchHistory),
+            PaletteHit(category = "Actions", title = "Manage collections…", run = onManageCollections),
         )
+    }
+
+/** "Collection: All" plus one hit per shelf; run calls [onSelectCollection] with the collection id (null for All). */
+private fun collectionsProvider(
+    collections: List<CollectionInfo>,
+    onSelectCollection: (Long?) -> Unit,
+): PaletteProvider =
+    PaletteProvider { _ ->
+        listOf(PaletteHit(category = "Actions", title = "Collection: All", run = { onSelectCollection(null) })) +
+            collections.map { collection ->
+                PaletteHit(
+                    category = "Actions",
+                    title = "Collection: ${collection.name}",
+                    run = { onSelectCollection(collection.id) },
+                )
+            }
     }
 
 /** Every registered settings entry as a palette hit; run opens the Settings screen. */
@@ -552,15 +571,19 @@ fun paletteTabs(
     onToggleLibraryView: () -> Unit = {},
     onCheckForUpdates: () -> Unit = {},
     onClearSearchHistory: () -> Unit = {},
+    collections: List<CollectionInfo> = emptyList(),
+    onSelectCollection: (Long?) -> Unit = {},
+    onManageCollections: () -> Unit = {},
 ): List<PaletteTab> {
     val screens = screenProvider(navigate)
     val accents = accentProvider(theme, onThemeChange)
     val manhwa = libraryProvider(library, navigate)
     val settings = settingsProvider(navigate)
-    val actions = actionsProvider(onToggleSidebar, onToggleLibraryView, onCheckForUpdates, onClearSearchHistory)
+    val actions = actionsProvider(onToggleSidebar, onToggleLibraryView, onCheckForUpdates, onClearSearchHistory, onManageCollections)
+    val shelves = collectionsProvider(collections, onSelectCollection)
     return listOf(
-        PaletteTab("All", listOf(screens, accents, manhwa, settings, actions)),
+        PaletteTab("All", listOf(screens, accents, manhwa, settings, actions, shelves)),
         PaletteTab("Manhwa", listOf(manhwa)),
-        PaletteTab("Actions", listOf(screens, accents, settings, actions)),
+        PaletteTab("Actions", listOf(screens, accents, settings, actions, shelves)),
     )
 }
