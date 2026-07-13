@@ -161,3 +161,68 @@ No external assets. All covers in the lookbook are gradient placeholders — rep
 
 ## Files
 - `Mango Lookbook.dc.html` — the full lookbook (boards 01–11). Open in a browser; pan/zoom the canvas. Board numbers match section references above.
+
+---
+
+# Addendum (2026-07-12): update checks, search history, collections
+
+Extracted from the updated root `Mango Lookbook.dc.html` in the design project (the
+`design_handoff_mango_reader/README.md` copy online predates these). Four additions.
+
+## Library — update checks (board 04)
+
+- Header right side becomes: "24 series · checked 2 h ago" (13, tertiary) · a 32×30 refresh
+  icon-button (bg2 fill radius 10, hover surface; 14 dp circular-arrow stroke glyph,
+  text.secondary) · the Grid/List segmented control. Checked-time hidden if never checked.
+- Manual only — no automatic background checks (owner decision).
+- When a check finds chapters for a series: the unread pill increments and pulses once
+  (glow ring `0 0 0 3dp accent @ 25%`), and the card caption gains an amber prefix
+  **"+n new"** (11 bold, accent) before the meta line ("+3 new · Ch. 142 · 72%"). The prefix
+  persists until the user opens the series (Details visit), then clears.
+- Fourth cover-states tile: rest pill · hover scrim · finished ✓ · **refresh found n** (pill
+  with glow ring + bottom scrim carrying the "+3 new" caption).
+
+## Details — update checks (board 06)
+
+- Beside "197 chapters": "sorted newest first · checked 2 h ago" (12.5 tertiary) + the same
+  32×30 refresh button (surface fill here). Refresh re-runs the live revalidation.
+- Chapters that arrived since the last check wear a **NEW** chip after the title: accent @ 16%
+  bg, accent text, 10.5 bold, +0.06em, padding 1.5/7, radius 999. Clears on open or next check.
+- Row legend: accent dot in-progress · primary dot unread · tertiary dot read · NEW chip =
+  arrived since last check.
+
+## Search — recent queries (board 07, third frame)
+
+- The search field focused but empty shows the last 10 queries: micro-label header row
+  "RECENT" + "Clear all" (11.5 tertiary, hover primary); rows = 14 dp clock glyph (tertiary
+  stroke) · query (13.5 primary, ellipsized) · relative time (11.5 tertiary) · 22 dp ✕
+  (visible on row hover only, hover surface fill).
+- Newest first, deduped — re-running a query moves it to the top. One click replays the
+  search. Enter on a highlighted row also replays. Typing swaps the list for live results at
+  the first keystroke; no history mixed into results. Plain rows, not chips.
+
+## Collections (section 04b)
+
+Model: a collection is a named shelf; a series can sit on several at once. "All" is virtual,
+always first, uneditable. Exactly one collection is the **default** — it silently catches
+one-click adds. Naming: **Collections** (recommended; verb reads "Add to collection"). Never
+say "library" for a shelf.
+
+- **Library nav — Option A (recommended, adopted):** chip tab row under the title:
+  active chip accent fill + accent.on text ("All · 24"), inactive text.secondary with hover
+  bg2, padding 5/13, radius 999; a "＋" tab creates a shelf inline. Counts always visible.
+  Drag a cover onto a tab to file it; Ctrl 1–9 jumps tabs; overflow past ~8 shelves scrolls
+  horizontally, never wraps. (Option B filter-dropdown rejected: hides shelves.)
+- **Details add flow — split button (300 dp):** main segment "Add to library" (accent,
+  radius 10 0 0 10) + 38 dp ▾ segment. One click files into the default immediately, no
+  dialog, and shows a toast "Added to **Reading** · Change" (overlay fill, radius 12, 5 s;
+  Change opens the picker). The ▾ opens a checkbox picker: micro-label "ADD TO", rows with
+  15 dp checkboxes (checked = accent fill + ✓; row bg accent @ 10% when checked), DEFAULT
+  badge (10.5 bold accent) on the default row, hairline, then "＋ New collection…". Once in
+  library the button reads "In library ✓ ▾"; the same picker edits membership.
+- **Manage collections dialog (520 dp, bg1, radius 18):** rows = ⠿ drag handle (drag sets
+  tab order) · name (13.5 semibold; double-click renames inline — mid-edit row shows accent
+  underline + focus ring) · count (12 tertiary) · DEFAULT pill or hover "Make default" ·
+  delete ✕ (danger @ 80%). Deleting a collection never deletes series — they stay in All;
+  if the default is deleted, the first shelf becomes default. Footer: "＋ New collection"
+  left, accent "Done" right.
