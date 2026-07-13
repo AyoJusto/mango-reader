@@ -63,10 +63,16 @@ class LiveChallengeSmokeTest {
                     }
                     println(
                         "SMOKE replay: status=${response.status.value} " +
-                            "cf-mitigated=${response.headers["cf-mitigated"]}",
+                                "cf-mitigated=${response.headers["cf-mitigated"]}",
                     )
-                    assertTrue(response.status.value == 200, "replay with harvested clearance expected 200, got ${response.status.value}")
-                    assertTrue(response.headers["cf-mitigated"] == null, "replay was re-challenged (cf-mitigated=${response.headers["cf-mitigated"]})")
+                    assertTrue(
+                        response.status.value == 200,
+                        "replay with harvested clearance expected 200, got ${response.status.value}"
+                    )
+                    assertTrue(
+                        response.headers["cf-mitigated"] == null,
+                        "replay was re-challenged (cf-mitigated=${response.headers["cf-mitigated"]})"
+                    )
                 }
             }
         } finally {

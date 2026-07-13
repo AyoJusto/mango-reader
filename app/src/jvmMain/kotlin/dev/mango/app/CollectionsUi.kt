@@ -67,8 +67,14 @@ internal fun Modifier.inlineEditKeys(onCommit: () -> Unit, onCancel: () -> Unit)
     onPreviewKeyEvent { event ->
         if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
         when (event.key) {
-            Key.Enter, Key.NumPadEnter -> { onCommit(); true }
-            Key.Escape -> { onCancel(); true }
+            Key.Enter, Key.NumPadEnter -> {
+                onCommit(); true
+            }
+
+            Key.Escape -> {
+                onCancel(); true
+            }
+
             else -> false
         }
     }
@@ -274,7 +280,11 @@ fun ManageCollectionsDialog(
         modifier = Modifier
             .fillMaxSize()
             .background(theme.bg0.copy(alpha = 0.55f))
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss),
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onDismiss
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Column(
@@ -531,6 +541,7 @@ private fun ManageCollectionsRow(
                     container = theme.accent.copy(alpha = 0.14f),
                     content = theme.accent,
                 )
+
                 hovered -> Text(
                     text = "Make default",
                     style = MangoType.caption,

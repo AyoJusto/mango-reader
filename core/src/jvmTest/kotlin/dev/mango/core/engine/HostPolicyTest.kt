@@ -47,7 +47,10 @@ class HostPolicyTest {
             }
         }
         val gap = timestamps[1] - timestamps[0]
-        assertTrue(gap >= 180, "expected >=180ms between same-host dispatches (tolerance for timer slack), was ${gap}ms")
+        assertTrue(
+            gap >= 180,
+            "expected >=180ms between same-host dispatches (tolerance for timer slack), was ${gap}ms"
+        )
     }
 
     @Test

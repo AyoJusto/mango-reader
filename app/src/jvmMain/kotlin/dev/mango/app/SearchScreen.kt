@@ -120,7 +120,12 @@ private fun SearchHistoryRow(entry: SearchHistoryEntry, now: Instant, onReplay: 
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            Text(text = "✕", fontSize = 12.sp, color = theme.textTertiary, modifier = Modifier.alpha(if (rowHovered) 1f else 0f))
+            Text(
+                text = "✕",
+                fontSize = 12.sp,
+                color = theme.textTertiary,
+                modifier = Modifier.alpha(if (rowHovered) 1f else 0f)
+            )
         }
     }
 }
@@ -140,7 +145,12 @@ private fun SearchHistorySection(
             modifier = Modifier.fillMaxWidth().padding(horizontal = MangoSpace.sm).padding(bottom = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = "Recent", style = MangoType.microLabel, color = theme.textTertiary, modifier = Modifier.weight(1f))
+            Text(
+                text = "Recent",
+                style = MangoType.microLabel,
+                color = theme.textTertiary,
+                modifier = Modifier.weight(1f)
+            )
             val clearInteraction = remember { MutableInteractionSource() }
             val clearHovered by clearInteraction.collectIsHoveredAsState()
             Text(
@@ -250,7 +260,10 @@ private fun SearchSourceSection(
 ) {
     val theme = LocalMangoTheme.current
     Column(modifier = Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs)
+        ) {
             Text(text = source.name, style = MangoType.microLabel, color = theme.textTertiary)
             if (pending) {
                 CircularProgressIndicator(
@@ -279,6 +292,7 @@ private fun SearchSourceSection(
                 solveEnabled = solveEnabled,
                 onSolveChallenge = onSolveChallenge,
             )
+
             error != null -> Text(text = error, style = MangoType.body, color = theme.danger)
             results.isEmpty() -> Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 EmptyState(title = "No results", guidance = "Try a different search term.")
@@ -382,9 +396,12 @@ fun SearchScreenContent(
                     // false "No results" section nor hide results already fetched
                     val searchedSources = sources.filter {
                         it.sourceId in resultsBySource || it.sourceId in errorsBySource ||
-                            it.sourceId in pendingSourceIds
+                                it.sourceId in pendingSourceIds
                     }
-                    LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(MangoSpace.lg)) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(MangoSpace.lg)
+                    ) {
                         items(searchedSources, key = { it.sourceId }) { source ->
                             SearchSourceSection(
                                 source = source,

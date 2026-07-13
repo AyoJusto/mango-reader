@@ -443,7 +443,10 @@ private fun FailedTailRow(
                 )
             }
         } else {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(MangoSpace.sm)
+            ) {
                 Text(text = message, style = MangoType.bodyStrong, color = theme.danger)
                 KitButton(label = "Retry", onClick = onRetry, style = KitButtonStyle.DANGER, enabled = !solving)
             }

@@ -42,8 +42,16 @@ class KitScreenshotsTest {
                     }
 
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Pill(text = "12", container = MangoDark.accent.copy(alpha = 0.92f), content = MangoDark.accentOn)
-                        Pill(text = "In library", container = MangoDark.success.copy(alpha = 0.14f), content = MangoDark.success)
+                        Pill(
+                            text = "12",
+                            container = MangoDark.accent.copy(alpha = 0.92f),
+                            content = MangoDark.accentOn
+                        )
+                        Pill(
+                            text = "In library",
+                            container = MangoDark.success.copy(alpha = 0.14f),
+                            content = MangoDark.success
+                        )
                         Keycap(text = "esc")
                         Keycap(text = "ctrl s")
                     }

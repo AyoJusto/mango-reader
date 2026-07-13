@@ -196,8 +196,8 @@ fun DetailsScreenContent(
                                 details.entry,
                                 chapters.filter {
                                     it.number in range &&
-                                        it.chapterId !in downloadedChapterIds &&
-                                        it.chapterId !in activeDownloadIds
+                                            it.chapterId !in downloadedChapterIds &&
+                                            it.chapterId !in activeDownloadIds
                                 },
                             )
                             showRangeDialog = false
@@ -368,8 +368,8 @@ private fun DetailsSidebarColumn(
                     details.entry,
                     chapters.filter {
                         it.chapterId !in finishedChapterIds &&
-                            it.chapterId !in downloadedChapterIds &&
-                            it.chapterId !in activeDownloadIds
+                                it.chapterId !in downloadedChapterIds &&
+                                it.chapterId !in activeDownloadIds
                     },
                 )
             },
@@ -609,21 +609,25 @@ private fun ChapterRow(
                 style = MangoType.caption,
                 color = theme.accent,
             )
+
             download?.status == DownloadStatus.RUNNING && download.pagesTotal > 0 -> Text(
                 text = "${download.pagesDone}/${download.pagesTotal}",
                 style = MangoType.monoChapter,
                 color = theme.accent,
             )
+
             download?.status == DownloadStatus.QUEUED -> Text(
                 text = "queued",
                 style = MangoType.caption,
                 color = theme.textTertiary,
             )
+
             download?.status == DownloadStatus.FAILED -> Text(
                 text = "failed",
                 style = MangoType.caption,
                 color = theme.danger,
             )
+
             downloaded && !finished -> Text(text = "downloaded", style = MangoType.caption, color = theme.success)
         }
         Text(
@@ -691,7 +695,8 @@ internal fun DetailsSkeleton() {
                     )
                     repeat(2) {
                         SkeletonBlock(
-                            modifier = Modifier.fillMaxWidth().height(38.dp).clip(RoundedCornerShape(MangoRadius.control)),
+                            modifier = Modifier.fillMaxWidth().height(38.dp)
+                                .clip(RoundedCornerShape(MangoRadius.control)),
                         )
                     }
                 }
@@ -699,7 +704,9 @@ internal fun DetailsSkeleton() {
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(MangoSpace.sm),
                 ) {
-                    SkeletonBlock(modifier = Modifier.width(320.dp).height(34.dp).clip(RoundedCornerShape(MangoRadius.control)))
+                    SkeletonBlock(
+                        modifier = Modifier.width(320.dp).height(34.dp).clip(RoundedCornerShape(MangoRadius.control))
+                    )
                     SkeletonBlock(
                         modifier = Modifier
                             .widthIn(max = 680.dp)
@@ -710,7 +717,8 @@ internal fun DetailsSkeleton() {
                     Spacer(modifier = Modifier.height(MangoSpace.xs))
                     repeat(6) {
                         SkeletonBlock(
-                            modifier = Modifier.fillMaxWidth().height(36.dp).clip(RoundedCornerShape(MangoRadius.control)),
+                            modifier = Modifier.fillMaxWidth().height(36.dp)
+                                .clip(RoundedCornerShape(MangoRadius.control)),
                         )
                     }
                 }
@@ -731,7 +739,8 @@ internal fun continueTarget(chapters: List<Chapter>, latestProgress: ReadProgres
     return when {
         latestProgress == null || latestChapter == null -> ascending.firstOrNull()?.let { it to "Start reading" }
         !latestProgress.finished -> latestChapter to
-            "Continue — Ch. ${formatChapterNumber(latestChapter.number)} · p. ${latestProgress.page + 1}"
+                "Continue — Ch. ${formatChapterNumber(latestChapter.number)} · p. ${latestProgress.page + 1}"
+
         else -> {
             val next = ascending.getOrNull(ascending.indexOf(latestChapter) + 1)
             next?.let { it to "Continue — Ch. ${formatChapterNumber(it.number)}" }

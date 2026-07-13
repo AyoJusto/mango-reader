@@ -59,27 +59,27 @@ class ExtensionRuntime(
             // blocking HTTP call instead of being invisible to it
             val callJob = coroutineContext[Job]
             newExtensionContext(engine).use { context ->
-                    val application = host.applicationProxyFor(context, callJob)
-                    context.getBindings("js").putMember("Application", application)
-                    // browser global probed at module top level by the bundles' inlined
-                    // HTML parser (its Buffer fallback crashes GraalJS). Browser semantics:
-                    // base64 -> binary string, one char per byte, hence ISO-8859-1 — NOT
-                    // the UTF-8 convention of Application.base64Decode.
-                    context.getBindings("js").putMember(
-                        "atob",
-                        ProxyExecutable { args ->
-                            String(java.util.Base64.getDecoder().decode(args[0].asString()), Charsets.ISO_8859_1)
-                        },
-                    )
-                    try {
-                        context.eval(bundleSource)
-                    } catch (e: PolyglotException) {
-                        throw ExtensionCallException("bundle failed to evaluate: ${e.message}", e)
-                    }
-                    val source = context.getBindings("js").getMember("source")
-                        ?: throw ExtensionCallException("bundle did not define global 'source'")
-                    block(ExtensionHandle(context, source, application))
+                val application = host.applicationProxyFor(context, callJob)
+                context.getBindings("js").putMember("Application", application)
+                // browser global probed at module top level by the bundles' inlined
+                // HTML parser (its Buffer fallback crashes GraalJS). Browser semantics:
+                // base64 -> binary string, one char per byte, hence ISO-8859-1 — NOT
+                // the UTF-8 convention of Application.base64Decode.
+                context.getBindings("js").putMember(
+                    "atob",
+                    ProxyExecutable { args ->
+                        String(java.util.Base64.getDecoder().decode(args[0].asString()), Charsets.ISO_8859_1)
+                    },
+                )
+                try {
+                    context.eval(bundleSource)
+                } catch (e: PolyglotException) {
+                    throw ExtensionCallException("bundle failed to evaluate: ${e.message}", e)
                 }
+                val source = context.getBindings("js").getMember("source")
+                    ?: throw ExtensionCallException("bundle did not define global 'source'")
+                block(ExtensionHandle(context, source, application))
+            }
         }
 }
 

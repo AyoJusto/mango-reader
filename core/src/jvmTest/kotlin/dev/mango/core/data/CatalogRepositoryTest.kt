@@ -62,7 +62,10 @@ class CatalogRepositoryTest {
     fun installedSourcesReturnsThePinnedVersion() = runTest {
         val repo = newRepository(bundleDirWithFlameComics())
 
-        repo.install(SourceInfo(sourceId = "FlameComics", name = "Flame Comics", version = "1.2.3"), FLAME_COMICS_SHA256)
+        repo.install(
+            SourceInfo(sourceId = "FlameComics", name = "Flame Comics", version = "1.2.3"),
+            FLAME_COMICS_SHA256
+        )
 
         assertEquals(
             listOf(SourceInfo(sourceId = "FlameComics", name = "Flame Comics", version = "1.2.3")),

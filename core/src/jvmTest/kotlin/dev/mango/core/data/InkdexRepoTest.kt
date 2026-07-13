@@ -69,6 +69,7 @@ class InkdexRepoTest {
             } else {
                 respond("not found", registryStatus)
             }
+
             path.endsWith("/index.js") -> respond(bundleBytes, HttpStatusCode.OK)
             else -> respond("", HttpStatusCode.NotFound)
         }
@@ -136,6 +137,7 @@ class InkdexRepoTest {
                     HttpStatusCode.OK,
                     headersOf(HttpHeaders.ContentLength, oversizedLength),
                 )
+
                 else -> respond("", HttpStatusCode.NotFound)
             }
         }

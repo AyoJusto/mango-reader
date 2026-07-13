@@ -34,20 +34,27 @@ class DownloadManagerTest {
     /** Canned pages per "sourceId/mangaId/chapterId", the only member these tests exercise. */
     private class FakeCatalogRepository(private val pages: Map<String, List<Page>>) : CatalogRepository {
         override suspend fun installedSources(): List<SourceInfo> = throw UnsupportedOperationException()
-        override suspend fun install(info: SourceInfo, bundleSha256: String): Unit = throw UnsupportedOperationException()
+        override suspend fun install(info: SourceInfo, bundleSha256: String): Unit =
+            throw UnsupportedOperationException()
+
         override suspend fun search(sourceId: String, query: String, page: Int): List<MangaEntry> =
             throw UnsupportedOperationException()
+
         override suspend fun homeSections(sourceId: String): List<HomeSection> =
             throw UnsupportedOperationException()
+
         override suspend fun details(sourceId: String, mangaId: String): MangaDetails =
             throw UnsupportedOperationException()
+
         override suspend fun chapters(sourceId: String, mangaId: String): List<Chapter> =
             throw UnsupportedOperationException()
 
         override suspend fun pages(sourceId: String, mangaId: String, chapterId: String): List<Page> =
             pages["$sourceId/$mangaId/$chapterId"] ?: error("no fixture pages for $sourceId/$mangaId/$chapterId")
 
-        override suspend fun setUserAgent(sourceId: String, userAgent: String): Unit = throw UnsupportedOperationException()
+        override suspend fun setUserAgent(sourceId: String, userAgent: String): Unit =
+            throw UnsupportedOperationException()
+
         override suspend fun uninstall(sourceId: String): Unit = throw UnsupportedOperationException()
     }
 

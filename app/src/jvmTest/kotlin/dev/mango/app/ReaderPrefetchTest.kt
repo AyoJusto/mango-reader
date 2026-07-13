@@ -8,7 +8,8 @@ import kotlin.test.assertEquals
 class ReaderPrefetchTest {
     private fun page(index: Int) = Page(index = index, url = "https://example.test/$index.jpg")
 
-    private val onlineSegment = ReaderSegment(chapterId = "c1", shortLabel = "Ch. 1", label = "Ch. 1", pages = emptyList())
+    private val onlineSegment =
+        ReaderSegment(chapterId = "c1", shortLabel = "Ch. 1", label = "Ch. 1", pages = emptyList())
     private val offlineSegment = ReaderSegment(
         chapterId = "c2",
         shortLabel = "Ch. 2",
@@ -16,7 +17,8 @@ class ReaderPrefetchTest {
         pages = emptyList(),
         offline = true,
     )
-    private val onlineSegment2 = ReaderSegment(chapterId = "c3", shortLabel = "Ch. 3", label = "Ch. 3", pages = emptyList())
+    private val onlineSegment2 =
+        ReaderSegment(chapterId = "c3", shortLabel = "Ch. 3", label = "Ch. 3", pages = emptyList())
 
     private fun pageRow(index: Int, segmentIndex: Int = 0) = ReaderRow.PageRow(segmentIndex, page(index))
 

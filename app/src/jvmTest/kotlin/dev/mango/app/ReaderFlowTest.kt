@@ -56,13 +56,17 @@ private class FailingPagesCatalogRepository(
     override suspend fun install(info: SourceInfo, bundleSha256: String) = delegate.install(info, bundleSha256)
     override suspend fun search(sourceId: String, query: String, page: Int): List<MangaEntry> =
         delegate.search(sourceId, query, page)
+
     override suspend fun homeSections(sourceId: String): List<HomeSection> = delegate.homeSections(sourceId)
     override suspend fun details(sourceId: String, mangaId: String): MangaDetails = delegate.details(sourceId, mangaId)
-    override suspend fun chapters(sourceId: String, mangaId: String): List<Chapter> = delegate.chapters(sourceId, mangaId)
+    override suspend fun chapters(sourceId: String, mangaId: String): List<Chapter> =
+        delegate.chapters(sourceId, mangaId)
+
     override suspend fun pages(sourceId: String, mangaId: String, chapterId: String): List<Page> {
         if (chapterId == failingChapterId) error("scripted failure for $chapterId")
         return delegate.pages(sourceId, mangaId, chapterId)
     }
+
     override suspend fun setUserAgent(sourceId: String, userAgent: String) = delegate.setUserAgent(sourceId, userAgent)
     override suspend fun uninstall(sourceId: String) = delegate.uninstall(sourceId)
 }
@@ -79,7 +83,8 @@ class ReaderFlowTest {
     val rule = createComposeRule()
 
     private val fakePages = (0 until 5).map { index -> Page(index = index, url = "https://example.test/$index.jpg") }
-    private val chapter2Pages = (0 until 3).map { index -> Page(index = index, url = "https://example.test/ch2-$index.jpg") }
+    private val chapter2Pages =
+        (0 until 3).map { index -> Page(index = index, url = "https://example.test/ch2-$index.jpg") }
     private val twoChapters = listOf(Chapter(CHAPTER_ID, number = 1.0), Chapter(CHAPTER_2_ID, number = 2.0))
 
     @Composable
@@ -272,7 +277,10 @@ class ReaderFlowTest {
         rule.waitForIdle()
 
         val progress = runBlocking { library.progress(SOURCE_ID, MANGA_ID, CHAPTER_ID) }
-        assertTrue(progress?.finished == true, "expected ch-1 to be marked finished once its divider scrolled into view")
+        assertTrue(
+            progress?.finished == true,
+            "expected ch-1 to be marked finished once its divider scrolled into view"
+        )
     }
 
     @Test
@@ -285,7 +293,10 @@ class ReaderFlowTest {
         rule.waitForIdle()
 
         val progress = runBlocking { library.progress(SOURCE_ID, MANGA_ID, CHAPTER_ID) }
-        assertTrue(progress != null && !progress.finished, "expected a single PageDown to record progress without finishing the chapter")
+        assertTrue(
+            progress != null && !progress.finished,
+            "expected a single PageDown to record progress without finishing the chapter"
+        )
     }
 
     @Test
@@ -458,7 +469,11 @@ class ReaderFlowTest {
         assertNotNull(settled, "expected a page counter to be showing after PageDown settled")
         rule.waitForIdle()
         rule.waitForIdle()
-        assertEquals(settled, currentPageCounter(), "expected no further scroll after auto-scroll was stopped by PageDown")
+        assertEquals(
+            settled,
+            currentPageCounter(),
+            "expected no further scroll after auto-scroll was stopped by PageDown"
+        )
 
         // and the reader must still respond normally to further input, with no hang.
         rule.onRoot().performKeyInput { pressKey(Key.PageUp) }

@@ -156,6 +156,7 @@ fun SettingsScreenContent(
                                                     importError = null
                                                     onThemeChange(outcome.theme)
                                                 }
+
                                                 is ThemeResult.Error -> importError = outcome.message
                                             }
                                         }
@@ -210,7 +211,10 @@ fun SettingsScreenContent(
                 SettingsGroup(label = "Reader") {
                     var pendingStripWidth by remember(stripWidth) { mutableStateOf(stripWidth) }
                     SettingsRow(title = "Strip width", subtitle = "Width of the centered reading column") {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)
+                        ) {
                             Slider(
                                 value = pendingStripWidth,
                                 onValueChange = { pendingStripWidth = it },
@@ -229,7 +233,10 @@ fun SettingsScreenContent(
                     SettingsDivider()
                     var pendingAutoScroll by remember(autoScrollSpeed) { mutableStateOf(autoScrollSpeed) }
                     SettingsRow(title = "Auto-scroll speed", subtitle = "dp/s while auto-scroll (A) is running") {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)
+                        ) {
                             Slider(
                                 value = pendingAutoScroll,
                                 onValueChange = { pendingAutoScroll = it },

@@ -102,7 +102,7 @@ class InkdexRepo(
             if (declaredLength != null && declaredLength > BundleLoader.MAX_BUNDLE_BYTES) {
                 throw InkdexException(
                     "bundle for ${source.sourceId} declares $declaredLength bytes, " +
-                        "max allowed is ${BundleLoader.MAX_BUNDLE_BYTES}"
+                            "max allowed is ${BundleLoader.MAX_BUNDLE_BYTES}"
                 )
             }
             // the download owns this cap (BundleLoader's in-memory check is defense-in-depth

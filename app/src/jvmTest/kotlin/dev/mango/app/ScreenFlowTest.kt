@@ -136,7 +136,12 @@ class ScreenFlowTest {
                     details = details,
                     chapters = chapters,
                     inLibrary = false,
-                    latestProgress = ReadProgress(chapterId = "c1", page = 2, updatedAt = Clock.System.now(), finished = false),
+                    latestProgress = ReadProgress(
+                        chapterId = "c1",
+                        page = 2,
+                        updatedAt = Clock.System.now(),
+                        finished = false
+                    ),
                     onOpenChapter = { chapter, _ -> opened = chapter },
                     onDownloadChapter = { _, _ -> },
                     onDownloadAll = { _, _ -> },
@@ -167,7 +172,12 @@ class ScreenFlowTest {
                     details = details,
                     chapters = chapters,
                     inLibrary = false,
-                    latestProgress = ReadProgress(chapterId = "c1", page = 4, updatedAt = Clock.System.now(), finished = true),
+                    latestProgress = ReadProgress(
+                        chapterId = "c1",
+                        page = 4,
+                        updatedAt = Clock.System.now(),
+                        finished = true
+                    ),
                     onOpenChapter = { chapter, _ -> opened = chapter },
                     onDownloadChapter = { _, _ -> },
                     onDownloadAll = { _, _ -> },

@@ -89,7 +89,7 @@ fun main() {
                     // Esc closes the sidebar only when nothing above it is open; the palette
                     // and the reader own their Esc semantics.
                     keyEvent.key == Key.Escape && keyEvent.type == KeyEventType.KeyDown &&
-                        sidebarOpen && !palette.visible -> {
+                            sidebarOpen && !palette.visible -> {
                         sidebarOpen = false
                         true
                     }
@@ -99,6 +99,7 @@ fun main() {
                         palette.visible = !palette.visible
                         true
                     }
+
                     else -> false
                 }
             },

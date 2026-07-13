@@ -207,6 +207,7 @@ fun BrowseScreenContent(
                                 solveEnabled = solveEnabled,
                                 onSolveChallenge = onSolveChallenge,
                             )
+
                             results.isEmpty() -> EmptyState(
                                 title = "No results",
                                 guidance = "Try a different search term.",
@@ -243,6 +244,7 @@ fun BrowseScreenContent(
                                 solveEnabled = solveEnabled,
                                 onSolveChallenge = onSolveChallenge,
                             )
+
                             sections.isNotEmpty() -> LazyColumn(
                                 modifier = Modifier.fillMaxSize(),
                                 verticalArrangement = Arrangement.spacedBy(MangoSpace.md),
@@ -253,6 +255,7 @@ fun BrowseScreenContent(
                                     BrowseSectionRow(section = section, onOpenDetails = onOpenDetails)
                                 }
                             }
+
                             else -> EmptyState(
                                 title = "No discover sections — search this source instead",
                                 guidance = "Try the search field above.",
@@ -285,6 +288,7 @@ class BrowseState {
     var sectionsBySource by mutableStateOf<Map<String, List<HomeSection>>>(emptyMap())
     var sectionsPending by mutableStateOf<Set<String>>(emptySet())
     var sectionsErrors by mutableStateOf<Map<String, String>>(emptyMap())
+
     // challenge urls are split by mode (this map vs searchChallengeUrl below): a stale search
     // challenge must never render a Solve button on a sections error, and vice versa
     var sectionsChallengeUrls by mutableStateOf<Map<String, String>>(emptyMap())

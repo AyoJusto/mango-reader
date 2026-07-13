@@ -41,9 +41,18 @@ class PaletteFlowTest {
     private val inPalette = hasAnyAncestor(hasTestTag(PALETTE_TEST_TAG))
 
     private fun libraryItems() = listOf(
-        LibraryItem(MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling"), Clock.System.now()),
-        LibraryItem(MangaEntry(sourceId = "FlameComics", mangaId = "manga-2", title = "Omniscient Reader"), Clock.System.now()),
-        LibraryItem(MangaEntry(sourceId = "FlameComics", mangaId = "manga-3", title = "Tower of God"), Clock.System.now()),
+        LibraryItem(
+            MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling"),
+            Clock.System.now()
+        ),
+        LibraryItem(
+            MangaEntry(sourceId = "FlameComics", mangaId = "manga-2", title = "Omniscient Reader"),
+            Clock.System.now()
+        ),
+        LibraryItem(
+            MangaEntry(sourceId = "FlameComics", mangaId = "manga-3", title = "Tower of God"),
+            Clock.System.now()
+        ),
     )
 
     @Test
@@ -51,7 +60,16 @@ class PaletteFlowTest {
         val library = FakeLibraryRepository(libraryItems())
         val palette = PaletteState()
 
-        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, FakeCatalogRepository(), FakeDownloadManager(), palette = palette) } }
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                AppShell(
+                    library,
+                    FakeCatalogRepository(),
+                    FakeDownloadManager(),
+                    palette = palette
+                )
+            }
+        }
         rule.waitForIdle()
 
         palette.visible = true
@@ -75,7 +93,16 @@ class PaletteFlowTest {
         val library = FakeLibraryRepository(libraryItems())
         val palette = PaletteState()
 
-        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, FakeCatalogRepository(), FakeDownloadManager(), palette = palette) } }
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                AppShell(
+                    library,
+                    FakeCatalogRepository(),
+                    FakeDownloadManager(),
+                    palette = palette
+                )
+            }
+        }
         rule.waitForIdle()
         palette.visible = true
         rule.waitForIdle()
@@ -109,7 +136,16 @@ class PaletteFlowTest {
         )
         val palette = PaletteState()
 
-        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, catalog, FakeDownloadManager(), palette = palette) } }
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                AppShell(
+                    library,
+                    catalog,
+                    FakeDownloadManager(),
+                    palette = palette
+                )
+            }
+        }
         rule.waitForIdle()
         palette.visible = true
         rule.waitForIdle()
@@ -138,7 +174,16 @@ class PaletteFlowTest {
         val library = FakeLibraryRepository(libraryItems())
         val palette = PaletteState()
 
-        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, FakeCatalogRepository(), FakeDownloadManager(), palette = palette) } }
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                AppShell(
+                    library,
+                    FakeCatalogRepository(),
+                    FakeDownloadManager(),
+                    palette = palette
+                )
+            }
+        }
         rule.waitForIdle()
         palette.visible = true
         rule.waitForIdle()
@@ -154,7 +199,16 @@ class PaletteFlowTest {
         val library = FakeLibraryRepository(libraryItems())
         val palette = PaletteState()
 
-        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, FakeCatalogRepository(), FakeDownloadManager(), palette = palette) } }
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                AppShell(
+                    library,
+                    FakeCatalogRepository(),
+                    FakeDownloadManager(),
+                    palette = palette
+                )
+            }
+        }
         rule.waitForIdle()
         palette.visible = true
         rule.waitForIdle()
@@ -176,7 +230,16 @@ class PaletteFlowTest {
         val library = FakeLibraryRepository(libraryItems())
         val palette = PaletteState()
 
-        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, FakeCatalogRepository(), FakeDownloadManager(), palette = palette) } }
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                AppShell(
+                    library,
+                    FakeCatalogRepository(),
+                    FakeDownloadManager(),
+                    palette = palette
+                )
+            }
+        }
         rule.waitForIdle()
 
         palette.visible = true
@@ -218,7 +281,16 @@ class PaletteFlowTest {
         val library = FakeLibraryRepository(libraryItems())
         val palette = PaletteState()
 
-        rule.setContent { ProvideMangoTheme(MangoDark) { AppShell(library, FakeCatalogRepository(), FakeDownloadManager(), palette = palette) } }
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                AppShell(
+                    library,
+                    FakeCatalogRepository(),
+                    FakeDownloadManager(),
+                    palette = palette
+                )
+            }
+        }
         rule.waitForIdle()
 
         listOf("Strip width", "Hide cursor").forEach { title ->

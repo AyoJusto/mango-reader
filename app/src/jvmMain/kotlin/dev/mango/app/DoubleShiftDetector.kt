@@ -45,12 +45,14 @@ class DoubleShiftDetector {
                     false
                 }
             }
+
             KeyEventType.KeyUp -> {
                 // the release completes the first tap; the window still counts from its keydown
                 pendingDownAt?.let { armedAt = it }
                 pendingDownAt = null
                 false
             }
+
             else -> false
         }
     }

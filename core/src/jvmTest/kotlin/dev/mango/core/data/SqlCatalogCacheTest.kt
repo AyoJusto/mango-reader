@@ -28,7 +28,8 @@ class SqlCatalogCacheTest {
         return SqlCatalogCache(MangoDatabase(driver), clock = clock)
     }
 
-    private val entry = MangaEntry(sourceId = "MangaBat", mangaId = "m1", title = "Solo Leveling", cover = "https://x/cover.jpg")
+    private val entry =
+        MangaEntry(sourceId = "MangaBat", mangaId = "m1", title = "Solo Leveling", cover = "https://x/cover.jpg")
     private val details = MangaDetails(
         entry = entry,
         authors = listOf("Chugong", "Redice Studio"),

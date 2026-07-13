@@ -463,7 +463,10 @@ fun KitSearchField(
             .background(theme.bg2)
             .padding(horizontal = 14.dp, vertical = 10.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)
+        ) {
             Text(text = "⌕", style = MangoType.body, color = theme.textTertiary)
             BasicTextField(
                 value = value,
@@ -531,7 +534,12 @@ fun ProgressTrack(
 
 /** A row of mutually-exclusive text segments, e.g. the Library grid/list toggle. */
 @Composable
-fun SegmentedControl(options: List<String>, selectedIndex: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+fun SegmentedControl(
+    options: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
     val theme = LocalMangoTheme.current
     Row(
         modifier = modifier
@@ -628,7 +636,12 @@ fun CoverCard(
                 .fillMaxWidth()
                 .aspectRatio(2f / 3f)
                 .graphicsLayer { scaleX = scale; scaleY = scale }
-                .then(if (hovered) Modifier.shadow(elevation = 16.dp, shape = RoundedCornerShape(MangoRadius.row)) else Modifier)
+                .then(
+                    if (hovered) Modifier.shadow(
+                        elevation = 16.dp,
+                        shape = RoundedCornerShape(MangoRadius.row)
+                    ) else Modifier
+                )
                 .clip(RoundedCornerShape(MangoRadius.row))
                 .background(theme.bg2),
         ) {
@@ -648,11 +661,16 @@ fun CoverCard(
                     content = theme.success,
                     modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
                 )
+
                 unreadCount != null && unreadCount > 0 -> Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(8.dp)
-                        .border(3.dp, theme.accent.copy(alpha = 0.25f * pillRing.value), RoundedCornerShape(MangoRadius.pill))
+                        .border(
+                            3.dp,
+                            theme.accent.copy(alpha = 0.25f * pillRing.value),
+                            RoundedCornerShape(MangoRadius.pill)
+                        )
                         .padding(3.dp),
                 ) {
                     Pill(
@@ -790,14 +808,17 @@ fun KitDropdown(
                                     if (activeIndex < visibleOptions.size - 1) activeIndex++
                                     true
                                 }
+
                                 Key.DirectionUp -> {
                                     if (activeIndex > 0) activeIndex--
                                     true
                                 }
+
                                 Key.Enter, Key.NumPadEnter -> {
                                     selectActive()
                                     true
                                 }
+
                                 else -> false
                             }
                         },
@@ -899,7 +920,11 @@ fun SplitButton(
                 .fillMaxHeight()
                 .clip(RoundedCornerShape(topStart = MangoRadius.control, bottomStart = MangoRadius.control))
                 .background(theme.accent)
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onMainClick)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onMainClick
+                )
                 .padding(horizontal = MangoSpace.md)
                 .testTag("split-button-main"),
             contentAlignment = Alignment.Center,
@@ -919,7 +944,11 @@ fun SplitButton(
                 .fillMaxHeight()
                 .clip(RoundedCornerShape(topEnd = MangoRadius.control, bottomEnd = MangoRadius.control))
                 .background(theme.accent)
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onArrowClick)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onArrowClick
+                )
                 .testTag("split-button-arrow"),
             contentAlignment = Alignment.Center,
         ) {

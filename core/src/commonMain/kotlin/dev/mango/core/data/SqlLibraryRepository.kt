@@ -132,7 +132,11 @@ class SqlLibraryRepository(
     }
 
     override suspend fun markOpened(sourceId: String, mangaId: String) = withContext(context) {
-        db.libraryQueries.markOpened(last_opened_at = clock.now().toEpochMilliseconds(), source_id = sourceId, manga_id = mangaId)
+        db.libraryQueries.markOpened(
+            last_opened_at = clock.now().toEpochMilliseconds(),
+            source_id = sourceId,
+            manga_id = mangaId
+        )
         Unit
     }
 

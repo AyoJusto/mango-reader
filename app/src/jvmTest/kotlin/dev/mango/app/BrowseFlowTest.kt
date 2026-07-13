@@ -260,7 +260,7 @@ class BrowseFlowTest {
                 sectionsBySource = mapOf("FlameComics" to listOf(popular)),
                 failuresBySource = mapOf(
                     "FlameComics" to
-                        ChallengeRequiredException("FlameComics", "https://flamecomics.example/challenge"),
+                            ChallengeRequiredException("FlameComics", "https://flamecomics.example/challenge"),
                 ),
             ),
         )

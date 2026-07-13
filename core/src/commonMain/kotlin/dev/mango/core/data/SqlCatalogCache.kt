@@ -72,9 +72,10 @@ class SqlCatalogCache(
             )
 
             // read before the delete so surviving chapters keep the first_seen_at they already had
-            val previousFirstSeenAt = db.catalog_cacheQueries.selectChapterFirstSeen(source_id = sourceId, manga_id = mangaId)
-                .executeAsList()
-                .associate { it.chapter_id to it.first_seen_at }
+            val previousFirstSeenAt =
+                db.catalog_cacheQueries.selectChapterFirstSeen(source_id = sourceId, manga_id = mangaId)
+                    .executeAsList()
+                    .associate { it.chapter_id to it.first_seen_at }
             // no prior rows at all means this is the manga's first fill: every chapter is
             // "already there" as far as the user is concerned, so none of them count as new
             val isFirstFill = previousFirstSeenAt.isEmpty()
@@ -104,7 +105,8 @@ class SqlCatalogCache(
 
     private fun joinList(values: List<String>): String = values.joinToString(LIST_DELIMITER)
 
-    private fun splitList(value: String): List<String> = if (value.isEmpty()) emptyList() else value.split(LIST_DELIMITER)
+    private fun splitList(value: String): List<String> =
+        if (value.isEmpty()) emptyList() else value.split(LIST_DELIMITER)
 
     private companion object {
         // ASCII unit separator: cannot occur in extension-supplied author/tag text, so no

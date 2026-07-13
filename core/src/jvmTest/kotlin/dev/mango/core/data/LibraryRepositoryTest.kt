@@ -48,7 +48,8 @@ class LibraryRepositoryTest {
     @Test
     fun addingAnItemEmitsItAndReAddingTheSameKeyStaysOneItem() = runTest {
         val repo = newRepository()
-        val entry = MangaEntry(sourceId = "MangaBat", mangaId = "m1", title = "Solo Leveling", cover = "https://x/cover.jpg")
+        val entry =
+            MangaEntry(sourceId = "MangaBat", mangaId = "m1", title = "Solo Leveling", cover = "https://x/cover.jpg")
 
         repo.addToLibrary(entry)
         val afterFirstAdd = repo.observeLibrary().first()
@@ -288,7 +289,12 @@ class LibraryRepositoryTest {
         val entry = MangaEntry(sourceId = "MangaBat", mangaId = "m1", title = "Solo Leveling")
 
         repo.addToLibrary(entry)
-        cache.put("MangaBat", "m1", newChapterDetails, listOf(Chapter(chapterId = "c1", number = 1.0, title = "Ch. 1", publishedAt = null)))
+        cache.put(
+            "MangaBat",
+            "m1",
+            newChapterDetails,
+            listOf(Chapter(chapterId = "c1", number = 1.0, title = "Ch. 1", publishedAt = null))
+        )
         repo.setChapterCount("MangaBat", "m1", 1)
 
         clock.instant = Instant.fromEpochMilliseconds(5_000)

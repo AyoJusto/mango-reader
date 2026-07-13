@@ -80,6 +80,7 @@ sealed interface Screen {
          */
         val autoContinue: Boolean = false,
     ) : Screen
+
     data class Reader(
         val sourceId: String,
         val mangaId: String,
@@ -146,6 +147,7 @@ fun AppShell(
 
     val updater = remember(catalog, catalogCache, library) { LibraryUpdater(catalog, catalogCache, library) }
     var checking by remember { mutableStateOf(false) }
+
     // Single flight: a second click while a check is running is a no-op. The checked-at stamp
     // only advances after a full run completes, so a cancelled run leaves it untouched.
     fun checkForUpdates() {
@@ -245,6 +247,7 @@ fun AppShell(
                         )
                     }
                 }
+
                 else -> {
                     Surface(
                         modifier = Modifier.fillMaxSize().hazeSource(hazeState).then(contentBlur),
@@ -266,6 +269,7 @@ fun AppShell(
                                 onSelectCollection = { selectedCollectionId = it },
                                 onManageCollections = { showManageCollections = true },
                             )
+
                             Screen.Search -> SearchScreen(
                                 catalog = catalog,
                                 challengeSolver = challengeSolver,
@@ -279,9 +283,11 @@ fun AppShell(
                                 searchHistory = searchHistory,
                                 onSearchHistoryChange = onSearchHistoryChange,
                             )
+
                             Screen.Browse -> BrowseScreen(catalog, challengeSolver, browseState) { entry ->
                                 screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = true)
                             }
+
                             Screen.Downloads -> DownloadsScreen(downloads)
                             Screen.Extensions -> ExtensionsScreen(extensions, catalog)
                             Screen.Settings -> SettingsScreenContent(
@@ -299,6 +305,7 @@ fun AppShell(
                                 installedFonts = installedFonts,
                                 onFontFamilyChange = onFontFamilyChange,
                             )
+
                             is Screen.Details -> {
                                 LaunchedEffect(current) { lastDetails = current.copy(autoContinue = false) }
                                 Box(modifier = Modifier.fillMaxSize()) {

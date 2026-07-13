@@ -29,7 +29,7 @@ object RecordedHttp {
         val bytes = javaClass.getResourceAsStream("/fixtures/$name")?.readBytes()
             ?: error(
                 "no recorded fixture for $url (expected fixtures/$name); " +
-                    "re-record with: gradlew :core:jvmTest -Plive --tests *LiveRecord*"
+                        "re-record with: gradlew :core:jvmTest -Plive --tests *LiveRecord*"
             )
         respond(bytes, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
     })

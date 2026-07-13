@@ -18,6 +18,7 @@ private class FakeLibraryRepository(items: List<LibraryItem>) : LibraryRepositor
     override suspend fun removeFromLibrary(sourceId: String, mangaId: String) = error("not used by LibraryUpdater")
     override suspend fun progress(sourceId: String, mangaId: String, chapterId: String): ReadProgress? =
         error("not used by LibraryUpdater")
+
     override suspend fun setProgress(
         sourceId: String,
         mangaId: String,
@@ -26,8 +27,10 @@ private class FakeLibraryRepository(items: List<LibraryItem>) : LibraryRepositor
         finished: Boolean,
         chapterNumber: Double,
     ) = error("not used by LibraryUpdater")
+
     override suspend fun finishedChapterIds(sourceId: String, mangaId: String): Set<String> =
         error("not used by LibraryUpdater")
+
     override suspend fun latestProgress(sourceId: String, mangaId: String): ReadProgress? =
         error("not used by LibraryUpdater")
 
@@ -62,6 +65,7 @@ private class FakeCatalogRepository(
     override suspend fun install(info: SourceInfo, bundleSha256: String) = error("not used by LibraryUpdater")
     override suspend fun search(sourceId: String, query: String, page: Int): List<MangaEntry> =
         error("not used by LibraryUpdater")
+
     override suspend fun homeSections(sourceId: String): List<HomeSection> = error("not used by LibraryUpdater")
 
     override suspend fun details(sourceId: String, mangaId: String): MangaDetails {
@@ -77,6 +81,7 @@ private class FakeCatalogRepository(
 
     override suspend fun pages(sourceId: String, mangaId: String, chapterId: String): List<Page> =
         error("not used by LibraryUpdater")
+
     override suspend fun setUserAgent(sourceId: String, userAgent: String) = error("not used by LibraryUpdater")
     override suspend fun uninstall(sourceId: String) = error("not used by LibraryUpdater")
 }
@@ -106,14 +111,18 @@ class LibraryUpdaterTest {
         tags = emptyList(),
     )
 
-    private fun chapter(id: String) = Chapter(chapterId = id, number = id.removePrefix("c").toDouble(), title = null, publishedAt = null)
+    private fun chapter(id: String) =
+        Chapter(chapterId = id, number = id.removePrefix("c").toDouble(), title = null, publishedAt = null)
 
     @Test
     fun usesCachedDetailsOnHitAndFetchesDetailsOnMiss() = runTest {
         val cachedSeries = "MangaBat" to "m1"
         val missSeries = "MangaBat" to "m2"
         val library = FakeLibraryRepository(
-            listOf(LibraryItem(entry("MangaBat", "m1"), kotlin.time.Instant.fromEpochMilliseconds(0)), LibraryItem(entry("MangaBat", "m2"), kotlin.time.Instant.fromEpochMilliseconds(0))),
+            listOf(
+                LibraryItem(entry("MangaBat", "m1"), kotlin.time.Instant.fromEpochMilliseconds(0)),
+                LibraryItem(entry("MangaBat", "m2"), kotlin.time.Instant.fromEpochMilliseconds(0))
+            ),
         )
         val catalog = FakeCatalogRepository(
             chaptersBySeries = mapOf(cachedSeries to listOf(chapter("c1")), missSeries to listOf(chapter("c1"))),

@@ -51,24 +51,32 @@ interface LibraryRepository {
         finished: Boolean = false,
         chapterNumber: Double = 0.0,
     )
+
     /** Chapter ids the user has read to the last page — an opened-but-unfinished chapter is NOT in this set. */
     suspend fun finishedChapterIds(sourceId: String, mangaId: String): Set<String>
+
     /** The most recently updated progress row for the manga, finished or not; null if never opened. */
     suspend fun latestProgress(sourceId: String, mangaId: String): ReadProgress?
+
     /** Caches the series' total chapter count so the library's unread-count query can derive it in SQL. */
     suspend fun setChapterCount(sourceId: String, mangaId: String, count: Int)
+
     /** Stamps the moment the user opened Details for this series; chapters cached before this stamp stop counting as new. */
     suspend fun markOpened(sourceId: String, mangaId: String)
     fun observeCollections(): Flow<List<CollectionInfo>>
+
     /** Appends at the end. A name that already exists (exact match) is rejected with IllegalArgumentException. */
     suspend fun createCollection(name: String): Long
     suspend fun renameCollection(id: Long, name: String)   // same duplicate rule
+
     /** Members are unfiled, never removed from the library. Deleting the default promotes the first remaining
      *  collection by position. Deleting the last collection is rejected with IllegalStateException. */
     suspend fun deleteCollection(id: Long)
+
     /** [orderedIds] must be the complete id set; positions become list indexes. */
     suspend fun reorderCollections(orderedIds: List<Long>)
     suspend fun setDefaultCollection(id: Long)
+
     /** Replaces the series' memberships wholesale (checkbox-picker semantics). */
     suspend fun setMembership(sourceId: String, mangaId: String, collectionIds: Set<Long>)
 }

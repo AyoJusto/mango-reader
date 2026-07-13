@@ -42,7 +42,10 @@ class LibraryFlowTest {
     val rule = createComposeRule()
 
     private fun libraryItems() = listOf(
-        LibraryItem(MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling"), Clock.System.now()),
+        LibraryItem(
+            MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling"),
+            Clock.System.now()
+        ),
     )
 
     @Test

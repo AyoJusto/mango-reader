@@ -56,7 +56,8 @@ class ExtensionsScreenTest {
 
     @Test
     fun clickingInstallCallsTheRepoAndTheRowFlipsToInstalledAfterRefresh() {
-        val source = AvailableSource(sourceId = "FlameComics", name = "Flame Comics", version = "1.0.0", language = "en")
+        val source =
+            AvailableSource(sourceId = "FlameComics", name = "Flame Comics", version = "1.0.0", language = "en")
         val catalog = FakeCatalogRepository()
         val repo = FakeExtensionRepo(available = listOf(source), catalog = catalog)
 
@@ -74,8 +75,10 @@ class ExtensionsScreenTest {
 
     @Test
     fun installedRowShowsRemoveAndNotInstalledRowDoesNot() {
-        val installedSource = AvailableSource(sourceId = "FlameComics", name = "Flame Comics", version = "1.0.0", language = "en")
-        val notInstalledSource = AvailableSource(sourceId = "MangaBat", name = "MangaBat", version = "2.0.0", language = "en")
+        val installedSource =
+            AvailableSource(sourceId = "FlameComics", name = "Flame Comics", version = "1.0.0", language = "en")
+        val notInstalledSource =
+            AvailableSource(sourceId = "MangaBat", name = "MangaBat", version = "2.0.0", language = "en")
 
         rule.setContent {
             ProvideMangoTheme(MangoDark) {
@@ -97,11 +100,13 @@ class ExtensionsScreenTest {
 
     @Test
     fun failedInstallShowsTheErrorWithoutBlankingTheList() {
-        val source = AvailableSource(sourceId = "FlameComics", name = "Flame Comics", version = "1.0.0", language = "en")
+        val source =
+            AvailableSource(sourceId = "FlameComics", name = "Flame Comics", version = "1.0.0", language = "en")
         val catalog = FakeCatalogRepository()
         val repo = object : ExtensionRepo {
             override suspend fun available(): List<AvailableSource> = listOf(source)
-            override suspend fun install(source: AvailableSource): Nothing = throw RuntimeException("Install failed: network error")
+            override suspend fun install(source: AvailableSource): Nothing =
+                throw RuntimeException("Install failed: network error")
         }
 
         rule.setContent { ProvideMangoTheme(MangoDark) { ExtensionsScreen(repo, catalog) } }
@@ -116,8 +121,17 @@ class ExtensionsScreenTest {
 
     @Test
     fun clickingRemoveCallsUninstallAndTheRowFlipsToInstallAfterRefresh() {
-        val source = AvailableSource(sourceId = "FlameComics", name = "Flame Comics", version = "1.0.0", language = "en")
-        val catalog = FakeCatalogRepository(sources = listOf(SourceInfo(sourceId = "FlameComics", name = "Flame Comics", version = "1.0.0")))
+        val source =
+            AvailableSource(sourceId = "FlameComics", name = "Flame Comics", version = "1.0.0", language = "en")
+        val catalog = FakeCatalogRepository(
+            sources = listOf(
+                SourceInfo(
+                    sourceId = "FlameComics",
+                    name = "Flame Comics",
+                    version = "1.0.0"
+                )
+            )
+        )
         val repo = FakeExtensionRepo(available = listOf(source), catalog = catalog)
 
         rule.setContent { ProvideMangoTheme(MangoDark) { ExtensionsScreen(repo, catalog) } }

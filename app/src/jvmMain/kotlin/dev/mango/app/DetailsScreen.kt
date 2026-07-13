@@ -168,6 +168,7 @@ fun DetailsScreen(
                 autoContinueFired.value = true
                 onOpenChapter(target.first, chapters)
             }
+
             chaptersSettled -> passThrough.value = false
         }
     }
@@ -207,11 +208,13 @@ fun DetailsScreen(
                 )
             }
         }
+
         passThrough.value -> Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
         }
+
         currentDetails == null -> DetailsSkeleton()
         else -> DetailsScreenContent(
             details = currentDetails,

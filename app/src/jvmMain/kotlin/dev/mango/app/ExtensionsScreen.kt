@@ -64,10 +64,12 @@ fun ExtensionsScreenContent(
                         style = MangoType.body,
                         color = theme.danger,
                     )
+
                     available.isEmpty() -> EmptyState(
                         title = "No extensions available",
                         guidance = "Nothing in the registry right now — press Shift-Shift to search everywhere.",
                     )
+
                     else -> Column(modifier = Modifier.fillMaxSize()) {
                         if (actionError != null) {
                             ErrorBanner(
@@ -124,13 +126,22 @@ private fun ExtensionRow(
                 // there is no "series in library" count on this data to show here.
                 val metaSegments = listOfNotNull("v${source.version}", source.language?.uppercase())
                 if (metaSegments.isNotEmpty()) {
-                    Text(text = metaSegments.joinToString(" · "), style = MangoType.caption, color = theme.textSecondary)
+                    Text(
+                        text = metaSegments.joinToString(" · "),
+                        style = MangoType.caption,
+                        color = theme.textSecondary
+                    )
                 }
             }
             Spacer(modifier = Modifier.width(MangoSpace.sm))
             when {
                 busy -> CircularProgressIndicator(modifier = Modifier.size(20.dp))
-                installedVersion == null -> KitButton(label = "Install", onClick = onInstall, style = KitButtonStyle.PRIMARY)
+                installedVersion == null -> KitButton(
+                    label = "Install",
+                    onClick = onInstall,
+                    style = KitButtonStyle.PRIMARY
+                )
+
                 installedVersion == source.version -> Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm),
@@ -138,11 +149,16 @@ private fun ExtensionRow(
                     Text(text = "Installed", style = MangoType.bodyStrong, color = theme.accent)
                     KitButton(label = "Remove", onClick = onRemove, style = KitButtonStyle.DANGER)
                 }
+
                 else -> Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm),
                 ) {
-                    KitButton(label = "Update to ${source.version}", onClick = onInstall, style = KitButtonStyle.PRIMARY)
+                    KitButton(
+                        label = "Update to ${source.version}",
+                        onClick = onInstall,
+                        style = KitButtonStyle.PRIMARY
+                    )
                     KitButton(label = "Remove", onClick = onRemove, style = KitButtonStyle.DANGER)
                 }
             }

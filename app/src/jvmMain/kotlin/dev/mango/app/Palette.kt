@@ -275,8 +275,8 @@ fun PaletteContent(
         if (visible.isEmpty()) return@LaunchedEffect
         val info = visible.firstOrNull { it.index == selectedIndex }
         val fullyVisible = info != null &&
-            info.offset >= layout.viewportStartOffset &&
-            info.offset + info.size <= layout.viewportEndOffset
+                info.offset >= layout.viewportStartOffset &&
+                info.offset + info.size <= layout.viewportEndOffset
         if (!fullyVisible) {
             val target = selectedIndex.coerceIn(0, hits.size - 1)
             if (target <= visible.first().index) {
@@ -306,26 +306,31 @@ fun PaletteContent(
                         }
                         true
                     }
+
                     Key.DirectionUp -> {
                         if (hits.isNotEmpty()) {
                             onSelectedIndexChange((selectedIndex - 1).coerceAtLeast(0))
                         }
                         true
                     }
+
                     Key.Enter, Key.NumPadEnter -> {
                         hits.getOrNull(selectedIndex)?.let(onRunHit)
                         true
                     }
+
                     Key.Escape -> {
                         onDismiss()
                         true
                     }
+
                     Key.Tab -> {
                         if (tabNames.isNotEmpty()) {
                             onTabIndexChange((activeTabIndex + 1) % tabNames.size)
                         }
                         true
                     }
+
                     else -> false
                 }
             },
@@ -355,9 +360,16 @@ fun PaletteContent(
                 Column(modifier = Modifier.padding(MangoSpace.md)) {
                     PaletteInputRow(query = query, onQueryChange = onQueryChange, focusRequester = focusRequester)
                     Spacer(modifier = Modifier.height(MangoSpace.xs))
-                    PaletteFilterTabs(tabNames = tabNames, activeTabIndex = activeTabIndex, onTabIndexChange = onTabIndexChange)
+                    PaletteFilterTabs(
+                        tabNames = tabNames,
+                        activeTabIndex = activeTabIndex,
+                        onTabIndexChange = onTabIndexChange
+                    )
                     Spacer(modifier = Modifier.height(MangoSpace.xs))
-                    LazyColumn(state = listState, modifier = Modifier.fillMaxWidth().heightIn(max = PALETTE_RESULTS_MAX_HEIGHT)) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxWidth().heightIn(max = PALETTE_RESULTS_MAX_HEIGHT)
+                    ) {
                         itemsIndexed(hits) { index, hit ->
                             PaletteResultRow(hit = hit, selected = index == selectedIndex, onClick = { onRunHit(hit) })
                         }
@@ -528,13 +540,13 @@ private fun collectionsProvider(
 ): PaletteProvider =
     PaletteProvider { _ ->
         listOf(PaletteHit(category = "Actions", title = "Collection: All", run = { onSelectCollection(null) })) +
-            collections.map { collection ->
-                PaletteHit(
-                    category = "Actions",
-                    title = "Collection: ${collection.name}",
-                    run = { onSelectCollection(collection.id) },
-                )
-            }
+                collections.map { collection ->
+                    PaletteHit(
+                        category = "Actions",
+                        title = "Collection: ${collection.name}",
+                        run = { onSelectCollection(collection.id) },
+                    )
+                }
     }
 
 /** Every registered settings entry as a palette hit; run opens the Settings screen. */
@@ -579,7 +591,13 @@ fun paletteTabs(
     val accents = accentProvider(theme, onThemeChange)
     val manhwa = libraryProvider(library, navigate)
     val settings = settingsProvider(navigate)
-    val actions = actionsProvider(onToggleSidebar, onToggleLibraryView, onCheckForUpdates, onClearSearchHistory, onManageCollections)
+    val actions = actionsProvider(
+        onToggleSidebar,
+        onToggleLibraryView,
+        onCheckForUpdates,
+        onClearSearchHistory,
+        onManageCollections
+    )
     val shelves = collectionsProvider(collections, onSelectCollection)
     return listOf(
         PaletteTab("All", listOf(screens, accents, manhwa, settings, actions, shelves)),

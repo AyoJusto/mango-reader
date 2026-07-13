@@ -83,15 +83,30 @@ val ACCENT_PRESETS: List<Pair<String, Color>> = listOf(
  * of the chosen interface font (they render literal key names and chapter numbers, not prose).
  */
 class MangoTypeRamp(fontFamily: FontFamily?) {
-    val display = TextStyle(fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.02).em, fontFamily = fontFamily)
-    val title = TextStyle(fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.01).em, fontFamily = fontFamily)
-    val bodyStrong = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = fontFamily)
+    val display = TextStyle(
+        fontSize = 28.sp,
+        lineHeight = 34.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = (-0.02).em,
+        fontFamily = fontFamily
+    )
+    val title = TextStyle(
+        fontSize = 20.sp,
+        lineHeight = 26.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = (-0.01).em,
+        fontFamily = fontFamily
+    )
+    val bodyStrong =
+        TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = fontFamily)
     val body = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Normal, fontFamily = fontFamily)
     val label = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Normal, fontFamily = fontFamily)
-    val caption = TextStyle(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Normal, fontFamily = fontFamily)
+    val caption =
+        TextStyle(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Normal, fontFamily = fontFamily)
     val meta = TextStyle(fontSize = 11.5.sp, fontWeight = FontWeight.Normal, fontFamily = fontFamily)
     val hint = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Normal, fontFamily = fontFamily)
-    val microLabel = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Normal, letterSpacing = 0.12.em, fontFamily = fontFamily)
+    val microLabel =
+        TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Normal, letterSpacing = 0.12.em, fontFamily = fontFamily)
     val monoKeycap = TextStyle(fontSize = 11.sp, fontFamily = FontFamily.Monospace)
     val monoChapter = TextStyle(fontSize = 12.5.sp, fontFamily = FontFamily.Monospace)
 }

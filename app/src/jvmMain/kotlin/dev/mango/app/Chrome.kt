@@ -337,7 +337,11 @@ private fun SidebarStaggerGroup(groupIndex: Int, content: @Composable ColumnScop
             targetValue = 1f,
             // delayMillis, not a raw suspend delay(): stays on the same frame-clock-driven
             // timing every other animation in this file uses.
-            animationSpec = tween(durationMillis = MangoMotion.SIDEBAR_OPEN_MS, delayMillis = delayMs, easing = MangoMotion.decel),
+            animationSpec = tween(
+                durationMillis = MangoMotion.SIDEBAR_OPEN_MS,
+                delayMillis = delayMs,
+                easing = MangoMotion.decel
+            ),
         )
     }
     Column(

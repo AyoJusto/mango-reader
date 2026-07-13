@@ -22,7 +22,11 @@ private val VALID_COLORS = mapOf(
     "danger" to "#F26055",
 )
 
-private fun themeJson(schema: Int = 1, name: String = "Mango Dark", colors: Map<String, String> = VALID_COLORS): String {
+private fun themeJson(
+    schema: Int = 1,
+    name: String = "Mango Dark",
+    colors: Map<String, String> = VALID_COLORS
+): String {
     val colorsJson = colors.entries.joinToString(",") { (key, value) -> "\"$key\":\"$value\"" }
     return "{\"schema\":$schema,\"name\":\"$name\",\"colors\":{$colorsJson}}"
 }

@@ -115,7 +115,9 @@ internal class ReaderOverlayState {
 /** A fully transparent 1x1 AWT cursor: the reader hides the mouse cursor together with the controls overlay. */
 private val BLANK_CURSOR_ICON: PointerIcon by lazy {
     val transparentPixel = BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB)
-    PointerIcon(Toolkit.getDefaultToolkit().createCustomCursor(transparentPixel, Point(0, 0), "mango-reader-hidden-cursor"))
+    PointerIcon(
+        Toolkit.getDefaultToolkit().createCustomCursor(transparentPixel, Point(0, 0), "mango-reader-hidden-cursor")
+    )
 }
 
 /** One loaded chapter in the strip. [chapter] is null only when the opened chapterId isn't in the caller's [Chapter] list. */
@@ -246,6 +248,7 @@ fun ReaderScreen(
         val last = segments.lastOrNull() ?: return true
         return nextChapter(chapters, last.chapterId) == null
     }
+
     fun currentRows(): List<ReaderRow> = buildRows(
         displaySegments(),
         isLastLoadedChapter(),
@@ -253,6 +256,7 @@ fun ReaderScreen(
         (nextLoad as? NextLoadState.Failed)?.message,
         (nextLoad as? NextLoadState.Failed)?.challengeUrl,
     )
+
     fun currentSegmentAndPage(): ReaderPosition? = currentPosition(currentRows(), listState.firstVisibleItemIndex)
 
     suspend fun appendNextSegment(next: Chapter) {
@@ -492,11 +496,13 @@ fun ReaderScreen(
                 )
             }
         }
+
         segments.isEmpty() -> Surface(modifier = Modifier.fillMaxSize(), color = LocalMangoTheme.current.bg0) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
         }
+
         else -> {
             // Requesting focus here — not in a top-level LaunchedEffect(Unit) — matters: this
             // branch is the first point in composition where Modifier.focusRequester below is
@@ -548,6 +554,7 @@ fun ReaderScreen(
                                 }
                                 true
                             }
+
                             Key.PageUp, Key.DirectionUp -> {
                                 autoScrolling = false
                                 scope.launch {
@@ -557,27 +564,33 @@ fun ReaderScreen(
                                 }
                                 true
                             }
+
                             Key.N -> {
                                 goToNextChapter()
                                 true
                             }
+
                             Key.P -> {
                                 reanchorToPreviousChapter()
                                 true
                             }
+
                             Key.A -> {
                                 autoScrolling = !autoScrolling
                                 true
                             }
+
                             Key.F -> {
                                 onToggleFullscreen()
                                 true
                             }
+
                             Key.Escape -> {
                                 autoScrolling = false
                                 onBack()
                                 true
                             }
+
                             else -> false
                         }
                     },

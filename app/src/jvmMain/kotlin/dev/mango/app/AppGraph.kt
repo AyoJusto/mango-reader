@@ -29,6 +29,7 @@ import java.nio.file.Paths
 import java.util.Properties
 
 private const val HTTP_CONNECT_TIMEOUT_MILLIS = 10_000L
+
 // sized for full image downloads, not just extension API calls; scheduleRequest applies
 // its own tighter timeout inside ApplicationHost for individual bundle-issued requests
 private const val HTTP_REQUEST_TIMEOUT_MILLIS = 120_000L
@@ -83,6 +84,7 @@ class AppGraph(dataDir: Path = defaultDataDir()) {
                 MangoDatabase.Schema.create(driver)
                 stamp(driver, MangoDatabase.Schema.version)
             }
+
             v < MangoDatabase.Schema.version -> {
                 // migrate + stamp atomically: a crash between them would re-run the ALTERs
                 // on the next launch ("duplicate column") and brick the DB permanently
@@ -91,6 +93,7 @@ class AppGraph(dataDir: Path = defaultDataDir()) {
                     stamp(driver, MangoDatabase.Schema.version)
                 }
             }
+
             v > MangoDatabase.Schema.version ->
                 error("database is version $v but this app only knows ${MangoDatabase.Schema.version} — app downgrade?")
         }
@@ -120,11 +123,13 @@ class AppGraph(dataDir: Path = defaultDataDir()) {
         // embedded browser for the Cloudflare solve; CEF downloads into <dataDir>/jcef on
         // first use. A fresh SqlCookieStore per source is cheap (DB-backed, stateless).
         jcef = JcefManager(dataDir.resolve("jcef"))
-        challengeSolver = SingleFlightChallengeSolver(JcefChallengeSolver(
-            jcef = jcef,
-            catalog = catalog,
-            cookieStoreFor = { sourceId -> SqlCookieStore(db, sourceId) },
-        ))
+        challengeSolver = SingleFlightChallengeSolver(
+            JcefChallengeSolver(
+                jcef = jcef,
+                catalog = catalog,
+                cookieStoreFor = { sourceId -> SqlCookieStore(db, sourceId) },
+            )
+        )
     }
 
     /** Release the embedded browser on app exit. */

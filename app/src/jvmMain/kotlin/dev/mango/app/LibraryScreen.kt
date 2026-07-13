@@ -122,7 +122,12 @@ fun LibraryScreenContent(
                     )
                     Text(
                         text = if (checkedAt != null) {
-                            "${items.size} series · checked ${formatRelativeTime(Instant.fromEpochMilliseconds(checkedAt), now)}"
+                            "${items.size} series · checked ${
+                                formatRelativeTime(
+                                    Instant.fromEpochMilliseconds(checkedAt),
+                                    now
+                                )
+                            }"
                         } else {
                             "${items.size} series"
                         },
@@ -154,7 +159,10 @@ fun LibraryScreenContent(
                     onManageCollections = onManageCollections,
                 )
                 when {
-                    visibleItems.isEmpty() -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    visibleItems.isEmpty() -> Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
                         EmptyState(
                             title = "Nothing here yet",
                             guidance = "Browse sources to add manhwa, or press Shift-Shift to search everywhere.",
@@ -162,6 +170,7 @@ fun LibraryScreenContent(
                             onCta = onBrowse,
                         )
                     }
+
                     libraryView == LIBRARY_VIEW_LIST -> LazyColumn(
                         contentPadding = PaddingValues(horizontal = MangoSpace.screenGutter, vertical = MangoSpace.sm),
                         modifier = Modifier.fillMaxSize().testTag(LIBRARY_LIST_TEST_TAG),
@@ -170,6 +179,7 @@ fun LibraryScreenContent(
                             LibraryListRow(item = item, onClick = { onOpenDetails(item.entry) })
                         }
                     }
+
                     else -> LazyVerticalGrid(
                         columns = GridCells.Adaptive(minSize = 196.dp),
                         contentPadding = PaddingValues(horizontal = MangoSpace.screenGutter, vertical = MangoSpace.sm),

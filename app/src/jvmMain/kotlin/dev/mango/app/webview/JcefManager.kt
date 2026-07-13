@@ -34,7 +34,8 @@ const val WebViewUserAgent =
  */
 class JcefManager(private val installDir: Path) {
     private val initLock = Mutex()
-    @Volatile private var app: CefApp? = null
+    @Volatile
+    private var app: CefApp? = null
 
     /** Init state for the UI, so the first-run CEF download isn't a frozen window. */
     sealed interface Progress {

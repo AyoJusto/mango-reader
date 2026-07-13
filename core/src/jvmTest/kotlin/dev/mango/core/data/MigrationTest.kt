@@ -35,7 +35,7 @@ class MigrationTest {
         driver.execute(
             null,
             "INSERT INTO download(source_id, manga_id, chapter_id, status, pages_total, pages_done, updated_at) " +
-                "VALUES ('src', 'm1', 'c1', 'DONE', 2, 2, 1000)",
+                    "VALUES ('src', 'm1', 'c1', 'DONE', 2, 2, 1000)",
             0,
         )
 
@@ -90,7 +90,7 @@ class MigrationTest {
         driver.execute(
             null,
             "INSERT INTO installed_source(source_id, name, bundle_sha256, installed_at) " +
-                "VALUES ('FlameComics', 'Flame Comics', 'abc123', 1000)",
+                    "VALUES ('FlameComics', 'Flame Comics', 'abc123', 1000)",
             0,
         )
 
@@ -184,13 +184,13 @@ class MigrationTest {
         driver.execute(
             null,
             "INSERT INTO chapter_cache(source_id, manga_id, chapter_id, number, title, published_at, position) " +
-                "VALUES ('src', 'm1', 'c1', 1.0, 'Ch. 1', 1000, 0)",
+                    "VALUES ('src', 'm1', 'c1', 1.0, 'Ch. 1', 1000, 0)",
             0,
         )
         driver.execute(
             null,
             "INSERT INTO library_item(source_id, manga_id, title, cover, added_at, chapter_count) " +
-                "VALUES ('src', 'm1', 'Solo Leveling', NULL, 500, 3)",
+                    "VALUES ('src', 'm1', 'Solo Leveling', NULL, 500, 3)",
             0,
         )
 
@@ -215,7 +215,8 @@ class MigrationTest {
             position = 1,
             first_seen_at = 1500,
         )
-        val newChapterRow = db.catalog_cacheQueries.selectChapterCache("src", "m1").executeAsList().first { it.chapter_id == "c2" }
+        val newChapterRow =
+            db.catalog_cacheQueries.selectChapterCache("src", "m1").executeAsList().first { it.chapter_id == "c2" }
         assertEquals(1500L, newChapterRow.first_seen_at)
 
         db.libraryQueries.markOpened(last_opened_at = 999, source_id = "src", manga_id = "m1")
@@ -248,15 +249,15 @@ class MigrationTest {
         migrated.execute(
             null,
             "CREATE TABLE download (source_id TEXT NOT NULL, manga_id TEXT NOT NULL, " +
-                "chapter_id TEXT NOT NULL, status TEXT NOT NULL, pages_total INTEGER NOT NULL, " +
-                "pages_done INTEGER NOT NULL, updated_at INTEGER NOT NULL, " +
-                "PRIMARY KEY(source_id, manga_id, chapter_id))",
+                    "chapter_id TEXT NOT NULL, status TEXT NOT NULL, pages_total INTEGER NOT NULL, " +
+                    "pages_done INTEGER NOT NULL, updated_at INTEGER NOT NULL, " +
+                    "PRIMARY KEY(source_id, manga_id, chapter_id))",
             0,
         )
         migrated.execute(
             null,
             "CREATE TABLE installed_source (source_id TEXT NOT NULL PRIMARY KEY, " +
-                "name TEXT NOT NULL, bundle_sha256 TEXT NOT NULL, installed_at INTEGER NOT NULL)",
+                    "name TEXT NOT NULL, bundle_sha256 TEXT NOT NULL, installed_at INTEGER NOT NULL)",
             0,
         )
         MangoDatabase.Schema.migrate(migrated, 1, 3)

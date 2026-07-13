@@ -210,10 +210,10 @@ class ScreenScreenshotsTest {
             entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling"),
             authors = listOf("Chugong", "Redice Studio"),
             description = "Ten years ago, after \"the Gate\" that connected the real world with the " +
-                "monster world opened, some of the ordinary, everyday people received the power to " +
-                "hunt monsters within the Gate. They are known as \"Hunters\". Sung Jinwoo, the " +
-                "weakest hunter of all mankind, finds himself in a mysterious double dungeon one day. " +
-                "There he discovers a hidden system that only he can see and use.",
+                    "monster world opened, some of the ordinary, everyday people received the power to " +
+                    "hunt monsters within the Gate. They are known as \"Hunters\". Sung Jinwoo, the " +
+                    "weakest hunter of all mankind, finds himself in a mysterious double dungeon one day. " +
+                    "There he discovers a hidden system that only he can see and use.",
             status = MangaStatus.ONGOING,
             tags = listOf("Action", "Fantasy", "Adventure", "Drama"),
         )
@@ -225,6 +225,7 @@ class ScreenScreenshotsTest {
                 publishedAt = Clock.System.now(),
             )
         }
+
         // One chapter per download state so the render exercises the whole row vocabulary:
         // done (✓), running (pages + spinner), queued, failed (retry glyph).
         fun download(chapterId: String, status: DownloadStatus, done: Int = 0, total: Int = 0) = Download(
@@ -237,6 +238,7 @@ class ScreenScreenshotsTest {
             pagesTotal = total,
             pagesDone = done,
         )
+
         val file = Screenshots.render("details") {
             ProvideMangoTheme(MangoDark) {
                 DetailsScreenContent(
