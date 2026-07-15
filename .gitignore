@@ -6,3 +6,4 @@ local.properties
 *.debug.log
 debug.log
 app/debug.log
+tools/bundle-pretty/
