@@ -7,8 +7,8 @@ import kotlin.test.assertTrue
 
 /**
  * Replays the recorded read-path fixtures through [PaperbackExtension], per source.
- * MangaBat only: Toonily's one budgeted recording run hit a non-200 on its first request
- * (Cloudflare-protected Madara site), so there are no Toonily fixtures to replay — see
+ * MangaBat only: other Cloudflare-fronted Madara sources' one budgeted recording run hit a
+ * non-200 on their first request, so there are no fixtures to replay for them — see
  * docs/compatibility.md.
  */
 class ReadPathMatrixTest {

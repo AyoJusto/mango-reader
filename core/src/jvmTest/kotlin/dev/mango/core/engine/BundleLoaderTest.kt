@@ -26,8 +26,6 @@ const val VERSIONING_SHA256 = "adc1923c9760b85e020fcdc1688f28956605b3415a4627c1a
 private val FIXTURE_REGISTRY: Map<String, Pair<String, String>> = mapOf(
     FLAME_COMICS_FIXTURE to ("FlameComics/index.js" to FLAME_COMICS_SHA256),
     MANGABAT_FIXTURE to ("MangaBat/index.js" to MANGABAT_SHA256),
-    TOONILY_FIXTURE to ("Toonily/index.js" to TOONILY_SHA256),
-    WEBTOONXYZ_FIXTURE to ("WebtoonXYZ/index.js" to WEBTOONXYZ_SHA256),
     "versioning.json" to ("versioning.json" to VERSIONING_SHA256),
 )
 

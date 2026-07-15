@@ -6,12 +6,11 @@ import kotlin.test.assertTrue
 
 /**
  * Offline boot/surface check across the full bundle matrix (FlameComics, MangaBat,
- * Toonily, WebtoonXYZ): extends BundleBootTest's pattern, which stays FlameComics-only,
- * over every source. Zero network — verify + evaluate + initialise() + method surface only.
+ * Synthetic): extends BundleBootTest's pattern, which stays FlameComics-only, over every
+ * source. Zero network — verify + evaluate + initialise() + method surface only.
  */
 class BundleMatrixTest {
-    private fun verifyBootSurface(sourceId: String, fixture: String, sha256: String) = runBlocking {
-        val bundleJs = BundleLoader.verify(readFixture(fixture), sha256)
+    private fun verifyBootSurface(sourceId: String, bundleJs: String) = runBlocking {
         ExtensionRuntime(bundleJs).withExtension { handle ->
             val extension = handle.extension(sourceId)
             assertTrue(extension.hasMembers(), "[$sourceId] expected a pre-instantiated extension object")
@@ -38,17 +37,13 @@ class BundleMatrixTest {
 
     @Test
     fun flameComicsBootsAndExposesSurface() =
-        verifyBootSurface("FlameComics", FLAME_COMICS_FIXTURE, FLAME_COMICS_SHA256)
+        verifyBootSurface("FlameComics", BundleLoader.verify(readFixture(FLAME_COMICS_FIXTURE), FLAME_COMICS_SHA256))
 
     @Test
     fun mangaBatBootsAndExposesSurface() =
-        verifyBootSurface("MangaBat", MANGABAT_FIXTURE, MANGABAT_SHA256)
+        verifyBootSurface("MangaBat", BundleLoader.verify(readFixture(MANGABAT_FIXTURE), MANGABAT_SHA256))
 
     @Test
-    fun toonilyBootsAndExposesSurface() =
-        verifyBootSurface("Toonily", TOONILY_FIXTURE, TOONILY_SHA256)
-
-    @Test
-    fun webtoonXyzBootsAndExposesSurface() =
-        verifyBootSurface("WebtoonXYZ", WEBTOONXYZ_FIXTURE, WEBTOONXYZ_SHA256)
+    fun syntheticBootsAndExposesSurface() =
+        verifyBootSurface("Synthetic", syntheticBundle)
 }

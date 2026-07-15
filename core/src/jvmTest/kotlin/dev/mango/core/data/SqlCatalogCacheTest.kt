@@ -107,12 +107,12 @@ class SqlCatalogCacheTest {
         val cache = newCache()
 
         cache.put("MangaBat", "m1", details, chapters)
-        cache.put("Toonily", "m1", details.copy(entry = entry.copy(title = "Different Title")), listOf(chapters[0]))
+        cache.put("SourceB", "m1", details.copy(entry = entry.copy(title = "Different Title")), listOf(chapters[0]))
 
         assertEquals("Solo Leveling", cache.get("MangaBat", "m1")?.details?.entry?.title)
-        assertEquals("Different Title", cache.get("Toonily", "m1")?.details?.entry?.title)
+        assertEquals("Different Title", cache.get("SourceB", "m1")?.details?.entry?.title)
         assertEquals(2, cache.get("MangaBat", "m1")?.chapters?.size)
-        assertEquals(1, cache.get("Toonily", "m1")?.chapters?.size)
+        assertEquals(1, cache.get("SourceB", "m1")?.chapters?.size)
     }
 
     @Test

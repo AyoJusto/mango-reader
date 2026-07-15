@@ -83,6 +83,6 @@ class CookieStoreTest {
         val db = newDb()
         SqlCookieStore(db, "MangaBat").put(StoredCookie(name = "session", value = "abc", domain = "example.com"))
 
-        assertTrue(SqlCookieStore(db, "Toonily").cookiesFor("example.com").isEmpty())
+        assertTrue(SqlCookieStore(db, "SourceB").cookiesFor("example.com").isEmpty())
     }
 }

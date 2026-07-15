@@ -167,12 +167,12 @@ class LibraryUpdaterTest {
 
     @Test
     fun oneSourceThrowingMarksOnlyItsSeriesFailedAndOthersStillGetChecked() = runTest {
-        val workingSeries = "Toonily" to "m1"
+        val workingSeries = "SourceB" to "m1"
         val failingSeriesOne = "MangaBat" to "m1"
         val failingSeriesTwo = "MangaBat" to "m2"
         val library = FakeLibraryRepository(
             listOf(
-                LibraryItem(entry("Toonily", "m1"), kotlin.time.Instant.fromEpochMilliseconds(0)),
+                LibraryItem(entry("SourceB", "m1"), kotlin.time.Instant.fromEpochMilliseconds(0)),
                 LibraryItem(entry("MangaBat", "m1"), kotlin.time.Instant.fromEpochMilliseconds(0)),
                 LibraryItem(entry("MangaBat", "m2"), kotlin.time.Instant.fromEpochMilliseconds(0)),
             ),
@@ -183,7 +183,7 @@ class LibraryUpdaterTest {
                 failingSeriesOne to listOf(chapter("c1")),
                 failingSeriesTwo to listOf(chapter("c1")),
             ),
-            detailsBySeries = mapOf(workingSeries to details("Toonily", "m1")),
+            detailsBySeries = mapOf(workingSeries to details("SourceB", "m1")),
             failingSourceIds = setOf("MangaBat"),
         )
         val cache = FakeCatalogCache()

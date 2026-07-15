@@ -56,10 +56,6 @@ object RecordedHttp {
 
 internal const val MANGABAT_FIXTURE = "MangaBat.index.js"
 internal const val MANGABAT_SHA256 = "ec9a212b2ebc2354619bc30ef24836e838eebc51a50a42eccd9e733211d3d08f"
-internal const val TOONILY_FIXTURE = "Toonily.index.js"
-internal const val TOONILY_SHA256 = "22aaade46f110a4eb27a9355d373c09d6ea4ad61f9af3478883fd6a38dd323ae"
-internal const val WEBTOONXYZ_FIXTURE = "WebtoonXYZ.index.js"
-internal const val WEBTOONXYZ_SHA256 = "a15b60c2435f25fd17212f2c9cef24c63a413380371341e353f43008cc271a91"
 
 internal val flameComicsBundle: String by lazy {
     BundleLoader.verify(readFixture(FLAME_COMICS_FIXTURE), FLAME_COMICS_SHA256)
@@ -69,12 +65,12 @@ internal val mangaBatBundle: String by lazy {
     BundleLoader.verify(readFixture(MANGABAT_FIXTURE), MANGABAT_SHA256)
 }
 
-internal val toonilyBundle: String by lazy {
-    BundleLoader.verify(readFixture(TOONILY_FIXTURE), TOONILY_SHA256)
-}
-
-internal val webtoonXyzBundle: String by lazy {
-    BundleLoader.verify(readFixture(WEBTOONXYZ_FIXTURE), WEBTOONXYZ_SHA256)
+/** First-party bundle committed to the repo, loaded straight off the test classpath — no download, no sha pin. */
+internal val syntheticBundle: String by lazy {
+    Thread.currentThread().contextClassLoader.getResourceAsStream("fixtures/Synthetic.index.js")
+        ?.readBytes()
+        ?.toString(Charsets.UTF_8)
+        ?: error("missing fixtures/Synthetic.index.js on the test classpath")
 }
 
 /** initialise() + getSearchResults through the full runtime, raw result as JsonObject. */

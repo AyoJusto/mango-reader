@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Tag
  *
  * Tagged "live": excluded from normal runs (opens a real browser window). Run on demand:
  *   .\gradlew.bat :app:jvmTest -Plive --tests *LiveChallengeSmokeTest*
- * CEF installs into a persistent cache dir, so only the first ever run downloads it. toonily's
+ * CEF installs into a persistent cache dir, so only the first ever run downloads it. MangaBat's
  * managed challenge auto-passes in a real browser, so it runs unattended; if a source ever
  * shows an interactive checkbox, click it and the harvest completes.
  */
@@ -40,13 +40,13 @@ class LiveChallengeSmokeTest {
         val solver = JcefChallengeSolver(jcef, catalog, cookieStoreFor = { SqlCookieStore(db, it) })
 
         try {
-            val ok = runBlocking { solver.solve("Toonily", "https://toonily.com") }
+            val ok = runBlocking { solver.solve("MangaBat", "https://www.mangabats.com") }
             assertTrue(ok, "expected the solver to harvest clearance")
 
-            val cookies = runBlocking { SqlCookieStore(db, "Toonily").cookiesFor("toonily.com") }
+            val cookies = runBlocking { SqlCookieStore(db, "MangaBat").cookiesFor("mangabats.com") }
             println("SMOKE harvested cookies: ${cookies.map { it.name }}")
             assertTrue(cookies.any { it.name == "cf_clearance" }, "expected cf_clearance in the jar")
-            assertTrue(catalog.userAgentsBySourceId["Toonily"] != null, "expected the UA to be pinned")
+            assertTrue(catalog.userAgentsBySourceId["MangaBat"] != null, "expected the UA to be pinned")
 
             // the end-to-end proof harvesting alone doesn't give: the clearance must also
             // satisfy Cloudflare when replayed by the JVM HTTP stack (same UA + IP; the
@@ -54,7 +54,7 @@ class LiveChallengeSmokeTest {
             // unit regression test bundleHeaderNamesAreCanonicalizedOnTheWire, not here.
             runBlocking {
                 io.ktor.client.HttpClient(io.ktor.client.engine.cio.CIO).use { http ->
-                    val response = http.get("https://toonily.com/") {
+                    val response = http.get("https://www.mangabats.com/") {
                         header(
                             io.ktor.http.HttpHeaders.Cookie,
                             cookies.joinToString("; ") { "${it.name}=${it.value}" },

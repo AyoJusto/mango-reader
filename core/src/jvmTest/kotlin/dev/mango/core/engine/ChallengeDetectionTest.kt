@@ -18,19 +18,6 @@ import kotlin.test.assertFailsWith
  */
 class ChallengeDetectionTest {
     @Test
-    fun toonily403WithRecaptchaBodySurfacesAsCloudflareChallenge() = runBlocking {
-        val challengedSite = HttpClient(MockEngine {
-            respond(
-                "<html>please solve this recaptcha to continue</html>".encodeToByteArray(),
-                HttpStatusCode.Forbidden,
-            )
-        })
-        val extension = PaperbackExtension("Toonily", toonilyBundle, ApplicationHost(http = challengedSite))
-        assertFailsWith<ChallengeRequiredException> { extension.search("solo") }
-        Unit
-    }
-
-    @Test
     fun mangaBatCfMitigatedHeaderSurfacesAsCloudflareChallenge() = runBlocking {
         val challengedSite = HttpClient(MockEngine {
             respond(
@@ -45,8 +32,21 @@ class ChallengeDetectionTest {
     }
 
     @Test
-    fun wireCasedChallengeHeaderIsStillDetected() = runBlocking {
-        // webtoon.xyz serves `Cf-Mitigated: challenge` (wire casing); bundles look up the
+    fun synthetic403WithRecaptchaBodySurfacesAsCloudflareChallenge() = runBlocking {
+        val challengedSite = HttpClient(MockEngine {
+            respond(
+                "<html>please solve this recaptcha to continue</html>".encodeToByteArray(),
+                HttpStatusCode.Forbidden,
+            )
+        })
+        val extension = PaperbackExtension("Synthetic", syntheticBundle, ApplicationHost(http = challengedSite))
+        assertFailsWith<ChallengeRequiredException> { extension.search("solo") }
+        Unit
+    }
+
+    @Test
+    fun syntheticWireCasedChallengeHeaderIsStillDetected() = runBlocking {
+        // real sites have served `Cf-Mitigated: challenge` (wire casing); bundles look up the
         // lowercase key, so the host must normalize or detection silently misses
         val challengedSite = HttpClient(MockEngine {
             respond(
@@ -55,8 +55,7 @@ class ChallengeDetectionTest {
                 headersOf("Cf-Mitigated", "challenge"),
             )
         })
-        val extension =
-            PaperbackExtension("WebtoonXYZ", webtoonXyzBundle, ApplicationHost(http = challengedSite))
+        val extension = PaperbackExtension("Synthetic", syntheticBundle, ApplicationHost(http = challengedSite))
         assertFailsWith<ChallengeRequiredException> { extension.search("solo") }
         Unit
     }

@@ -106,10 +106,10 @@ class LibraryRepositoryTest {
         val repo = newRepository()
 
         repo.setProgress("MangaBat", "m1", "c1", page = 3)
-        repo.setProgress("Toonily", "m1", "c1", page = 9)
+        repo.setProgress("SourceB", "m1", "c1", page = 9)
 
         assertEquals(3, repo.progress("MangaBat", "m1", "c1")?.page)
-        assertEquals(9, repo.progress("Toonily", "m1", "c1")?.page)
+        assertEquals(9, repo.progress("SourceB", "m1", "c1")?.page)
     }
 
     @Test

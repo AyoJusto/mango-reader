@@ -28,15 +28,15 @@ class ExtensionsScreenTest {
         val available = listOf(
             AvailableSource(sourceId = "FlameComics", name = "Flame Comics", version = "1.0.0", language = "en"),
             AvailableSource(sourceId = "MangaBat", name = "MangaBat", version = "2.0.0", language = "en"),
-            AvailableSource(sourceId = "Toonily", name = "Toonily", version = "3.0.0", language = "en"),
-            AvailableSource(sourceId = "WebtoonXYZ", name = "WebtoonXYZ", version = "1.5.0", language = "en"),
+            AvailableSource(sourceId = "SourceA", name = "SourceA", version = "3.0.0", language = "en"),
+            AvailableSource(sourceId = "SourceB", name = "SourceB", version = "1.5.0", language = "en"),
         )
         // FlameComics: not installed -> "Install"
         // MangaBat: installed at the current version -> "Installed"
-        // Toonily: installed at an older version -> "Update to 3.0.0"
-        // WebtoonXYZ: install in flight -> spinner
-        val installed = mapOf("MangaBat" to "2.0.0", "Toonily" to "2.9.0")
-        val busy = setOf("WebtoonXYZ")
+        // SourceA: installed at an older version -> "Update to 3.0.0"
+        // SourceB: install in flight -> spinner
+        val installed = mapOf("MangaBat" to "2.0.0", "SourceA" to "2.9.0")
+        val busy = setOf("SourceB")
 
         val file = Screenshots.render("extensions") {
             ProvideMangoTheme(MangoDark) {

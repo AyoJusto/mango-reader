@@ -61,7 +61,7 @@ class ApplicationHostTest {
     @Test
     fun bundleHeaderNamesAreCanonicalizedOnTheWire() = runBlocking {
         // bundles send h2-style lowercase names; over HTTP/1.1 that casing is a bot
-        // fingerprint — Cloudflare challenges the request (found live against toonily)
+        // fingerprint — Cloudflare challenges the request (found live against a Madara source)
         var wireNames: List<String>? = null
         val engine = MockEngine { request ->
             wireNames = request.headers.entries().map { it.key }

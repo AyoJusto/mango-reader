@@ -331,10 +331,11 @@ De-risk the unknown before building around it.
   unwrapped crash paths on malformed stubs/types/results now named ExtensionDataException,
   genres-skip moved before dedupe so a genres stub can't swallow a real section's id, plus
   test-oracle and duplication cleanups; rejected: repo-interface default. Replay fixtures
-  recorded for FlameComics/MangaBat/Toonily; WebtoonXYZ excluded (Cloudflare-walled, has no
-  recorded fixtures anywhere — challenge coverage stays in LiveDetectWebtoonXyzTest). Note:
-  the FlameComics homepage fixture is shared across LiveRecord suites; on buildId rotation
-  re-record them together (documented in LiveRecordDiscoverTest).
+  recorded for FlameComics/MangaBat and one other Madara-corpus source; a Cloudflare-walled
+  source was excluded (has no recorded fixtures anywhere — challenge coverage stays in the
+  offline challenge-detection tests). Note: the FlameComics homepage fixture is shared
+  across LiveRecord suites; on buildId rotation re-record them together (documented in
+  LiveRecordDiscoverTest).
   **Chunk (b) DONE (2026-07-11).** Browse: existing source chips act as tabs; per-source
   discover sections load lazily on tab selection (session cache, error retried on
   revisit), rendered as titled cover shelves; search-on-submit overlays a results grid

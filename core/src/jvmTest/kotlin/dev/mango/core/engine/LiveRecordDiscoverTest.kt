@@ -14,9 +14,9 @@ import kotlin.test.assertTrue
  * search/read-path replay suites: when FlameComics rotates its Next.js buildId, re-record
  * ALL FlameComics LiveRecord tests together, never discover alone.
  *
- * WebtoonXYZ is deliberately absent: the site is Cloudflare-challenged (403 on the
- * directory-resolution request) and has no recorded fixtures anywhere in the suite;
- * its challenge coverage lives in [LiveDetectWebtoonXyzTest].
+ * A Cloudflare-challenged source is deliberately absent: 403 on the directory-resolution
+ * request, and it has no recorded fixtures anywhere in the suite; its challenge coverage
+ * lives in [ChallengeDetectionTest].
  */
 @Tag("live")
 class LiveRecordDiscoverTest {
@@ -31,7 +31,4 @@ class LiveRecordDiscoverTest {
 
     @Test
     fun recordMangaBatDiscoverFixtures() = recordDiscover("MangaBat", mangaBatBundle)
-
-    @Test
-    fun recordToonilyDiscoverFixtures() = recordDiscover("Toonily", toonilyBundle)
 }

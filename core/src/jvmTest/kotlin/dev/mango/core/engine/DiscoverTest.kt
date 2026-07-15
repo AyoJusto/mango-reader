@@ -8,11 +8,11 @@ import kotlin.test.assertTrue
 
 /**
  * Offline tests for [PaperbackExtension.getHomeSections], replayed from recorded fixtures
- * plus synthetic inline bundles for the edge cases that need no network at all.
+ * plus inline stub bundles for the edge cases that need no network at all.
  *
- * WebtoonXYZ is excluded from the replay tests: the site is Cloudflare-challenged and has
- * no recorded fixtures anywhere in the suite (same as search); its challenge coverage
- * lives in [LiveDetectWebtoonXyzTest].
+ * A Cloudflare-challenged source has no recorded fixtures anywhere in the suite (same as
+ * search) and is excluded from the replay tests; its challenge coverage lives in
+ * [ChallengeDetectionTest].
  */
 class DiscoverTest {
     private fun homeSectionsReplay(sourceId: String, bundleJs: String) = runBlocking {
@@ -38,9 +38,6 @@ class DiscoverTest {
 
     @Test
     fun mangaBatHomeSectionsReplayFromRecordedFixtures() = homeSectionsReplay("MangaBat", mangaBatBundle)
-
-    @Test
-    fun toonilyHomeSectionsReplayFromRecordedFixtures() = homeSectionsReplay("Toonily", toonilyBundle)
 
     @Test
     fun genresSkipDedupeAndEmptyDropArePinned() = runBlocking {
