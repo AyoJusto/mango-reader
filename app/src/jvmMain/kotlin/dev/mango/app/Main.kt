@@ -11,47 +11,31 @@ import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import dev.mango.app.resources.Res
+import dev.mango.app.resources.mango_icon
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.jetbrains.compose.resources.painterResource
 
 fun main() {
     val graph = AppGraph()
     val settings = Settings(AppGraph.defaultDataDir())
-    // Theme is picked from the Settings screen (or the palette's accent hits); ThemeStore
-    // persists it to disk on every change.
     val themeStore = ThemeStore(AppGraph.defaultDataDir())
     application {
-        // Hoisted into Compose state so picking a theme on the Settings screen applies live,
-        // without restarting the app.
         var theme by remember { mutableStateOf(themeStore.load()) }
-        // Same hoist pattern as theme: the Settings screen's theme dropdown and the palette's
-        // theme hits both read this list, and it advances whenever an import or a delete
-        // changes what ThemeStore has on disk.
         var themeLibrary by remember { mutableStateOf(themeStore.list()) }
-        // Same hoist pattern as theme: the Settings screen's slider applies live, without
-        // restarting the app.
         var autoScrollSpeed by remember { mutableStateOf(settings.autoScrollSpeed) }
-        // Same hoist pattern as autoScrollSpeed: the Settings screen's strip-width slider
-        // applies live, without restarting the app.
         var stripWidthDp by remember { mutableStateOf(settings.stripWidth) }
-        // Same hoist pattern again: the Settings screen's hide-cursor toggle applies live.
         var hideCursorInReader by remember { mutableStateOf(settings.hideCursorInReader) }
-        // Same hoist pattern again: the Settings screen's segmented control and the palette's
-        // toggle action both apply live, without restarting the app.
         var libraryView by remember { mutableStateOf(settings.libraryView) }
-        // Same hoist pattern again: the Settings screen's App font dropdown applies live.
         var fontFamilyName by remember { mutableStateOf(settings.fontFamilyName) }
-        // Same hoist pattern again: the Library header's "checked X ago" caption applies live.
         var libraryCheckedAt by remember { mutableStateOf(settings.libraryCheckedAt) }
-        // Same hoist pattern again: the Search tab's Recent list and its palette "Clear" action
-        // both apply live.
         var searchHistory by remember { mutableStateOf(settings.searchHistory) }
         // Enumerating a few hundred system font families isn't free; do it once, off the UI
         // thread. The dropdown shows only "System default" until the list lands.
@@ -73,7 +57,7 @@ fun main() {
         Window(
             onCloseRequest = { graph.dispose(); exitApplication() },
             title = "mango",
-            icon = painterResource("mango-icon.svg"),
+            icon = painterResource(Res.drawable.mango_icon),
             state = windowState,
             onPreviewKeyEvent = { keyEvent ->
                 when {

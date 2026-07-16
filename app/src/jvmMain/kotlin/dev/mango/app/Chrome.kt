@@ -29,7 +29,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.res.painterResource
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.LibraryBooks
 import androidx.compose.material.icons.automirrored.outlined.ViewSidebar
@@ -61,6 +60,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import dev.mango.app.resources.Res
+import dev.mango.app.resources.mango_icon
+import org.jetbrains.compose.resources.painterResource
 import java.awt.Frame
 import java.lang.reflect.Method
 import java.util.logging.Level
@@ -166,7 +168,7 @@ fun MangoTitleBar(jbrBar: JbrBar?, sidebarOpen: Boolean, onToggleSidebar: () -> 
     ) {
         Spacer(modifier = Modifier.width(12.dp))
         Image(
-            painter = painterResource("mango-icon.svg"),
+            painter = painterResource(Res.drawable.mango_icon),
             contentDescription = null,
             modifier = Modifier.size(18.dp),
         )

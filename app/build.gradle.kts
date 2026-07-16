@@ -14,6 +14,7 @@ kotlin {
             implementation(compose.desktop.currentOs)
             implementation(compose.material3)
             implementation(compose.materialIconsExtended)
+            implementation(compose.components.resources)
             // real backdrop blur (frosted sidebar panel) — Compose has no built-in
             // way to blur only the region behind an overlay
             implementation(libs.haze)
@@ -81,6 +82,13 @@ fun quietNativeWarningArgs(major: Int) = buildList {
 }
 
 val jbrHome = providers.gradleProperty("mango.jbrHome").orNull
+
+compose.resources {
+    packageOfResClass = "dev.mango.app.resources"
+    // Auto-detection looks for the resources dependency on commonMain; this module is
+    // JVM-only and declares it on jvmMain instead, so ask explicitly.
+    generateResClass = always
+}
 
 compose.desktop {
     application {
