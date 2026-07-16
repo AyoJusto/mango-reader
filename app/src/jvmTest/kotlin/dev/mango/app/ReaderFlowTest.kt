@@ -29,6 +29,7 @@ import dev.mango.core.domain.HomeSection
 import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
 import dev.mango.core.domain.Page
+import dev.mango.core.domain.SourceHeaderPolicy
 import dev.mango.core.domain.SourceInfo
 import dev.mango.core.engine.DefaultSourceHeaderPolicy
 import java.nio.file.Files
@@ -70,6 +71,19 @@ private class FailingPagesCatalogRepository(
 
     override suspend fun setUserAgent(sourceId: String, userAgent: String) = delegate.setUserAgent(sourceId, userAgent)
     override suspend fun uninstall(sourceId: String) = delegate.uninstall(sourceId)
+}
+
+/**
+ * Rewrites every page's url with a fixed suffix, headers untouched — proves [ReaderScreen]'s
+ * pageContent hook observes a header policy's URL rewrite, not just its header merge (which
+ * [headerPolicyPinsUserAgentOntoPagesDeliveredToPageContent] already covers).
+ */
+private class UrlRewritingHeaderPolicy(private val suffix: String) : SourceHeaderPolicy {
+    override suspend fun headersFor(sourceId: String, url: String, headers: Map<String, String>): Map<String, String> =
+        headers
+
+    override suspend fun withPolicyHeaders(sourceId: String, pages: List<Page>): List<Page> =
+        pages.map { it.copy(url = it.url + suffix) }
 }
 
 /**
@@ -669,5 +683,38 @@ class ReaderFlowTest {
         rule.waitForIdle()
 
         assertEquals("Pinned/1.0", deliveredHeaders?.get("User-Agent"))
+    }
+
+    // Prepared page urls (interceptor-rewritten, e.g. a signed CDN url) must reach the renderer,
+    // not just prepared headers.
+    @Test
+    fun headerPolicyUrlRewriteReachesPageContent() {
+        val library = FakeLibraryRepository()
+        val policy = UrlRewritingHeaderPolicy(suffix = "?signed")
+        var deliveredUrl: String? = null
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                ReaderScreen(
+                    sourceId = SOURCE_ID,
+                    mangaId = MANGA_ID,
+                    chapterId = CHAPTER_ID,
+                    chapters = listOf(Chapter(CHAPTER_ID, number = 1.0)),
+                    catalog = catalogWithPages(),
+                    downloads = FakeDownloadManager(),
+                    library = library,
+                    challengeSolver = FakeChallengeSolver(),
+                    onBack = {},
+                    onToggleFullscreen = {},
+                    headerPolicy = policy,
+                    pageContent = { page ->
+                        if (page.index == 0) deliveredUrl = page.url
+                        FakePageContent(page)
+                    },
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        assertEquals("${fakePages[0].url}?signed", deliveredUrl)
     }
 }

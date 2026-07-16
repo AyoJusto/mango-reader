@@ -129,6 +129,7 @@ class AppGraph(dataDir: Path = defaultDataDir()) {
                     db.sourcesQueries.selectInstalledSource(sourceId).executeAsOneOrNull()?.user_agent
                 }
             },
+            interceptRequests = { sourceId, requests -> catalog.prepareImageRequests(sourceId, requests) },
         )
         downloads = FileDownloadManager(
             db = db,

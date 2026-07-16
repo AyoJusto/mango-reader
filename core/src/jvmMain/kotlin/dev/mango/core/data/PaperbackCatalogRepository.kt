@@ -8,6 +8,7 @@ import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
 import dev.mango.core.domain.MangaSource
 import dev.mango.core.domain.Page
+import dev.mango.core.domain.SourceImageRequest
 import dev.mango.core.domain.SourceInfo
 import dev.mango.core.engine.BundleLoader
 import java.nio.file.Files
@@ -94,6 +95,11 @@ class PaperbackCatalogRepository(
 
     override suspend fun pages(sourceId: String, mangaId: String, chapterId: String): List<Page> =
         resolveSource(sourceId).getPages(mangaId, chapterId)
+
+    override suspend fun prepareImageRequests(
+        sourceId: String,
+        requests: List<SourceImageRequest>,
+    ): List<SourceImageRequest> = resolveSource(sourceId).prepareImageRequests(requests)
 
     override suspend fun setUserAgent(sourceId: String, userAgent: String) = withContext(context) {
         requireSafeSourceId(sourceId)

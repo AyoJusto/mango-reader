@@ -14,6 +14,10 @@ interface SourceHeaderPolicy {
      * jar on a name collision. Any failure reading the jar, resolving the User-Agent, or parsing
      * [url] degrades to the canonicalized [headers] — a policy fault here must never sink an
      * image the site would otherwise have served.
+     *
+     * Deliberately runs no source interceptor: covers load one-by-one per composable, and a
+     * fresh interceptor context per cover is real cost for a hypothetical — no known source needs
+     * intercepted covers. [withPolicyHeaders] is the batched path that does.
      */
     suspend fun headersFor(sourceId: String, url: String, headers: Map<String, String>): Map<String, String>
 

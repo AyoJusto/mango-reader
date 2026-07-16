@@ -26,6 +26,13 @@ interface CatalogRepository {
     suspend fun chapters(sourceId: String, mangaId: String): List<Chapter>
     suspend fun pages(sourceId: String, mangaId: String, chapterId: String): List<Page>
 
+    /**
+     * [requests] with [sourceId]'s [MangaSource.prepareImageRequests] applied. Default identity:
+     * a caller with no live source to resolve (most test fakes) sees the batch unchanged.
+     */
+    suspend fun prepareImageRequests(sourceId: String, requests: List<SourceImageRequest>): List<SourceImageRequest> =
+        requests
+
     /** Pins the UA used for [sourceId]'s host requests (cf_clearance is UA-bound). Evicts the source's cached engine instance. */
     suspend fun setUserAgent(sourceId: String, userAgent: String)
 

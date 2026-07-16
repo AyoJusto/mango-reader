@@ -4,6 +4,8 @@ import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import dev.mango.core.data.SqlCookieStore
 import dev.mango.core.db.MangoDatabase
 import dev.mango.core.domain.CookieStore
+import dev.mango.core.domain.Page
+import dev.mango.core.domain.SourceImageRequest
 import dev.mango.core.domain.StoredCookie
 import java.util.Properties
 import kotlin.test.Test
@@ -30,7 +32,8 @@ class SourceHeaderPolicyTest {
     private fun policy(
         store: CookieStore = newStore(),
         userAgent: suspend (String) -> String? = { null },
-    ) = DefaultSourceHeaderPolicy(cookieStoreFor = { store }, userAgentFor = userAgent)
+        interceptRequests: (suspend (String, List<SourceImageRequest>) -> List<SourceImageRequest>)? = null,
+    ) = DefaultSourceHeaderPolicy(cookieStoreFor = { store }, userAgentFor = userAgent, interceptRequests = interceptRequests)
 
     @Test
     fun pinnedUserAgentFillsInWhenHeadersLackOne() = runBlocking {
@@ -107,5 +110,79 @@ class SourceHeaderPolicyTest {
         )
 
         assertEquals(mapOf("Referer" to "https://example.com"), result)
+    }
+
+    @Test
+    fun withPolicyHeadersAppliesTheInterceptedUrlAndMergesHeadersOntoThePage() = runBlocking {
+        val result = policy(
+            userAgent = { "Pinned/1.0" },
+            interceptRequests = { _, requests ->
+                requests.map { it.copy(url = it.url + "?signed", headers = it.headers + ("X-Marker" to "1")) }
+            },
+        ).withPolicyHeaders("src", listOf(Page(index = 0, url = "https://example.com/a.jpg")))
+
+        val page = result.single()
+        assertEquals("https://example.com/a.jpg?signed", page.url)
+        assertEquals("1", page.headers["X-Marker"])
+        assertEquals("Pinned/1.0", page.headers["User-Agent"])
+    }
+
+    @Test
+    fun interceptorCookiePairOverridesJarPairOnNameCollision() = runBlocking {
+        val store = newStore()
+        store.put(StoredCookie(name = "session", value = "stale", domain = "example.com"))
+        val result = policy(
+            store = store,
+            interceptRequests = { _, requests -> requests.map { it.copy(headers = it.headers + ("Cookie" to "session=fresh")) } },
+        ).withPolicyHeaders("src", listOf(Page(index = 0, url = "https://example.com/a.jpg")))
+
+        assertEquals("session=fresh", result.single().headers["Cookie"])
+    }
+
+    @Test
+    fun pinnedUserAgentStillAppliesWhenTheInterceptorSetsNone() = runBlocking {
+        val result = policy(
+            userAgent = { "Pinned/1.0" },
+            interceptRequests = { _, requests -> requests },
+        ).withPolicyHeaders("src", listOf(Page(index = 0, url = "https://example.com/a.jpg")))
+
+        assertEquals("Pinned/1.0", result.single().headers["User-Agent"])
+    }
+
+    @Test
+    fun aMisSizedInterceptBatchDegradesEveryPageInsteadOfPairingByIndex() = runBlocking {
+        val result = policy(
+            userAgent = { "Pinned/1.0" },
+            interceptRequests = { _, requests -> requests.take(1).map { it.copy(url = it.url + "?signed") } },
+        ).withPolicyHeaders(
+            "src",
+            listOf(
+                Page(index = 0, url = "https://example.com/a.jpg"),
+                Page(index = 1, url = "https://example.com/b.jpg"),
+            ),
+        )
+
+        assertEquals(listOf("https://example.com/a.jpg", "https://example.com/b.jpg"), result.map { it.url })
+        assertEquals("Pinned/1.0", result.first().headers["User-Agent"])
+    }
+
+    @Test
+    fun aThrowingInterceptBatchDegradesToJarAndUserAgentOnlyPages() = runBlocking {
+        val store = newStore()
+        store.put(StoredCookie(name = "cf_clearance", value = "token", domain = "example.com"))
+        val result = policy(
+            store = store,
+            userAgent = { "Pinned/1.0" },
+            interceptRequests = { _, _ -> error("batch boom") },
+        ).withPolicyHeaders(
+            "src",
+            listOf(Page(index = 0, url = "https://example.com/a.jpg", headers = mapOf("Referer" to "https://example.com"))),
+        )
+
+        val page = result.single()
+        assertEquals("https://example.com/a.jpg", page.url)
+        assertEquals("Pinned/1.0", page.headers["User-Agent"])
+        assertEquals("https://example.com", page.headers["Referer"])
+        assertEquals("cf_clearance=token", page.headers["Cookie"])
     }
 }

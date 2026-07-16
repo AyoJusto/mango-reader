@@ -1,17 +1,27 @@
 package dev.mango.core.engine
 
 import dev.mango.core.domain.ChallengeRequiredException
+import dev.mango.core.domain.SourceImageRequest
+import io.ktor.http.HttpHeaders
+import java.util.logging.Level
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
 import org.graalvm.polyglot.Context
 import org.graalvm.polyglot.Engine
 import org.graalvm.polyglot.PolyglotException
 import org.graalvm.polyglot.Source
 import org.graalvm.polyglot.Value
 import org.graalvm.polyglot.proxy.ProxyExecutable
+import org.graalvm.polyglot.proxy.ProxyObject
 
 class ExtensionCallException(message: String, cause: Throwable? = null) :
     Exception(message, cause)
@@ -108,6 +118,8 @@ class ExtensionHandle internal constructor(
     val source: Value,
     private val application: ApplicationHost.ApplicationProxy,
 ) {
+    private val log = java.util.logging.Logger.getLogger(ExtensionHandle::class.java.name)
+
     val registeredInterceptors: Int get() = application.interceptors.size
 
     fun extension(sourceId: String): Value =
@@ -138,6 +150,68 @@ class ExtensionHandle internal constructor(
         val settled = invokeAwait(target, method, *args)
         val serialized = context.eval("js", "JSON").invokeMember("stringify", settled)
         return if (serialized.isNull) "null" else serialized.asString()
+    }
+
+    /**
+     * Runs the registered request-interceptor chain (see
+     * [ApplicationHost.ApplicationProxy.interceptRequest]) against each of [requests], in order,
+     * settling via [awaitPromise] — valid here because this is an outermost host->guest call,
+     * the same boundary [invokeAwait] uses. Header names are lowercased before entering the
+     * chain: bundles do exact lowercase header lookups. A `cookies` array on the settled request
+     * folds into the headers map as a Cookie header, so a header policy's own jar/caller merge
+     * sees it as a caller-supplied pair. A per-item failure — a thrown interceptor, or a promise
+     * that never settles — degrades that item to its own input request: an interceptor fault
+     * must never sink an image the site would have served.
+     */
+    fun runRequestInterceptors(requests: List<SourceImageRequest>): List<SourceImageRequest> =
+        requests.map { request ->
+            try {
+                interceptOne(request)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                log.log(Level.WARNING, "interceptor degraded to input request for ${request.url}", e)
+                request
+            }
+        }
+
+    private fun interceptOne(request: SourceImageRequest): SourceImageRequest {
+        val syntheticRequest = ProxyObject.fromMap(
+            mapOf(
+                "url" to request.url,
+                "headers" to ProxyObject.fromMap(request.headers.mapKeys { (name, _) -> name.lowercase() }),
+            )
+        )
+        val settled = awaitPromise(context, application.interceptRequest(syntheticRequest), "interceptRequest")
+        val serialized = context.eval("js", "JSON").invokeMember("stringify", settled)
+        val result = Json.parseToJsonElement(if (serialized.isNull) "null" else serialized.asString()).jsonObject
+        val url = (result["url"] as? JsonPrimitive)?.contentOrNull ?: request.url
+        val headers = (result["headers"] as? JsonObject).orEmpty()
+            .mapNotNull { (name, value) -> (value as? JsonPrimitive)?.contentOrNull?.let { name to it } }
+            .toMap()
+        return SourceImageRequest(url = url, headers = foldCookiesIntoHeaders(headers, result["cookies"] as? JsonArray))
+    }
+
+    private fun foldCookiesIntoHeaders(headers: Map<String, String>, cookies: JsonArray?): Map<String, String> {
+        if (cookies.isNullOrEmpty()) return headers
+        val cookiePairs = linkedMapOf<String, String>()
+        val existingCookieKey = headers.keys.firstOrNull { it.equals(HttpHeaders.Cookie, ignoreCase = true) }
+        existingCookieKey?.let { key ->
+            headers.getValue(key).split(';').forEach { part ->
+                val trimmed = part.trim()
+                val separator = trimmed.indexOf('=')
+                if (separator >= 0) cookiePairs[trimmed.substring(0, separator)] = trimmed.substring(separator + 1)
+            }
+        }
+        cookies.forEach { element ->
+            val obj = element as? JsonObject ?: return@forEach
+            val name = (obj["name"] as? JsonPrimitive)?.contentOrNull ?: return@forEach
+            val value = (obj["value"] as? JsonPrimitive)?.contentOrNull ?: return@forEach
+            cookiePairs[name] = value
+        }
+        val result = headers.filterKeys { !it.equals(HttpHeaders.Cookie, ignoreCase = true) }.toMutableMap()
+        result[HttpHeaders.Cookie] = cookiePairs.entries.joinToString("; ") { "${it.key}=${it.value}" }
+        return result
     }
 
     private fun awaitIfPromise(value: Value, what: String): Value = awaitPromise(context, value, what)

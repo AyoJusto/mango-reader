@@ -382,4 +382,38 @@ class DownloadManagerTest {
         assertEquals("cf_clearance=token", headers[HttpHeaders.Cookie])
         assertEquals("Pinned/1.0", headers[HttpHeaders.UserAgent])
     }
+
+    @Test
+    fun interceptedRequestsRewriteTheWireUrlAndHeadersForDownloadedPages() = runTest {
+        val root = Files.createTempDirectory("downloads-test")
+        val page = Page(index = 0, url = "https://cdn.example/c1/0.jpg")
+        val rewrittenUrl = "https://cdn.example/c1/0-signed.jpg"
+        val recorded = mutableListOf<HttpRequestData>()
+
+        val cookieDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())
+        MangoDatabase.Schema.create(cookieDriver)
+        val cookieStore = SqlCookieStore(MangoDatabase(cookieDriver), "src")
+        val policy = DefaultSourceHeaderPolicy(
+            cookieStoreFor = { cookieStore },
+            userAgentFor = { null },
+            interceptRequests = { _, requests ->
+                requests.map { it.copy(url = rewrittenUrl, headers = it.headers + ("X-Signed" to "1")) }
+            },
+        )
+        val manager = newManager(
+            FakeCatalogRepository(mapOf("src/m1/c1" to listOf(page))),
+            mockClient(mapOf(rewrittenUrl to byteArrayOf(1)), recorded = recorded),
+            root,
+            headerPolicy = policy,
+        )
+
+        manager.enqueue(entry("src", "m1"), chapter("c1"))
+        manager.processQueue()
+
+        val request = recorded.single()
+        assertEquals(rewrittenUrl, request.url.toString())
+        assertEquals("1", request.headers["X-Signed"])
+        assertEquals(DownloadStatus.DONE, manager.observeDownloads().first().single().status)
+        assertTrue(Files.exists(root.resolve("src/m1/c1/0000.jpg")))
+    }
 }
