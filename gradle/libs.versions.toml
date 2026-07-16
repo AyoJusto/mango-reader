@@ -6,6 +6,8 @@ coroutines = "1.11.0"
 serialization = "1.11.0"
 sqldelight = "2.3.2"
 compose = "1.11.1"
+compose-material3 = "1.9.0"
+compose-material-icons-extended = "1.7.3"
 coil = "3.5.0"
 slf4j = "2.0.17"
 jcef = "143.0.14"
@@ -32,6 +34,10 @@ slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
 jcefmaven = { module = "me.friwi:jcefmaven", version.ref = "jcef" }
 haze = { module = "dev.chrisbanes.haze:haze", version.ref = "haze" }
 junit-vintage-engine = { module = "org.junit.vintage:junit-vintage-engine", version.ref = "junit-vintage" }
+compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "compose-material3" }
+compose-material-icons-extended = { module = "org.jetbrains.compose.material:material-icons-extended", version.ref = "compose-material-icons-extended" }
+compose-components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "compose" }
+compose-ui-test-junit4 = { module = "org.jetbrains.compose.ui:ui-test-junit4", version.ref = "compose" }
 
 [plugins]
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }

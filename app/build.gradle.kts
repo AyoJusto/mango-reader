@@ -12,9 +12,9 @@ kotlin {
         jvmMain.dependencies {
             implementation(project(":core"))
             implementation(compose.desktop.currentOs)
-            implementation(compose.material3)
-            implementation(compose.materialIconsExtended)
-            implementation(compose.components.resources)
+            implementation(libs.compose.material3)
+            implementation(libs.compose.material.icons.extended)
+            implementation(libs.compose.components.resources)
             // real backdrop blur (frosted sidebar panel) — Compose has no built-in
             // way to blur only the region behind an overlay
             implementation(libs.haze)
@@ -36,7 +36,7 @@ kotlin {
         }
         jvmTest.dependencies {
             implementation(libs.kotlin.test)
-            implementation(compose.desktop.uiTestJUnit4)
+            implementation(libs.compose.ui.test.junit4)
             // uiTestJUnit4 tests are JUnit4; without the vintage engine the JUnit5 platform
             // silently discovers zero tests in them and the suite "passes" without running
             runtimeOnly(libs.junit.vintage.engine)
