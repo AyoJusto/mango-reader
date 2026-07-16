@@ -380,7 +380,7 @@ private fun ContinueCard(item: ContinueItem, onClick: () -> Unit) {
         ) {
             if (item.cover != null) {
                 AsyncImage(
-                    model = item.cover,
+                    model = rememberCoverRequest(item.sourceId, item.cover),
                     contentDescription = item.title,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),

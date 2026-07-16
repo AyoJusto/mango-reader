@@ -198,7 +198,7 @@ private fun SearchResultRow(entry: MangaEntry, onClick: () -> Unit) {
             val cover = entry.cover
             if (cover != null) {
                 AsyncImage(
-                    model = cover,
+                    model = rememberCoverRequest(entry.sourceId, cover),
                     contentDescription = entry.title,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),

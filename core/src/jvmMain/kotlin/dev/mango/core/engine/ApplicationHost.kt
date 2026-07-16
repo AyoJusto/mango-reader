@@ -42,10 +42,12 @@ import kotlin.time.Duration.Companion.milliseconds
 // Extensions' scrapers are written against what sites serve to Paperback on iOS, so the
 // default UA is a plain mobile Safari one (the official polyfills randomize a mobile UA;
 // nothing advertises Paperback). Injectable because some sources may need a specific UA.
+internal const val DEFAULT_USER_AGENT =
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+
 class ApplicationHost(
     private val http: HttpClient? = null,
-    private val userAgent: String =
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+    private val userAgent: String = DEFAULT_USER_AGENT,
     private val onResponse: ((url: String, status: Int, body: ByteArray) -> Unit)? = null,
     private val minRequestIntervalMillis: Long = 500,
     private val requestTimeoutMillis: Long = 30_000,
@@ -369,24 +371,6 @@ class ApplicationHost(
         if (waitMillis > 0) delay(waitMillis.milliseconds)
     }
 
-    /**
-     * Bundles write h2/iOS-style lowercase header names ("user-agent"); sent verbatim over
-     * this client's HTTP/1.1 connection, that casing is a non-browser fingerprint — Cloudflare
-     * challenges the request even with valid cf_clearance (verified live: byte-identical
-     * requests get a 200 title-cased, a 403 lowercased). Normalize to canonical h1 casing at
-     * the wire boundary; the JS-facing side keeps lowercase (bundles do exact lowercase lookups).
-     *
-     * Only all-lowercase names are rewritten: a bundle that wrote "DNT" or "X-API-Key"
-     * chose its casing deliberately and passes through verbatim. Chrome emits sec-* client
-     * hints lowercase even over h1, so those stay lowercase too — title-casing them would
-     * reintroduce the same fingerprint bug on a different header set.
-     */
-    private fun canonicalHeaderName(name: String): String = when {
-        name.any { it.isUpperCase() } -> name
-        name.startsWith("sec-") -> name
-        else -> name.split('-').joinToString("-") { part -> part.replaceFirstChar { it.uppercaseChar() } }
-    }
-
     private suspend fun execute(
         client: HttpClient,
         request: Value,
@@ -429,6 +413,24 @@ class ApplicationHost(
             }
         }
     }
+}
+
+/**
+ * Bundles write h2/iOS-style lowercase header names ("user-agent"); sent verbatim over
+ * this client's HTTP/1.1 connection, that casing is a non-browser fingerprint — Cloudflare
+ * challenges the request even with valid cf_clearance (verified live: byte-identical
+ * requests get a 200 title-cased, a 403 lowercased). Normalize to canonical h1 casing at
+ * the wire boundary; the JS-facing side keeps lowercase (bundles do exact lowercase lookups).
+ *
+ * Only all-lowercase names are rewritten: a bundle that wrote "DNT" or "X-API-Key"
+ * chose its casing deliberately and passes through verbatim. Chrome emits sec-* client
+ * hints lowercase even over h1, so those stay lowercase too — title-casing them would
+ * reintroduce the same fingerprint bug on a different header set.
+ */
+internal fun canonicalHeaderName(name: String): String = when {
+    name.any { it.isUpperCase() } -> name
+    name.startsWith("sec-") -> name
+    else -> name.split('-').joinToString("-") { part -> part.replaceFirstChar { it.uppercaseChar() } }
 }
 
 /** Decodes the five XML entities plus numeric `&#NNN;` / `&#xHH;` forms. No dependency. */

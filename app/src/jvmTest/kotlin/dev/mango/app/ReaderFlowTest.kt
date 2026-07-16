@@ -30,6 +30,7 @@ import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
 import dev.mango.core.domain.Page
 import dev.mango.core.domain.SourceInfo
+import dev.mango.core.engine.DefaultSourceHeaderPolicy
 import java.nio.file.Files
 import kotlinx.coroutines.runBlocking
 import kotlin.test.assertEquals
@@ -635,5 +636,38 @@ class ReaderFlowTest {
         rule.waitForIdle()
 
         assertTrue(textVisible("1 / 5"), "expected Prev to stop auto-scroll and re-anchor at ch-1's top")
+    }
+
+    // Image fetches bypass ApplicationHost, so ReaderScreen is the one place left to apply the
+    // per-source header policy to pages before they reach a renderer.
+    @Test
+    fun headerPolicyPinsUserAgentOntoPagesDeliveredToPageContent() {
+        val library = FakeLibraryRepository()
+        val policy = DefaultSourceHeaderPolicy(cookieStoreFor = { NoOpCookieStore() }, userAgentFor = { "Pinned/1.0" })
+        var deliveredHeaders: Map<String, String>? = null
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                ReaderScreen(
+                    sourceId = SOURCE_ID,
+                    mangaId = MANGA_ID,
+                    chapterId = CHAPTER_ID,
+                    chapters = listOf(Chapter(CHAPTER_ID, number = 1.0)),
+                    catalog = catalogWithPages(),
+                    downloads = FakeDownloadManager(),
+                    library = library,
+                    challengeSolver = FakeChallengeSolver(),
+                    onBack = {},
+                    onToggleFullscreen = {},
+                    headerPolicy = policy,
+                    pageContent = { page ->
+                        if (page.index == 0) deliveredHeaders = page.headers
+                        FakePageContent(page)
+                    },
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        assertEquals("Pinned/1.0", deliveredHeaders?.get("User-Agent"))
     }
 }

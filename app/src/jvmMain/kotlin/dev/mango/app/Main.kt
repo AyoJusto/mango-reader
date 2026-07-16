@@ -110,6 +110,7 @@ fun main() {
                     graph.extensions,
                     graph.challengeSolver,
                     graph.catalogCache,
+                    headerPolicy = graph.headerPolicy,
                     theme = theme,
                     onThemeChange = { theme = it; themeStore.save(it) },
                     themeLibrary = themeLibrary,

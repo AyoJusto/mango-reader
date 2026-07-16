@@ -59,6 +59,7 @@ import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.LibraryRepository
 import dev.mango.core.domain.Page
+import dev.mango.core.domain.SourceHeaderPolicy
 import java.awt.Point
 import java.awt.Toolkit
 import java.awt.image.BufferedImage
@@ -161,12 +162,14 @@ private suspend fun loadChapterPages(
     chapterId: String,
     catalog: CatalogRepository,
     downloads: DownloadManager,
+    headerPolicy: SourceHeaderPolicy?,
 ): Pair<List<Page>, Boolean> {
     val local = downloads.localPages(sourceId, mangaId, chapterId)
     return if (local != null) {
         local.mapIndexed { index, path -> Page(index = index, url = path) } to true
     } else {
-        catalog.pages(sourceId, mangaId, chapterId) to false
+        val pages = catalog.pages(sourceId, mangaId, chapterId)
+        (headerPolicy?.withPolicyHeaders(sourceId, pages) ?: pages) to false
     }
 }
 
@@ -199,6 +202,9 @@ fun ReaderScreen(
     // The reading strip's width; a user-facing width slider is not wired yet.
     stripWidthDp: Float = DEFAULT_STRIP_WIDTH_DP,
     pageContent: (@Composable (Page) -> Unit)? = null,
+    // Optional hook, same style as pageContent: applies the source's cookie jar and pinned/
+    // default User-Agent to fetched pages. Production wires the real policy; tests leave it null.
+    headerPolicy: SourceHeaderPolicy? = null,
     // While the palette overlay is up it owns the keyboard; when it closes the reader must
     // re-request focus or its shortcuts stay dead (focus went to the palette's field)
     paletteVisible: Boolean = false,
@@ -266,7 +272,8 @@ fun ReaderScreen(
     suspend fun appendNextSegment(next: Chapter) {
         nextLoad = NextLoadState.Loading
         try {
-            val (loadedPages, isOffline) = loadChapterPages(sourceId, mangaId, next.chapterId, catalog, downloads)
+            val (loadedPages, isOffline) =
+                loadChapterPages(sourceId, mangaId, next.chapterId, catalog, downloads, headerPolicy)
             segments = segments + ChapterSegment(next, next.chapterId, loadedPages, isOffline)
             nextLoad = NextLoadState.Idle
         } catch (e: CancellationException) {
@@ -314,7 +321,8 @@ fun ReaderScreen(
         challengeUrl = null
         try {
             savedPage = library.progress(sourceId, mangaId, anchorChapterId)?.page
-            val (loadedPages, isOffline) = loadChapterPages(sourceId, mangaId, anchorChapterId, catalog, downloads)
+            val (loadedPages, isOffline) =
+                loadChapterPages(sourceId, mangaId, anchorChapterId, catalog, downloads, headerPolicy)
             segments = listOf(
                 ChapterSegment(
                     chapter = chapters.find { it.chapterId == anchorChapterId },

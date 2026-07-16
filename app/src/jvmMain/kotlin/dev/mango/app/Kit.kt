@@ -57,8 +57,10 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -90,6 +92,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.network.NetworkHeaders
+import coil3.network.httpHeaders
+import coil3.request.ImageRequest
+import dev.mango.core.domain.SourceHeaderPolicy
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.seconds
 
@@ -585,6 +592,31 @@ private fun SegmentedControlOption(text: String, selected: Boolean, onClick: () 
     }
 }
 
+/** The active [SourceHeaderPolicy] for cover fetches; null outside of [AppShell] (e.g. tests, previews). */
+val LocalSourceHeaderPolicy = staticCompositionLocalOf<SourceHeaderPolicy?> { null }
+
+/**
+ * The Coil request for a cover image at [url], scoped to [sourceId]. With no [LocalSourceHeaderPolicy]
+ * provided this is a plain request (today's behavior); with one, the request is withheld (null)
+ * until [SourceHeaderPolicy.headersFor] resolves the source's cookie jar and User-Agent, so no
+ * cookieless request ever reaches the site.
+ */
+@Composable
+fun rememberCoverRequest(sourceId: String, url: String?): ImageRequest? {
+    if (url == null) return null
+    val context = LocalPlatformContext.current
+    val plainRequest = remember(url) { ImageRequest.Builder(context).data(url).build() }
+    val policy = LocalSourceHeaderPolicy.current ?: return plainRequest
+    val state = produceState<ImageRequest?>(initialValue = null, sourceId, url, policy) {
+        val headers = policy.headersFor(sourceId, url, emptyMap())
+        val networkHeaders = NetworkHeaders.Builder().apply {
+            headers.forEach { (name, value) -> set(name, value) }
+        }.build()
+        value = ImageRequest.Builder(context).data(url).httpHeaders(networkHeaders).build()
+    }
+    return state.value
+}
+
 /**
  * The Library/Browse cover-card grammar: a 2:3 cover with a title and meta line beneath. Rest
  * shows an unread-count pill; hovering scales the cover up and reveals a scrim with the meta
@@ -594,6 +626,7 @@ private fun SegmentedControlOption(text: String, selected: Boolean, onClick: () 
 fun CoverCard(
     title: String,
     coverUrl: String?,
+    sourceId: String,
     metaLine: String,
     unreadCount: Int?,
     progress: Float?,
@@ -647,7 +680,7 @@ fun CoverCard(
         ) {
             if (coverUrl != null) {
                 AsyncImage(
-                    model = coverUrl,
+                    model = rememberCoverRequest(sourceId, coverUrl),
                     contentDescription = title,
                     contentScale = ContentScale.Crop,
                     // Only the artwork dims when finished; the ✓ pill above stays crisp.
