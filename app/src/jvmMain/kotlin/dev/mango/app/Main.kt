@@ -31,6 +31,10 @@ fun main() {
         // Hoisted into Compose state so picking a theme on the Settings screen applies live,
         // without restarting the app.
         var theme by remember { mutableStateOf(themeStore.load()) }
+        // Same hoist pattern as theme: the Settings screen's theme dropdown and the palette's
+        // theme hits both read this list, and it advances whenever an import or a delete
+        // changes what ThemeStore has on disk.
+        var themeLibrary by remember { mutableStateOf(themeStore.list()) }
         // Same hoist pattern as theme: the Settings screen's slider applies live, without
         // restarting the app.
         var autoScrollSpeed by remember { mutableStateOf(settings.autoScrollSpeed) }
@@ -124,6 +128,22 @@ fun main() {
                     graph.catalogCache,
                     theme = theme,
                     onThemeChange = { theme = it; themeStore.save(it) },
+                    themeLibrary = themeLibrary,
+                    onThemeImport = { imported ->
+                        val err = themeStore.saveImported(imported)
+                        if (err == null) {
+                            themeLibrary = themeStore.list()
+                            theme = imported
+                            themeStore.save(imported)
+                        }
+                        err
+                    },
+                    onThemeDelete = {
+                        themeStore.deleteImported(theme.name)
+                        themeLibrary = themeStore.list()
+                        theme = MangoDark
+                        themeStore.save(MangoDark)
+                    },
                     autoScrollSpeed = autoScrollSpeed,
                     onAutoScrollSpeedChange = { autoScrollSpeed = it; settings.autoScrollSpeed = it },
                     stripWidthDp = stripWidthDp,

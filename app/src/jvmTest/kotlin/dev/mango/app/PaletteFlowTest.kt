@@ -365,6 +365,55 @@ class PaletteFlowTest {
         assertEquals(MangoDark.bg0, appliedTheme.bg0)
     }
 
+    // Dynamic completeness: one "Theme: <name>" hit per library entry, so a future import with
+    // no matching provider output fails loudly here. Also covers the end-to-end behavior:
+    // selecting one applies that exact library entry (the accent-reset path).
+    @Test
+    fun everyThemeInTheLibrarySurfacesADynamicPaletteHitAndSelectingOneAppliesIt() {
+        val library = FakeLibraryRepository(libraryItems())
+        val palette = PaletteState()
+        val custom = MangoDark.copy(name = "Custom Theme", accent = ACCENT_PRESETS.first { it.first == "Violet" }.second)
+        var appliedTheme: MangoTheme = MangoDark
+
+        rule.setContent {
+            var theme by remember { mutableStateOf(MangoDark) }
+            ProvideMangoTheme(theme) {
+                AppShell(
+                    library,
+                    FakeCatalogRepository(),
+                    FakeDownloadManager(),
+                    theme = theme,
+                    onThemeChange = { theme = it; appliedTheme = it },
+                    themeLibrary = listOf(MangoDark, custom),
+                    palette = palette,
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        palette.visible = true
+        rule.waitForIdle()
+
+        // Narrow to the "Theme:" prefix first — same rationale as the accent completeness test
+        // above: the unfiltered "All" list only composes what's within the viewport.
+        rule.onNodeWithText("Search everywhere…").performTextInput("Theme:")
+        rule.waitForIdle()
+
+        rule.onNode(hasText("Theme: ${MangoDark.name}") and inPalette).assertExists()
+        rule.onNode(hasText("Theme: ${custom.name}") and inPalette).assertExists()
+
+        rule.onNodeWithText("Theme:").performTextClearance()
+        rule.waitForIdle()
+        rule.onNodeWithText("Search everywhere…").performTextInput("Theme: Custom Theme")
+        rule.waitForIdle()
+
+        rule.onRoot().performKeyInput { pressKey(Key.Enter) }
+        rule.waitForIdle()
+
+        assertFalse(palette.visible)
+        assertEquals(custom, appliedTheme)
+    }
+
     // Completeness test for the one-off actions registry: the sidebar toggle must surface a
     // palette hit, and running it must actually open the sidebar (search-everywhere rule).
     @Test

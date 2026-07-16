@@ -107,6 +107,9 @@ fun AppShell(
     catalogCache: CatalogCache = NoOpCatalogCache,
     theme: MangoTheme = MangoDark,
     onThemeChange: (MangoTheme) -> Unit = {},
+    themeLibrary: List<MangoTheme> = listOf(MangoDark),
+    onThemeImport: (MangoTheme) -> String? = { null },
+    onThemeDelete: () -> Unit = {},
     autoScrollSpeed: Float = 120f,
     onAutoScrollSpeedChange: (Float) -> Unit = {},
     stripWidthDp: Float = 880f,
@@ -293,6 +296,9 @@ fun AppShell(
                             Screen.Settings -> SettingsScreenContent(
                                 theme = theme,
                                 onThemeChange = onThemeChange,
+                                themeLibrary = themeLibrary,
+                                onThemeImport = onThemeImport,
+                                onThemeDelete = onThemeDelete,
                                 autoScrollSpeed = autoScrollSpeed,
                                 onAutoScrollSpeedChange = onAutoScrollSpeedChange,
                                 stripWidth = stripWidthDp,
@@ -382,15 +388,17 @@ fun AppShell(
             // time, not the value captured when the tab list was remembered below.
             val currentSidebarOpen by rememberUpdatedState(sidebarOpen)
             val currentLibraryView by rememberUpdatedState(libraryView)
-            // keyed on theme (not plain remember{}): the accent provider closes over the current
-            // theme by value, so a theme change must rebuild the tab list or its hits would apply
-            // an accent on top of a stale, already-replaced theme
-            val tabs = remember(theme, collections) {
+            // keyed on theme and themeLibrary (not plain remember{}): the accent and theme
+            // providers close over the current theme and library by value, so either changing
+            // must rebuild the tab list or its hits would apply a stale theme, or one already
+            // deleted from the library
+            val tabs = remember(theme, themeLibrary, collections) {
                 paletteTabs(
                     library = library,
                     navigate = { target -> screen = target },
                     theme = theme,
                     onThemeChange = onThemeChange,
+                    themes = themeLibrary,
                     onToggleSidebar = { onSidebarChange(!currentSidebarOpen) },
                     onToggleLibraryView = {
                         onLibraryViewChange(if (currentLibraryView == LIBRARY_VIEW_LIST) LIBRARY_VIEW_GRID else LIBRARY_VIEW_LIST)

@@ -515,6 +515,21 @@ private fun accentProvider(theme: MangoTheme, onThemeChange: (MangoTheme) -> Uni
         }
     }
 
+/**
+ * Every theme in the library as a palette hit; run applies the pristine library entry — the
+ * same accent-reset path as picking one from the Settings screen's dropdown.
+ */
+private fun themeProvider(themes: List<MangoTheme>, onThemeChange: (MangoTheme) -> Unit): PaletteProvider =
+    PaletteProvider { _ ->
+        themes.map { entry ->
+            PaletteHit(
+                category = "Appearance",
+                title = "Theme: ${entry.name}",
+                run = { onThemeChange(entry) },
+            )
+        }
+    }
+
 /** One-off app actions as palette hits; run invokes the callback threaded from the shell. */
 private fun actionsProvider(
     onToggleSidebar: () -> Unit,
@@ -579,6 +594,7 @@ fun paletteTabs(
     navigate: (Screen) -> Unit,
     theme: MangoTheme,
     onThemeChange: (MangoTheme) -> Unit,
+    themes: List<MangoTheme> = listOf(MangoDark),
     onToggleSidebar: () -> Unit = {},
     onToggleLibraryView: () -> Unit = {},
     onCheckForUpdates: () -> Unit = {},
@@ -589,6 +605,7 @@ fun paletteTabs(
 ): List<PaletteTab> {
     val screens = screenProvider(navigate)
     val accents = accentProvider(theme, onThemeChange)
+    val themeHits = themeProvider(themes, onThemeChange)
     val manhwa = libraryProvider(library, navigate)
     val settings = settingsProvider(navigate)
     val actions = actionsProvider(
@@ -600,8 +617,8 @@ fun paletteTabs(
     )
     val shelves = collectionsProvider(collections, onSelectCollection)
     return listOf(
-        PaletteTab("All", listOf(screens, accents, manhwa, settings, actions, shelves)),
+        PaletteTab("All", listOf(screens, accents, themeHits, manhwa, settings, actions, shelves)),
         PaletteTab("Manhwa", listOf(manhwa)),
-        PaletteTab("Actions", listOf(screens, accents, settings, actions, shelves)),
+        PaletteTab("Actions", listOf(screens, accents, themeHits, settings, actions, shelves)),
     )
 }

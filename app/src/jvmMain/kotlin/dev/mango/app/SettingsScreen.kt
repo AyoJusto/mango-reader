@@ -50,6 +50,7 @@ import kotlin.math.roundToInt
  */
 val SETTINGS_ENTRIES = listOf(
     "Theme",
+    "Remove theme",
     "Accent",
     "App font",
     "Export theme",
@@ -83,6 +84,9 @@ internal fun settingsEntryTag(title: String): String = "settings-entry-$title"
 fun SettingsScreenContent(
     theme: MangoTheme,
     onThemeChange: (MangoTheme) -> Unit,
+    themeLibrary: List<MangoTheme> = listOf(MangoDark),
+    onThemeImport: (MangoTheme) -> String? = { null },
+    onThemeDelete: () -> Unit = {},
     autoScrollSpeed: Float = 120f,
     onAutoScrollSpeedChange: (Float) -> Unit = {},
     stripWidth: Float = 880f,
@@ -111,9 +115,33 @@ fun SettingsScreenContent(
                     SettingsRow(
                         title = "Theme",
                         subtitle = "${theme.name} · yours to edit",
-                        modifier = Modifier.testTag(settingsEntryTag("Theme")),
                     ) {
-                        Column(horizontalAlignment = Alignment.End) {
+                        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(MangoSpace.xs)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs),
+                            ) {
+                                // A stored theme no longer in the library (deleted from under it)
+                                // shows as the library's first entry rather than a stale name the
+                                // dropdown can't honor — same stance as the App font dropdown.
+                                val options = themeLibrary.map { it.name }
+                                val shownThemeName = theme.name.takeIf { it in options } ?: options.first()
+                                KitDropdown(
+                                    selected = shownThemeName,
+                                    options = options,
+                                    onSelect = { picked ->
+                                        themeLibrary.firstOrNull { it.name == picked }?.let(onThemeChange)
+                                    },
+                                    modifier = Modifier.testTag(settingsEntryTag("Theme")),
+                                )
+                                KitButton(
+                                    label = "Remove",
+                                    style = KitButtonStyle.DANGER,
+                                    enabled = theme.name != MangoDark.name,
+                                    modifier = Modifier.testTag(settingsEntryTag("Remove theme")),
+                                    onClick = onThemeDelete,
+                                )
+                            }
                             Row(horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs)) {
                                 KitButton(
                                     label = "Export .json",
@@ -152,11 +180,7 @@ fun SettingsScreenContent(
                                                 ThemeResult.Error("failed to read ${chooser.selectedFile.name}: ${e.message}")
                                             }
                                             when (outcome) {
-                                                is ThemeResult.Ok -> {
-                                                    importError = null
-                                                    onThemeChange(outcome.theme)
-                                                }
-
+                                                is ThemeResult.Ok -> importError = onThemeImport(outcome.theme)
                                                 is ThemeResult.Error -> importError = outcome.message
                                             }
                                         }

@@ -1,10 +1,13 @@
 package dev.mango.app
 
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -81,5 +84,65 @@ class SettingsScreenTest {
         SETTINGS_ENTRIES.forEach { title ->
             rule.onNodeWithTag(settingsEntryTag(title)).assertExists()
         }
+    }
+
+    @Test
+    fun selectingAThemeFromTheDropdownAppliesThePristineLibraryEntry() {
+        val custom = MangoDark.copy(name = "Custom Theme", accent = ACCENT_PRESETS.first { it.first == "Violet" }.second)
+        var applied: MangoTheme? = null
+
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                SettingsScreenContent(
+                    theme = MangoDark,
+                    onThemeChange = { applied = it },
+                    themeLibrary = listOf(MangoDark, custom),
+                )
+            }
+        }
+
+        rule.onNodeWithTag(settingsEntryTag("Theme")).performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("Custom Theme").performClick()
+        rule.waitForIdle()
+
+        assertEquals(custom, applied)
+    }
+
+    @Test
+    fun removeIsDisabledWhenTheActiveThemeIsMangoDark() {
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                SettingsScreenContent(
+                    theme = MangoDark,
+                    onThemeChange = {},
+                    onThemeDelete = { error("Remove must not fire while Mango Dark is active") },
+                )
+            }
+        }
+
+        rule.onNodeWithTag(settingsEntryTag("Remove theme")).assertIsNotEnabled()
+    }
+
+    @Test
+    fun removeFiresOnThemeDeleteWhenAnImportedThemeIsActive() {
+        val custom = MangoDark.copy(name = "Custom Theme")
+        var deleted = false
+
+        rule.setContent {
+            ProvideMangoTheme(custom) {
+                SettingsScreenContent(
+                    theme = custom,
+                    onThemeChange = {},
+                    themeLibrary = listOf(MangoDark, custom),
+                    onThemeDelete = { deleted = true },
+                )
+            }
+        }
+
+        rule.onNodeWithTag(settingsEntryTag("Remove theme")).assertIsEnabled().performClick()
+        rule.waitForIdle()
+
+        assertTrue(deleted)
     }
 }
