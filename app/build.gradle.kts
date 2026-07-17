@@ -37,6 +37,7 @@ kotlin {
         jvmTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.compose.ui.test.junit4)
+            implementation(libs.ktor.client.mock)
             // uiTestJUnit4 tests are JUnit4; without the vintage engine the JUnit5 platform
             // silently discovers zero tests in them and the suite "passes" without running
             runtimeOnly(libs.junit.vintage.engine)

@@ -13,9 +13,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
@@ -23,6 +26,9 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.unit.dp
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.annotation.DelicateCoilApi
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.HomeSection
@@ -32,6 +38,10 @@ import dev.mango.core.domain.Page
 import dev.mango.core.domain.SourceHeaderPolicy
 import dev.mango.core.domain.SourceInfo
 import dev.mango.core.engine.DefaultSourceHeaderPolicy
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.HttpStatusCode
 import java.nio.file.Files
 import kotlinx.coroutines.runBlocking
 import kotlin.test.assertEquals
@@ -716,5 +726,63 @@ class ReaderFlowTest {
         rule.waitForIdle()
 
         assertEquals("${fakePages[0].url}?signed", deliveredUrl)
+    }
+
+    // Regression: without an error slot, a failed Coil load rendered zero height, which the
+    // completion heuristic below (last PageRow scrolled into/past view) read as "already at the
+    // bottom" — a wall of failed pages instantly (falsely) marked the chapter finished with the
+    // reader never actually scrolled. This composes the real DefaultReaderPage path (no
+    // pageContent override) against a PolicyImageFetcher-equipped loader that 403s every page.
+    // setSafe is first-wins per JVM: reset before installing so an earlier test's loader (if one
+    // already won the singleton) can't silently stay installed and leave this test exercising the
+    // wrong Coil pipeline (no 403s, no error slot, no wall-clock wait to satisfy) — and reset
+    // again on the way out so the 403 loader installed here never leaks to a later test.
+    @OptIn(DelicateCoilApi::class)
+    @Test
+    fun failedPageImagesReserveHeightAndDoNotFalselyFinishTheChapter() {
+        val library = FakeLibraryRepository()
+        val engine = MockEngine { respond(ByteArray(0), HttpStatusCode.Forbidden) }
+        SingletonImageLoader.reset()
+        SingletonImageLoader.setSafe { context ->
+            ImageLoader.Builder(context).components { add(PolicyImageFetcher.Factory(HttpClient(engine))) }.build()
+        }
+        try {
+            rule.setContent {
+                ProvideMangoTheme(MangoDark) {
+                    ReaderScreen(
+                        sourceId = SOURCE_ID,
+                        mangaId = MANGA_ID,
+                        chapterId = CHAPTER_ID,
+                        chapters = listOf(Chapter(CHAPTER_ID, number = 1.0)),
+                        catalog = catalogWithPages(),
+                        downloads = FakeDownloadManager(),
+                        library = library,
+                        challengeSolver = FakeChallengeSolver(),
+                        onBack = {},
+                        onToggleFullscreen = {},
+                    )
+                }
+            }
+
+            // Real (wall-clock) wait: the failed fetch resolves on Coil's own dispatcher, not the
+            // Compose test's virtual clock.
+            rule.waitUntil(timeoutMillis = 10_000) {
+                rule.onAllNodesWithTag("reader-page-error").fetchSemanticsNodes().isNotEmpty()
+            }
+            rule.waitForIdle()
+
+            // The error slot reserves the 3:4 aspect-ratio fallback height (DefaultReaderPage) at
+            // the strip's full width — a real minimum, not the placeholder 1.dp that would also
+            // pass for a near-invisible sliver.
+            rule.onAllNodesWithTag("reader-page-error").onFirst().assertHeightIsAtLeast(100.dp)
+
+            val progress = runBlocking { library.progress(SOURCE_ID, MANGA_ID, CHAPTER_ID) }
+            assertTrue(
+                progress == null || !progress.finished,
+                "expected a screen of only-failed pages, never scrolled, to not be marked finished",
+            )
+        } finally {
+            SingletonImageLoader.reset()
+        }
     }
 }

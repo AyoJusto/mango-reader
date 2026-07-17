@@ -3,7 +3,6 @@ package dev.mango.app
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.test.junit4.v2.createComposeRule
-import coil3.network.httpHeaders
 import coil3.request.ImageRequest
 import dev.mango.core.engine.DefaultSourceHeaderPolicy
 import kotlin.test.assertEquals
@@ -27,7 +26,7 @@ class KitCoverRequestTest {
         }
         rule.waitForIdle()
 
-        assertNull(request?.httpHeaders?.get("User-Agent"))
+        assertNull(request?.policyHeaders)
     }
 
     @Test
@@ -44,6 +43,6 @@ class KitCoverRequestTest {
         }
         rule.waitForIdle()
 
-        assertEquals("Pinned/1.0", request?.httpHeaders?.get("User-Agent"))
+        assertEquals("Pinned/1.0", request?.policyHeaders?.get("User-Agent"))
     }
 }

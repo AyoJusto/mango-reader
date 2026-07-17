@@ -93,8 +93,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
-import coil3.network.NetworkHeaders
-import coil3.network.httpHeaders
 import coil3.request.ImageRequest
 import dev.mango.core.domain.SourceHeaderPolicy
 import kotlinx.coroutines.delay
@@ -609,10 +607,7 @@ fun rememberCoverRequest(sourceId: String, url: String?): ImageRequest? {
     val policy = LocalSourceHeaderPolicy.current ?: return plainRequest
     val state = produceState<ImageRequest?>(initialValue = null, sourceId, url, policy) {
         val headers = policy.headersFor(sourceId, url, emptyMap())
-        val networkHeaders = NetworkHeaders.Builder().apply {
-            headers.forEach { (name, value) -> set(name, value) }
-        }.build()
-        value = ImageRequest.Builder(context).data(url).httpHeaders(networkHeaders).build()
+        value = ImageRequest.Builder(context).data(url).policyHeaders(headers).build()
     }
     return state.value
 }

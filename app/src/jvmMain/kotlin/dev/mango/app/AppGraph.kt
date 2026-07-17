@@ -62,6 +62,7 @@ class AppGraph(dataDir: Path = defaultDataDir()) {
     val extensions: ExtensionRepo
     val challengeSolver: ChallengeSolver
     val headerPolicy: SourceHeaderPolicy
+    val imageFetcherFactory: PolicyImageFetcher.Factory = PolicyImageFetcher.Factory(http)
     private val jcef: JcefManager
 
     init {
