@@ -42,10 +42,12 @@ import kotlin.time.Duration.Companion.milliseconds
 // Extensions' scrapers are written against what sites serve to Paperback on iOS, so the
 // default UA is a plain mobile Safari one (the official polyfills randomize a mobile UA;
 // nothing advertises Paperback). Injectable because some sources may need a specific UA.
+internal const val DEFAULT_USER_AGENT =
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+
 class ApplicationHost(
     private val http: HttpClient? = null,
-    private val userAgent: String =
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+    private val userAgent: String = DEFAULT_USER_AGENT,
     private val onResponse: ((url: String, status: Int, body: ByteArray) -> Unit)? = null,
     private val minRequestIntervalMillis: Long = 500,
     private val requestTimeoutMillis: Long = 30_000,
@@ -84,9 +86,24 @@ class ApplicationHost(
         /** id -> (requestSelectorId, responseSelectorId), invoked by [scheduleRequest] in order. */
         val interceptors = mutableListOf<Triple<String, String, String>>()
 
-        private val json: Value get() = context.eval("js", "JSON")
         private val dateCtor: Value get() = context.eval("js", "Date")
         private val promiseCtor: Value get() = context.eval("js", "Promise")
+
+        // Bundles store Date objects in state (a cookie store's `expires`, saved via
+        // Application.setState) and read them back at module top level on the very next
+        // context, calling e.g. `.getTime()` on them unconditionally. A plain JSON
+        // round-trip turns those into strings, so a fresh context's module evaluation
+        // throws and every subsequent call to the source fails. These wrap Dates in a
+        // sentinel object on the way out and revive them on the way in, otherwise
+        // matching plain JSON.stringify/parse exactly (including dropping undefined).
+        private val stateStringify: Value get() = context.eval(
+            "js",
+            """(v) => JSON.stringify(v, function (k, val) { const o = this[k]; return o instanceof Date ? { "${'$'}mangoDate${'$'}": o.getTime() } : val; })""",
+        )
+        private val stateParse: Value get() = context.eval(
+            "js",
+            """(s) => JSON.parse(s, (k, val) => (val !== null && typeof val === "object" && typeof val["${'$'}mangoDate${'$'}"] === "number") ? new Date(val["${'$'}mangoDate${'$'}"]) : val)""",
+        )
 
         private val members: Map<String, Any?> = mapOf(
             "isResourceLimited" to false,
@@ -94,20 +111,20 @@ class ApplicationHost(
             "filterMatureTitles" to false,
             "getDefaultUserAgent" to ProxyExecutable { userAgent },
             "getState" to ProxyExecutable { args ->
-                state[args[0].asString()]?.let { json.invokeMember("parse", it) }
+                state[args[0].asString()]?.let { stateParse.execute(it) }
             },
             "setState" to ProxyExecutable { args ->
                 // Paperback signature is setState(value, key)
-                val serialized = json.invokeMember("stringify", args[0])
+                val serialized = stateStringify.execute(args[0])
                 if (serialized.isNull) state.remove(args[1].asString())
                 else state[args[1].asString()] = serialized.asString()
                 null
             },
             "getSecureState" to ProxyExecutable { args ->
-                secureState[args[0].asString()]?.let { json.invokeMember("parse", it) }
+                secureState[args[0].asString()]?.let { stateParse.execute(it) }
             },
             "setSecureState" to ProxyExecutable { args ->
-                val serialized = json.invokeMember("stringify", args[0])
+                val serialized = stateStringify.execute(args[0])
                 if (serialized.isNull) secureState.remove(args[1].asString())
                 else secureState[args[1].asString()] = serialized.asString()
                 null
@@ -213,20 +230,11 @@ class ApplicationHost(
             val client = http
                 ?: throw UnsupportedOperationException("this ApplicationHost has no HTTP client")
 
-            // request interceptors run first, in registration order; each may return a
-            // (possibly promised) modified request — url/headers/cookies — which is what
-            // actually gets sent
-            var chain = promiseCtor.invokeMember("resolve", requestArg)
-            for ((_, requestSelectorId, _) in interceptors) {
-                val (target, method) = selectors[requestSelectorId]
-                    ?: throw IllegalArgumentException("unknown selector $requestSelectorId")
-                chain = chain.invokeMember("then", ProxyExecutable { args -> target.invokeMember(method, args[0]) })
-            }
-
             // dispatch runs as a .then() callback: by the time JS's engine invokes it, the
             // request-interceptor chain above has already fully settled, so the blocking
             // HTTP call below can run synchronously (each context owns its thread anyway)
-            var bundle = chain.invokeMember("then", ProxyExecutable { args -> dispatch(client, args[0]) })
+            var bundle = requestInterceptorChain(requestArg)
+                .invokeMember("then", ProxyExecutable { args -> dispatch(client, args[0]) })
 
             // response interceptors run in registration order, each transforming the
             // response data the extension ultimately sees
@@ -253,6 +261,28 @@ class ApplicationHost(
                 ProxyArray.fromArray(args[0].getMember("response"), args[0].getMember("data"))
             })
         }
+
+        /**
+         * Resolves [request], then threads it through each registered interceptor's request
+         * selector in registration order — the same composition [scheduleRequest] chains
+         * dispatch onto. Returns the settled-request promise without dispatching.
+         */
+        private fun requestInterceptorChain(request: Value): Value {
+            var chain = promiseCtor.invokeMember("resolve", request)
+            for ((_, requestSelectorId, _) in interceptors) {
+                val (target, method) = selectors[requestSelectorId]
+                    ?: throw IllegalArgumentException("unknown selector $requestSelectorId")
+                chain = chain.invokeMember("then", ProxyExecutable { args -> target.invokeMember(method, args[0]) })
+            }
+            return chain
+        }
+
+        /**
+         * Chain-without-dispatch: runs the registered request interceptors against a host-built
+         * [request] for a caller outside the extension's own `scheduleRequest` call graph (image
+         * fetch interception). No HTTP call happens here — only [scheduleRequest] dispatches.
+         */
+        internal fun interceptRequest(request: ProxyObject): Value = requestInterceptorChain(context.asValue(request))
 
         /** The actual (blocking) HTTP call, plus building the response/cookies JS sees. */
         private fun dispatch(client: HttpClient, request: Value): ProxyObject {
@@ -369,24 +399,6 @@ class ApplicationHost(
         if (waitMillis > 0) delay(waitMillis.milliseconds)
     }
 
-    /**
-     * Bundles write h2/iOS-style lowercase header names ("user-agent"); sent verbatim over
-     * this client's HTTP/1.1 connection, that casing is a non-browser fingerprint — Cloudflare
-     * challenges the request even with valid cf_clearance (verified live: byte-identical
-     * requests get a 200 title-cased, a 403 lowercased). Normalize to canonical h1 casing at
-     * the wire boundary; the JS-facing side keeps lowercase (bundles do exact lowercase lookups).
-     *
-     * Only all-lowercase names are rewritten: a bundle that wrote "DNT" or "X-API-Key"
-     * chose its casing deliberately and passes through verbatim. Chrome emits sec-* client
-     * hints lowercase even over h1, so those stay lowercase too — title-casing them would
-     * reintroduce the same fingerprint bug on a different header set.
-     */
-    private fun canonicalHeaderName(name: String): String = when {
-        name.any { it.isUpperCase() } -> name
-        name.startsWith("sec-") -> name
-        else -> name.split('-').joinToString("-") { part -> part.replaceFirstChar { it.uppercaseChar() } }
-    }
-
     private suspend fun execute(
         client: HttpClient,
         request: Value,
@@ -429,6 +441,24 @@ class ApplicationHost(
             }
         }
     }
+}
+
+/**
+ * Bundles write h2/iOS-style lowercase header names ("user-agent"); sent verbatim over
+ * this client's HTTP/1.1 connection, that casing is a non-browser fingerprint — Cloudflare
+ * challenges the request even with valid cf_clearance (verified live: byte-identical
+ * requests get a 200 title-cased, a 403 lowercased). Normalize to canonical h1 casing at
+ * the wire boundary; the JS-facing side keeps lowercase (bundles do exact lowercase lookups).
+ *
+ * Only all-lowercase names are rewritten: a bundle that wrote "DNT" or "X-API-Key"
+ * chose its casing deliberately and passes through verbatim. Chrome emits sec-* client
+ * hints lowercase even over h1, so those stay lowercase too — title-casing them would
+ * reintroduce the same fingerprint bug on a different header set.
+ */
+internal fun canonicalHeaderName(name: String): String = when {
+    name.any { it.isUpperCase() } -> name
+    name.startsWith("sec-") -> name
+    else -> name.split('-').joinToString("-") { part -> part.replaceFirstChar { it.uppercaseChar() } }
 }
 
 /** Decodes the five XML entities plus numeric `&#NNN;` / `&#xHH;` forms. No dependency. */

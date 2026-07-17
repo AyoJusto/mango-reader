@@ -193,6 +193,7 @@ fun LibraryScreenContent(
                             CoverCard(
                                 title = item.entry.title,
                                 coverUrl = item.entry.cover,
+                                sourceId = item.entry.sourceId,
                                 metaLine = item.metaLine(),
                                 unreadCount = item.unreadCount,
                                 progress = item.readFraction(),
@@ -237,7 +238,7 @@ private fun LibraryListRow(item: LibraryItem, onClick: () -> Unit) {
             val cover = item.entry.cover
             if (cover != null) {
                 AsyncImage(
-                    model = cover,
+                    model = rememberCoverRequest(item.entry.sourceId, cover),
                     contentDescription = item.entry.title,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),

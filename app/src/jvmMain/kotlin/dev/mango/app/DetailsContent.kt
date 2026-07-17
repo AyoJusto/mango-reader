@@ -274,7 +274,7 @@ private fun DetailsSidebarColumn(
             val cover = details.entry.cover
             if (cover != null) {
                 AsyncImage(
-                    model = cover,
+                    model = rememberCoverRequest(details.entry.sourceId, cover),
                     contentDescription = details.entry.title,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),

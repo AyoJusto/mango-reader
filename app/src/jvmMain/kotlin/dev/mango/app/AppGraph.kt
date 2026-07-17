@@ -18,7 +18,9 @@ import dev.mango.core.domain.ChallengeSolver
 import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.ExtensionRepo
 import dev.mango.core.domain.LibraryRepository
+import dev.mango.core.domain.SourceHeaderPolicy
 import dev.mango.core.engine.ApplicationHost
+import dev.mango.core.engine.DefaultSourceHeaderPolicy
 import dev.mango.core.engine.PaperbackExtension
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
@@ -27,6 +29,8 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.Properties
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private const val HTTP_CONNECT_TIMEOUT_MILLIS = 10_000L
 
@@ -57,6 +61,8 @@ class AppGraph(dataDir: Path = defaultDataDir()) {
     val downloads: DownloadManager
     val extensions: ExtensionRepo
     val challengeSolver: ChallengeSolver
+    val headerPolicy: SourceHeaderPolicy
+    val imageFetcherFactory: PolicyImageFetcher.Factory = PolicyImageFetcher.Factory(http)
     private val jcef: JcefManager
 
     init {
@@ -117,7 +123,22 @@ class AppGraph(dataDir: Path = defaultDataDir()) {
             },
         )
         catalogCache = SqlCatalogCache(db)
-        downloads = FileDownloadManager(db = db, catalog = catalog, http = http, root = downloadsDir)
+        headerPolicy = DefaultSourceHeaderPolicy(
+            cookieStoreFor = { sourceId -> SqlCookieStore(db, sourceId) },
+            userAgentFor = { sourceId ->
+                withContext(Dispatchers.IO) {
+                    db.sourcesQueries.selectInstalledSource(sourceId).executeAsOneOrNull()?.user_agent
+                }
+            },
+            interceptRequests = { sourceId, requests -> catalog.prepareImageRequests(sourceId, requests) },
+        )
+        downloads = FileDownloadManager(
+            db = db,
+            catalog = catalog,
+            http = http,
+            root = downloadsDir,
+            headerPolicy = headerPolicy,
+        )
         extensions = InkdexRepo(http = http, bundleDir = bundleDir, catalog = catalog)
 
         // embedded browser for the Cloudflare solve; CEF downloads into <dataDir>/jcef on

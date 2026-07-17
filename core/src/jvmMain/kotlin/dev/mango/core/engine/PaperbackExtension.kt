@@ -7,6 +7,7 @@ import dev.mango.core.domain.MangaEntry
 import dev.mango.core.domain.MangaSource
 import dev.mango.core.domain.MangaStatus
 import dev.mango.core.domain.Page
+import dev.mango.core.domain.SourceImageRequest
 import kotlin.time.Instant
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -196,6 +197,13 @@ class PaperbackExtension(
                 sections += HomeSection(id = id, title = title, items = entries)
             }
             sections
+        }
+
+    override suspend fun prepareImageRequests(requests: List<SourceImageRequest>): List<SourceImageRequest> =
+        runtime.withExtension { handle ->
+            val extension = handle.extension(sourceId)
+            handle.invokeAwait(extension, "initialise")
+            handle.runRequestInterceptors(requests)
         }
 
     /** The shared search/discover item shape: mangaId + title required, imageUrl optional. */

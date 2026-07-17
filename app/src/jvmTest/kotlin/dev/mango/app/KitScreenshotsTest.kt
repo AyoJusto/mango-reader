@@ -71,6 +71,7 @@ class KitScreenshotsTest {
                         CoverCard(
                             title = "Solo Leveling",
                             coverUrl = null,
+                            sourceId = "src",
                             metaLine = "Ch. 142 · 72%",
                             unreadCount = 3,
                             progress = 0.72f,
@@ -81,6 +82,7 @@ class KitScreenshotsTest {
                         CoverCard(
                             title = "Tower of God",
                             coverUrl = null,
+                            sourceId = "src",
                             metaLine = "Ch. 588",
                             unreadCount = null,
                             progress = null,

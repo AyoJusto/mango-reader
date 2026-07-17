@@ -3,6 +3,7 @@ package dev.mango.app
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.scrollBy
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -43,13 +45,12 @@ import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.compose.LocalPlatformContext
 import coil3.compose.SubcomposeAsyncImage
-import coil3.network.NetworkHeaders
-import coil3.network.httpHeaders
 import coil3.request.ImageRequest
 import coil3.request.maxBitmapSize
 import dev.mango.core.domain.CatalogRepository
@@ -59,6 +60,7 @@ import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.LibraryRepository
 import dev.mango.core.domain.Page
+import dev.mango.core.domain.SourceHeaderPolicy
 import java.awt.Point
 import java.awt.Toolkit
 import java.awt.image.BufferedImage
@@ -161,12 +163,14 @@ private suspend fun loadChapterPages(
     chapterId: String,
     catalog: CatalogRepository,
     downloads: DownloadManager,
+    headerPolicy: SourceHeaderPolicy?,
 ): Pair<List<Page>, Boolean> {
     val local = downloads.localPages(sourceId, mangaId, chapterId)
     return if (local != null) {
         local.mapIndexed { index, path -> Page(index = index, url = path) } to true
     } else {
-        catalog.pages(sourceId, mangaId, chapterId) to false
+        val pages = catalog.pages(sourceId, mangaId, chapterId)
+        (headerPolicy?.withPolicyHeaders(sourceId, pages) ?: pages) to false
     }
 }
 
@@ -199,6 +203,9 @@ fun ReaderScreen(
     // The reading strip's width; a user-facing width slider is not wired yet.
     stripWidthDp: Float = DEFAULT_STRIP_WIDTH_DP,
     pageContent: (@Composable (Page) -> Unit)? = null,
+    // Optional hook, same style as pageContent: applies the source's cookie jar and pinned/
+    // default User-Agent to fetched pages. Production wires the real policy; tests leave it null.
+    headerPolicy: SourceHeaderPolicy? = null,
     // While the palette overlay is up it owns the keyboard; when it closes the reader must
     // re-request focus or its shortcuts stay dead (focus went to the palette's field)
     paletteVisible: Boolean = false,
@@ -266,7 +273,8 @@ fun ReaderScreen(
     suspend fun appendNextSegment(next: Chapter) {
         nextLoad = NextLoadState.Loading
         try {
-            val (loadedPages, isOffline) = loadChapterPages(sourceId, mangaId, next.chapterId, catalog, downloads)
+            val (loadedPages, isOffline) =
+                loadChapterPages(sourceId, mangaId, next.chapterId, catalog, downloads, headerPolicy)
             segments = segments + ChapterSegment(next, next.chapterId, loadedPages, isOffline)
             nextLoad = NextLoadState.Idle
         } catch (e: CancellationException) {
@@ -314,7 +322,8 @@ fun ReaderScreen(
         challengeUrl = null
         try {
             savedPage = library.progress(sourceId, mangaId, anchorChapterId)?.page
-            val (loadedPages, isOffline) = loadChapterPages(sourceId, mangaId, anchorChapterId, catalog, downloads)
+            val (loadedPages, isOffline) =
+                loadChapterPages(sourceId, mangaId, anchorChapterId, catalog, downloads, headerPolicy)
             segments = listOf(
                 ChapterSegment(
                     chapter = chapters.find { it.chapterId == anchorChapterId },
@@ -658,23 +667,23 @@ fun ReaderScreen(
  * Builds the network image request for [page] — shared by [DefaultReaderPage] and the reader's
  * prefetch effect so their headers and decode limits cannot drift apart.
  */
-private fun networkPageRequest(context: PlatformContext, page: Page): ImageRequest {
-    val headers = NetworkHeaders.Builder().apply {
-        page.headers.forEach { (name, value) -> set(name, value) }
-    }.build()
-    return ImageRequest.Builder(context)
+private fun networkPageRequest(context: PlatformContext, page: Page): ImageRequest =
+    ImageRequest.Builder(context)
         .data(page.url)
-        .httpHeaders(headers)
+        .policyHeaders(page.headers)
         // per-request: loader-level cap doesn't reach decode in coil 3.5.0 (ImageLoading.kt)
         .maxBitmapSize(WebtoonMaxBitmapSize)
         .build()
-}
 
 /**
  * Default page renderer: a Coil [SubcomposeAsyncImage] carrying the page's host-required
- * headers (auth, referer) through [httpHeaders]. Plain `AsyncImage`'s placeholder slot only
- * takes a static Painter, so this uses SubcomposeAsyncImage to draw a composable loading box
- * (a tinted panel with a spinner) while a page is in flight.
+ * headers (auth, referer) through [policyHeaders]. Plain `AsyncImage`'s placeholder slot only
+ * takes a static Painter, so this uses SubcomposeAsyncImage to draw composable loading/error
+ * boxes (a tinted panel with a spinner, or a failure label) while a page is in flight or failed.
+ *
+ * The error slot reserves the same height the loading slot would have — a failed page collapsing
+ * to zero height would make it (wrongly) look scrolled past, which is what the reader's
+ * last-page-visible completion heuristic uses to mark a chapter finished.
  *
  * [Page] is reused for offline reading too ([ReaderScreen] fills `url` with a local absolute
  * path when the chapter is fully downloaded). Which branch runs is decided by [local] — the
@@ -684,6 +693,7 @@ private fun networkPageRequest(context: PlatformContext, page: Page): ImageReque
 @Composable
 private fun DefaultReaderPage(page: Page, local: Boolean, aspectRatios: MutableMap<String, Float>) {
     val context = LocalPlatformContext.current
+    val theme = LocalMangoTheme.current
     val request = remember(page, local) {
         if (local) {
             ImageRequest.Builder(context)
@@ -706,6 +716,18 @@ private fun DefaultReaderPage(page: Page, local: Boolean, aspectRatios: MutableM
             // no-reflow needs page dimensions from source metadata
             Box(modifier = Modifier.fillMaxWidth().aspectRatio(aspectRatios[page.url] ?: (3f / 4f))) {
                 SkeletonBlock(modifier = Modifier.fillMaxSize())
+            }
+        },
+        error = {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(aspectRatios[page.url] ?: (3f / 4f))
+                    .background(theme.bg1)
+                    .testTag("reader-page-error"),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(text = "page failed to load", style = MangoType.caption, color = theme.textTertiary)
             }
         },
         success = {

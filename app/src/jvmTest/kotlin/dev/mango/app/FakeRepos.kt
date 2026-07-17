@@ -7,6 +7,7 @@ import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.ChallengeSolver
 import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.CollectionInfo
+import dev.mango.core.domain.CookieStore
 import dev.mango.core.domain.Download
 import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.DownloadStatus
@@ -19,11 +20,18 @@ import dev.mango.core.domain.MangaEntry
 import dev.mango.core.domain.Page
 import dev.mango.core.domain.ReadProgress
 import dev.mango.core.domain.SourceInfo
+import dev.mango.core.domain.StoredCookie
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+
+/** An always-empty jar — for tests that need a [CookieStore] but don't exercise cookies themselves. */
+class NoOpCookieStore : CookieStore {
+    override suspend fun cookiesFor(host: String): List<StoredCookie> = emptyList()
+    override suspend fun put(cookie: StoredCookie) = Unit
+}
 
 /** Records solve calls; returns [result] (default false = user didn't pass the challenge). */
 class FakeChallengeSolver(private val result: Boolean = false) : ChallengeSolver {

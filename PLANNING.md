@@ -429,15 +429,18 @@ De-risk the unknown before building around it.
 - **Moving target.** Paperback keeps compatibility roughly one version behind and 0.9 has been a long
   beta while 0.8 stays the shipping SDK. Building the shim to 0.9 but loading 0.8 bundles hedges
   both: forward-compatible, but working today. Pin `@paperback/types` and re-verify when 0.9 ships.
-- **Downloads bypass extension interceptors and host policy (M2.4 ceiling).** Images are
-  fetched by the app with `Page.headers` only: sources that sign image URLs in interceptors
-  will 403 (route through host interceptors when a real source needs it, M3+), and the
-  download client skips `ApplicationHost`'s per-host rate limit — when the project-wide host
-  allowlist lands, the download path must go through the same policy as `scheduleRequest`.
-  Reader page images share this ceiling family (noted R9, 2026-07-11): Coil fetches them with
-  `Page.headers` only — no per-source cookie jar, no pinned UA — so a CF-walled source's pages
-  can 403 in the reader even after a successful solve. Same fix when it lands: route image
-  fetches through the host policy layer.
+- **Image fetches and host policy (M2.4 ceiling, mostly closed).** Reader pages, downloads,
+  and covers carry the per-source cookie jar (incl. cf_clearance), pinned/default UA, and
+  canonical header casing via `SourceHeaderPolicy`. Reader pages and downloads additionally
+  run through the extension's own request-interceptor chain
+  (`MangaSource.prepareImageRequests`, batched once per chapter), so Referer-stamping and
+  URL-signing sources work. Residual ceilings: covers skip the interceptor chain (no known
+  source needs it; the batch amortization doesn't fit per-cover loads); prepared page URLs
+  are computed once per chapter load, so signatures that expire mid-chapter would break late
+  pages; and none of these paths go through `ApplicationHost`'s per-host rate limit
+  (`PolicyImageFetcher` is the hook where that policy would live; it deliberately carries
+  none today) — when the project-wide host allowlist lands, the download path must go
+  through the same policy as `scheduleRequest`.
 - **Cloudflare (built M4.3, mirrors Paperback's manual-check flow).** Detection lives in
   `:core`: `ApplicationHost` turns a Cloudflare-challenge response into a domain
   `ChallengeRequiredException` carrying the URL (M4.3a). Solving lives in `:app`: an embedded

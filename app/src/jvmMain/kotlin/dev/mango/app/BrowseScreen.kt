@@ -122,6 +122,7 @@ private fun BrowseSectionRow(section: HomeSection, onOpenDetails: (MangaEntry) -
                 CoverCard(
                     title = entry.title,
                     coverUrl = entry.cover,
+                    sourceId = entry.sourceId,
                     // MangaEntry carries no chapter/genre metadata to show here or on hover.
                     metaLine = "",
                     unreadCount = null,
@@ -225,6 +226,7 @@ fun BrowseScreenContent(
                                     CoverCard(
                                         title = entry.title,
                                         coverUrl = entry.cover,
+                                        sourceId = entry.sourceId,
                                         metaLine = "",
                                         unreadCount = null,
                                         progress = null,

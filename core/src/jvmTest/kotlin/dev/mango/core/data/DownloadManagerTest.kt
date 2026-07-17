@@ -10,7 +10,10 @@ import dev.mango.core.domain.HomeSection
 import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
 import dev.mango.core.domain.Page
+import dev.mango.core.domain.SourceHeaderPolicy
 import dev.mango.core.domain.SourceInfo
+import dev.mango.core.domain.StoredCookie
+import dev.mango.core.engine.DefaultSourceHeaderPolicy
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -79,7 +82,12 @@ class DownloadManagerTest {
     private fun chapter(chapterId: String, number: Double = 1.0) =
         Chapter(chapterId = chapterId, number = number)
 
-    private fun newManager(catalog: CatalogRepository, http: HttpClient, root: Path): DownloadManager {
+    private fun newManager(
+        catalog: CatalogRepository,
+        http: HttpClient,
+        root: Path,
+        headerPolicy: SourceHeaderPolicy? = null,
+    ): DownloadManager {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())
         MangoDatabase.Schema.create(driver)
         return FileDownloadManager(
@@ -88,6 +96,7 @@ class DownloadManagerTest {
             http = http,
             root = root,
             pageDelayMillis = 0,
+            headerPolicy = headerPolicy,
         )
     }
 
@@ -345,5 +354,66 @@ class DownloadManagerTest {
             listOf(root.resolve("src/mangaB/c1/0000.jpg").toAbsolutePath().toString()),
             manager.localPages("src", "mangaB", "c1"),
         )
+    }
+
+    @Test
+    fun aWiredHeaderPolicyAppliesTheJarCookieAndPinnedUserAgentToImageFetches() = runTest {
+        val root = Files.createTempDirectory("downloads-test")
+        val page = Page(index = 0, url = "https://cdn.example/c1/0.jpg")
+        val recorded = mutableListOf<HttpRequestData>()
+
+        val cookieDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())
+        MangoDatabase.Schema.create(cookieDriver)
+        val cookieStore = SqlCookieStore(MangoDatabase(cookieDriver), "src")
+        cookieStore.put(StoredCookie(name = "cf_clearance", value = "token", domain = "cdn.example"))
+        val policy = DefaultSourceHeaderPolicy(cookieStoreFor = { cookieStore }, userAgentFor = { "Pinned/1.0" })
+
+        val manager = newManager(
+            FakeCatalogRepository(mapOf("src/m1/c1" to listOf(page))),
+            mockClient(mapOf(page.url to byteArrayOf(1)), recorded = recorded),
+            root,
+            headerPolicy = policy,
+        )
+
+        manager.enqueue(entry("src", "m1"), chapter("c1"))
+        manager.processQueue()
+
+        val headers = recorded.single().headers
+        assertEquals("cf_clearance=token", headers[HttpHeaders.Cookie])
+        assertEquals("Pinned/1.0", headers[HttpHeaders.UserAgent])
+    }
+
+    @Test
+    fun interceptedRequestsRewriteTheWireUrlAndHeadersForDownloadedPages() = runTest {
+        val root = Files.createTempDirectory("downloads-test")
+        val page = Page(index = 0, url = "https://cdn.example/c1/0.jpg")
+        val rewrittenUrl = "https://cdn.example/c1/0-signed.jpg"
+        val recorded = mutableListOf<HttpRequestData>()
+
+        val cookieDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())
+        MangoDatabase.Schema.create(cookieDriver)
+        val cookieStore = SqlCookieStore(MangoDatabase(cookieDriver), "src")
+        val policy = DefaultSourceHeaderPolicy(
+            cookieStoreFor = { cookieStore },
+            userAgentFor = { null },
+            interceptRequests = { _, requests ->
+                requests.map { it.copy(url = rewrittenUrl, headers = it.headers + ("X-Signed" to "1")) }
+            },
+        )
+        val manager = newManager(
+            FakeCatalogRepository(mapOf("src/m1/c1" to listOf(page))),
+            mockClient(mapOf(rewrittenUrl to byteArrayOf(1)), recorded = recorded),
+            root,
+            headerPolicy = policy,
+        )
+
+        manager.enqueue(entry("src", "m1"), chapter("c1"))
+        manager.processQueue()
+
+        val request = recorded.single()
+        assertEquals(rewrittenUrl, request.url.toString())
+        assertEquals("1", request.headers["X-Signed"])
+        assertEquals(DownloadStatus.DONE, manager.observeDownloads().first().single().status)
+        assertTrue(Files.exists(root.resolve("src/m1/c1/0000.jpg")))
     }
 }

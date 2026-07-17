@@ -4,6 +4,7 @@ import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import dev.mango.core.db.MangoDatabase
 import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.MangaSource
+import dev.mango.core.domain.SourceImageRequest
 import dev.mango.core.domain.SourceInfo
 import dev.mango.core.engine.BundleVerificationException
 import dev.mango.core.engine.FLAME_COMICS_FIXTURE
@@ -13,8 +14,10 @@ import dev.mango.core.engine.MANGABAT_SHA256
 import dev.mango.core.engine.PaperbackExtension
 import dev.mango.core.engine.RecordedHttp
 import dev.mango.core.engine.readFixture
+import dev.mango.core.engine.syntheticBundle
 import java.nio.file.Files
 import java.nio.file.Path
+import java.security.MessageDigest
 import java.util.Properties
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
@@ -89,6 +92,25 @@ class CatalogRepositoryTest {
 
         val pages = repo.pages("FlameComics", "57", chapters.first().chapterId)
         assertTrue(pages.isNotEmpty(), "expected pages from recorded fixtures")
+    }
+
+    @Test
+    fun prepareImageRequestsDelegatesToTheResolvedSourceInterceptor() = runTest {
+        val dir = Files.createTempDirectory("catalog-test")
+        val bundleBytes = syntheticBundle.encodeToByteArray()
+        Files.write(dir.resolve("Synthetic.index.js"), bundleBytes)
+        val sha256 = MessageDigest.getInstance("SHA-256").digest(bundleBytes).toHexString()
+        val repo = newRepository(dir)
+        repo.install(SourceInfo(sourceId = "Synthetic", name = "Synthetic"), sha256)
+
+        val result = repo.prepareImageRequests(
+            "Synthetic",
+            listOf(SourceImageRequest(url = "https://synthetic.example/img/page1.jpg", headers = mapOf("Referer" to "r1"))),
+        )
+
+        val request = result.single()
+        assertEquals("https://synthetic.example/signed/page1.jpg", request.url)
+        assertEquals("1", request.headers["x-synthetic-intercepted"])
     }
 
     @Test

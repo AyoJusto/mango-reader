@@ -17,6 +17,8 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
 import dev.mango.app.resources.Res
 import dev.mango.app.resources.mango_icon
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +29,11 @@ fun main() {
     val graph = AppGraph()
     val settings = Settings(AppGraph.defaultDataDir())
     val themeStore = ThemeStore(AppGraph.defaultDataDir())
+    // Registers PolicyImageFetcher ahead of Coil's default network fetcher for requests
+    // carrying policyHeaders(); every other request falls through unaffected (see the
+    // factory's KDoc). Must be set before the first composition asks SingletonImageLoader
+    // for a loader (ReaderScreen's prefetch effect, Kit's cover requests).
+    SingletonImageLoader.setSafe { context -> ImageLoader.Builder(context).components { add(graph.imageFetcherFactory) }.build() }
     application {
         var theme by remember { mutableStateOf(themeStore.load()) }
         var themeLibrary by remember { mutableStateOf(themeStore.list()) }
@@ -110,6 +117,7 @@ fun main() {
                     graph.extensions,
                     graph.challengeSolver,
                     graph.catalogCache,
+                    headerPolicy = graph.headerPolicy,
                     theme = theme,
                     onThemeChange = { theme = it; themeStore.save(it) },
                     themeLibrary = themeLibrary,

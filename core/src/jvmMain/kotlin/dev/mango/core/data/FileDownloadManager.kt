@@ -9,6 +9,7 @@ import dev.mango.core.domain.Download
 import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.DownloadStatus
 import dev.mango.core.domain.MangaEntry
+import dev.mango.core.domain.SourceHeaderPolicy
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
@@ -50,6 +51,7 @@ class FileDownloadManager(
     private val pageDelayMillis: Long = 500,
     private val context: CoroutineContext = Dispatchers.IO,
     private val clock: Clock = Clock.System,
+    private val headerPolicy: SourceHeaderPolicy? = null,
 ) : DownloadManager {
     // ponytail: JUL because :core has no logging dependency; swap when the app picks one
     private val log = java.util.logging.Logger.getLogger(FileDownloadManager::class.java.name)
@@ -114,15 +116,13 @@ class FileDownloadManager(
                 .resolve(safeSegment(sourceId))
                 .resolve(safeSegment(mangaId))
                 .resolve(safeSegment(chapterId))
+            // Prepared once for the whole chapter (interceptor chain + jar/UA/casing), not
+            // per page: a source whose signed URLs expire mid-chapter would break late pages —
+            // accepted, not mitigated (Paperback's own pipeline has the same shape).
+            val preparedPages = headerPolicy?.withPolicyHeaders(sourceId, pages) ?: pages
             // ponytail: pages within a chapter are fetched one at a time; parallel page
             // fetches are the upgrade if downloads feel slow.
-            pages.forEachIndexed { i, page ->
-                // Images are fetched directly by the app, not routed through the extension's
-                // interceptor pipeline — sources that sign image URLs in interceptors will
-                // 403 here; routing image fetches through host interceptors is the fix if a
-                // real source needs it. This client also bypasses ApplicationHost's per-host
-                // rate limit; a project-wide host allowlist must cover this path too, not
-                // just scheduleRequest.
+            preparedPages.forEachIndexed { i, page ->
                 val response = http.get(page.url) {
                     page.headers.forEach { (name, value) -> header(name, value) }
                 }

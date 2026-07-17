@@ -18,7 +18,16 @@ var source = (function () {
     var interceptor = {
         id: "synthetic-interceptor",
         interceptRequest: async function (request) {
-            return request;
+            // Recognizable failure trigger for tests: a request whose url carries this segment
+            // throws instead of transforming, so callers can prove a per-item degrade.
+            if (request.url.indexOf("/throw-me/") !== -1) {
+                throw new Error("synthetic interceptor: engineered failure");
+            }
+            var headers = Object.assign({}, request.headers, { "x-synthetic-intercepted": "1" });
+            var url = request.url.indexOf("https://synthetic.example/img/") === 0
+                ? request.url.replace("https://synthetic.example/img/", "https://synthetic.example/signed/")
+                : request.url;
+            return { url: url, method: request.method, headers: headers };
         },
         interceptResponse: async function (request, response, data) {
             var body = Application.arrayBufferToUTF8String(data);

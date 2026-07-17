@@ -155,6 +155,68 @@ class ApplicationHostTest {
     }
 
     @Test
+    fun stateRoundTripPreservesDatesAcrossFreshContexts() {
+        val host = ApplicationHost()
+
+        // module top level in a fresh context is exactly where a bundle's cookie store
+        // reads state back and calls Date methods on it directly, so context1's save and
+        // context2's load must be two genuinely separate contexts, like real calls are.
+        newExtensionContext().use { context1 ->
+            val app1 = host.applicationProxyFor(context1)
+            val setState = app1.getMember("setState") as ProxyExecutable
+            val stored = context1.eval(
+                "js",
+                """({ expires: new Date(1784222753000), name: "c", looksLikeDate: "2026-07-16T00:00:00.000Z" })""",
+            )
+            setState.execute(stored, context1.asValue("cookies"))
+        }
+
+        newExtensionContext().use { context2 ->
+            val app2 = host.applicationProxyFor(context2)
+            val getState = app2.getMember("getState") as ProxyExecutable
+            val restored = getState.execute(context2.asValue("cookies"))
+
+            // asserted guest-side (not via the host's own polyglot introspection) because
+            // that's how a bundle actually consumes restored state
+            val checkExpiresIsADate = context2.eval(
+                "js",
+                "(o) => o.expires instanceof Date && o.expires.getTime() === 1784222753000",
+            )
+            assertEquals(
+                true,
+                checkExpiresIsADate.execute(restored).asBoolean(),
+                "Date did not survive the state round-trip",
+            )
+
+            val checkLooksLikeDateStaysString = context2.eval(
+                "js",
+                """(o) => typeof o.looksLikeDate === "string" && o.looksLikeDate === "2026-07-16T00:00:00.000Z"""",
+            )
+            assertEquals(
+                true,
+                checkLooksLikeDateStaysString.execute(restored).asBoolean(),
+                "a date-shaped string was wrongly revived into a Date",
+            )
+        }
+    }
+
+    @Test
+    fun setStateWithUndefinedRemovesTheKey() {
+        val host = ApplicationHost()
+        newExtensionContext().use { context ->
+            val app = host.applicationProxyFor(context)
+            val setState = app.getMember("setState") as ProxyExecutable
+            val getState = app.getMember("getState") as ProxyExecutable
+
+            setState.execute(context.asValue("value"), context.asValue("k"))
+            assertEquals("value", context.asValue(getState.execute(context.asValue("k"))).asString())
+
+            setState.execute(context.eval("js", "undefined"), context.asValue("k"))
+            assertEquals(true, context.asValue(getState.execute(context.asValue("k"))).isNull)
+        }
+    }
+
+    @Test
     fun decodeHtmlEntitiesHandlesXmlEntitiesAndNumericForms() {
         assertEquals("<b>&\"'</b>", decodeHtmlEntities("&lt;b&gt;&amp;&quot;&apos;&lt;/b&gt;"))
         assertEquals("AB", decodeHtmlEntities("&#65;&#66;"))
