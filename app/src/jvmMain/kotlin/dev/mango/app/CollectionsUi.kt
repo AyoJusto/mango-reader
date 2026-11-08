@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -109,6 +110,7 @@ private fun CollectionCheckboxItem(row: CollectionCheckboxRow, onToggle: () -> U
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .keyboardFocusRing(RectangleShape)
             .background(hover.fill)
             .hoverable(hover.interaction)
             .clickable(interactionSource = hover.interaction, indication = null, onClick = onToggle)
@@ -142,6 +144,7 @@ private fun PickerActionRow(text: String, color: Color, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .keyboardFocusRing(RectangleShape)
             .background(hover.fill)
             .hoverable(hover.interaction)
             .clickable(interactionSource = hover.interaction, indication = null, onClick = onClick)

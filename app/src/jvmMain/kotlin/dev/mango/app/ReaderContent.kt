@@ -263,6 +263,7 @@ private fun ReaderBackButton(onClick: () -> Unit, modifier: Modifier = Modifier)
     Box(
         modifier = modifier
             .size(width = 34.dp, height = 30.dp)
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.control))
             .clip(RoundedCornerShape(MangoRadius.control))
             .background(theme.overlay)
             .clickable(onClick = onClick),
@@ -345,6 +346,7 @@ private fun ReaderChapterNavButton(label: String, enabled: Boolean, onClick: () 
     Box(
         modifier = Modifier
             .height(28.dp)
+            .keyboardFocusRing(RoundedCornerShape(8.dp))
             .clip(RoundedCornerShape(8.dp))
             .background(theme.textPrimary.copy(alpha = 0.06f))
             .clickable(enabled = enabled, onClick = onClick)
@@ -366,6 +368,7 @@ private fun AutoScrollPill(active: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .height(28.dp)
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.pill))
             .clip(RoundedCornerShape(MangoRadius.pill))
             .background(theme.accent.copy(alpha = 0.16f))
             .clickable(onClick = onClick)

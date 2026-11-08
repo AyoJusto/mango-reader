@@ -431,7 +431,7 @@ private fun PaletteFilterTabs(tabNames: List<String>, activeTabIndex: Int, onTab
                 text = name,
                 container = if (active) theme.accent else theme.surface,
                 content = if (active) theme.accentOn else theme.textSecondary,
-                modifier = Modifier.keyboardFocusRing(RoundedCornerShape(MangoRadius.keycap)).clickable { onTabIndexChange(index) },
+                modifier = Modifier.keyboardFocusRing(RoundedCornerShape(MangoRadius.pill)).clickable { onTabIndexChange(index) },
             )
         }
     }

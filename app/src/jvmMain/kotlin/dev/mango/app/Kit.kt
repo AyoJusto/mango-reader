@@ -39,6 +39,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -149,19 +150,28 @@ fun Modifier.trackLastInput(lastInputWasKeyboard: MutableState<Boolean>): Modifi
  * it watches focus of what follows and draws past the bounds the clip would cut off.
  */
 @Composable
-fun Modifier.keyboardFocusRing(shape: Shape): Modifier {
+fun Modifier.keyboardFocusRing(shape: Shape, gap: Dp = FOCUS_RING_GAP): Modifier {
     val theme = LocalMangoTheme.current
     val keyboard by LocalLastInputWasKeyboard.current
     var focused by remember { mutableStateOf(false) }
     val ring = if (focused && keyboard) {
         Modifier
             .drawBehind {
-                val grow = (FOCUS_RING_GAP + FOCUS_RING_WIDTH / 2).toPx()
-                val outline = shape.createOutline(
-                    Size(size.width + 2 * grow, size.height + 2 * grow),
-                    layoutDirection,
-                    this,
-                )
+                val grow = (gap + FOCUS_RING_WIDTH / 2).toPx()
+                val grown = Size(size.width + 2 * grow, size.height + 2 * grow)
+                // Corners grow by the same distance as the ring, so it stays concentric with the control.
+                val outline = if (shape is CornerBasedShape) {
+                    shape.createOutline(
+                        grown,
+                        shape.topStart.toPx(size, this) + grow,
+                        shape.topEnd.toPx(size, this) + grow,
+                        shape.bottomEnd.toPx(size, this) + grow,
+                        shape.bottomStart.toPx(size, this) + grow,
+                        layoutDirection,
+                    )
+                } else {
+                    shape.createOutline(grown, layoutDirection, this)
+                }
                 translate(-grow, -grow) {
                     drawOutline(outline, theme.focus, style = Stroke(FOCUS_RING_WIDTH.toPx()))
                 }
@@ -170,8 +180,9 @@ fun Modifier.keyboardFocusRing(shape: Shape): Modifier {
     } else {
         Modifier
     }
-    return onFocusChanged { focused = it.hasFocus }.then(ring)
+    return onFocusChanged { focused = it.isFocused }.then(ring)
 }
+
 /**
  * Centers screen content in a width-capped column, web-page style. Below [max] the content
  * fills the window exactly as an unwrapped `fillMaxWidth` would; beyond it, the column stops
@@ -1149,7 +1160,7 @@ fun Toast(state: ToastState, modifier: Modifier = Modifier) {
                         text = "· $label",
                         style = MangoType.bodyStrong,
                         color = theme.accent,
-                        modifier = Modifier.clickable(
+                        modifier = Modifier.keyboardFocusRing(RoundedCornerShape(MangoRadius.keycap)).clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                             onClick = state::runAction,

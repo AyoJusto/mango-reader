@@ -241,7 +241,7 @@ fun SettingsScreenContent(
                                 onValueChange = { pendingStripWidth = it },
                                 onValueChangeFinished = { onStripWidthChange(pendingStripWidth) },
                                 valueRange = 600f..1400f,
-                                modifier = Modifier.width(180.dp).testTag(settingsEntryTag("Strip width")),
+                                modifier = Modifier.width(180.dp).keyboardFocusRing(RoundedCornerShape(MangoRadius.pill)).testTag(settingsEntryTag("Strip width")),
                             )
                             Text(
                                 text = "${pendingStripWidth.roundToInt()} dp",
@@ -263,7 +263,7 @@ fun SettingsScreenContent(
                                 onValueChange = { pendingAutoScroll = it },
                                 onValueChangeFinished = { onAutoScrollSpeedChange(pendingAutoScroll) },
                                 valueRange = 30f..600f,
-                                modifier = Modifier.width(180.dp).testTag(settingsEntryTag("Auto-scroll speed")),
+                                modifier = Modifier.width(180.dp).keyboardFocusRing(RoundedCornerShape(MangoRadius.pill)).testTag(settingsEntryTag("Auto-scroll speed")),
                             )
                             Text(
                                 text = "${pendingAutoScroll.roundToInt()} dp/s",
@@ -382,7 +382,8 @@ private fun AccentSwatch(label: String, color: Color, selected: Boolean, onClick
             modifier = Modifier
                 .testTag("accent-swatch-$label")
                 .size(26.dp)
-                .keyboardFocusRing(CircleShape)
+                // Past the selection ring (2 dp gap + 2 dp ring) so the two never coincide.
+                .keyboardFocusRing(CircleShape, gap = if (selected) 6.dp else 2.dp)
                 .clip(CircleShape)
                 .background(color)
                 .clickable(onClick = onClick),

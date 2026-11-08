@@ -362,7 +362,7 @@ fun SearchScreenContent(
                             text = source.name,
                             container = if (selected) theme.accent.copy(alpha = 0.14f) else theme.surface,
                             content = if (selected) theme.accent else theme.textSecondary,
-                            modifier = Modifier.keyboardFocusRing(RoundedCornerShape(MangoRadius.keycap)).clickable(
+                            modifier = Modifier.keyboardFocusRing(RoundedCornerShape(MangoRadius.pill)).clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
                                 onClick = { onToggleSource(source.sourceId) },
