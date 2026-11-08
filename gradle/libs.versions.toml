@@ -13,6 +13,7 @@ slf4j = "2.0.20"
 jcef = "143.0.14"
 junit-vintage = "5.10.1"
 haze = "1.7.2"
+nucleus = "2.5.18"
 
 [libraries]
 graalvm-polyglot = { module = "org.graalvm.polyglot:polyglot", version.ref = "graalvm" }
@@ -33,6 +34,8 @@ coil-network-ktor3 = { module = "io.coil-kt.coil3:coil-network-ktor3", version.r
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
 jcefmaven = { module = "me.friwi:jcefmaven", version.ref = "jcef" }
 haze = { module = "dev.chrisbanes.haze:haze", version.ref = "haze" }
+nucleus-application = { module = "dev.nucleusframework:nucleus.nucleus-application", version.ref = "nucleus" }
+nucleus-decorated-window-tao = { module = "dev.nucleusframework:nucleus.decorated-window-tao", version.ref = "nucleus" }
 junit-vintage-engine = { module = "org.junit.vintage:junit-vintage-engine", version.ref = "junit-vintage" }
 compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "compose-material3" }
 compose-material-icons-extended = { module = "org.jetbrains.compose.material:material-icons-extended", version.ref = "compose-material-icons-extended" }

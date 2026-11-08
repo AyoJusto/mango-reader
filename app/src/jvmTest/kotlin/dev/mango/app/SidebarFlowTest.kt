@@ -15,9 +15,7 @@ import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
 import dev.mango.core.domain.MangaStatus
 import dev.mango.core.domain.SourceInfo
-import java.awt.Frame
 import java.nio.file.Files
-import kotlin.test.assertNull
 import kotlin.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -158,17 +156,5 @@ class SidebarFlowTest {
 
         rule.onNode(hasText("Ch. 12") and inSidebar).assertExists()
         rule.onNode(hasText("p. 7") and inSidebar).assertExists()
-    }
-
-    // Tests run on a stock JDK: the JBR reflection path must degrade to null (OS-decorated
-    // fallback), never throw.
-    @Test
-    fun applyJbrTitleBarOnAStockJdkReturnsNullAndDoesNotThrow() {
-        val frame = Frame()
-        try {
-            assertNull(applyJbrTitleBar(frame, 44f))
-        } finally {
-            frame.dispose()
-        }
     }
 }

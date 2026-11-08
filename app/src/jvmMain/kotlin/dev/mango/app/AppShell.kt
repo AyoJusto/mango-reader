@@ -95,8 +95,8 @@ sealed interface Screen {
 }
 
 /**
- * The whole application UI: a merged title bar on top, the current screen filling the content
- * area, an overlay sidebar for top-level navigation, and the command palette above everything.
+ * The whole application UI: the title bar on top (omitted when [showTitleBar] is false, because
+ * the window draws it), the current screen filling the content area, an overlay sidebar for top-level navigation, and the command palette above everything.
  * Screens talk only to the repository ports passed in here — never engine or DB types
  * (CLAUDE.md boundary).
  */
@@ -134,7 +134,7 @@ fun AppShell(
     fontFamilyName: String? = null,
     installedFonts: List<String> = emptyList(),
     onFontFamilyChange: (String?) -> Unit = {},
-    jbrBar: JbrBar? = null,
+    showTitleBar: Boolean = true,
     libraryCheckedAt: Long? = null,
     onLibraryChecked: (Long) -> Unit = {},
     searchHistory: List<SearchHistoryEntry> = emptyList(),
@@ -223,11 +223,12 @@ fun AppShell(
     val hazeState = rememberHazeState()
 
     Column(modifier = Modifier.fillMaxSize()) {
-        MangoTitleBar(
-            jbrBar = jbrBar,
-            sidebarOpen = sidebarOpen,
-            onToggleSidebar = { onSidebarChange(!sidebarOpen) },
-        )
+        if (showTitleBar) {
+            MangoTitleBar(
+                sidebarOpen = sidebarOpen,
+                onToggleSidebar = { onSidebarChange(!sidebarOpen) },
+            )
+        }
         // Content, sidebar, and palette live in one Box so the overlays can stack above
         // whichever screen is showing; the title bar stays visible over all of them.
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {

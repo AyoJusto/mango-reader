@@ -40,9 +40,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.onPointerEvent
-import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -61,9 +59,6 @@ import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.LibraryRepository
 import dev.mango.core.domain.Page
 import dev.mango.core.domain.SourceHeaderPolicy
-import java.awt.Point
-import java.awt.Toolkit
-import java.awt.image.BufferedImage
 import java.io.File
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CancellationException
@@ -116,14 +111,6 @@ internal class ReaderOverlayState {
         lastPointer = position
         return last != null && (position - last).getDistance() >= OVERLAY_MOVE_THRESHOLD_PX
     }
-}
-
-/** A fully transparent 1x1 AWT cursor: the reader hides the mouse cursor together with the controls overlay. */
-private val BLANK_CURSOR_ICON: PointerIcon by lazy {
-    val transparentPixel = BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB)
-    PointerIcon(
-        Toolkit.getDefaultToolkit().createCustomCursor(transparentPixel, Point(0, 0), "mango-reader-hidden-cursor")
-    )
 }
 
 /** One loaded chapter in the strip. [chapter] is null only when the opened chapterId isn't in the caller's [Chapter] list. */
@@ -525,18 +512,15 @@ fun ReaderScreen(
             // and closing the palette re-requests — otherwise the palette's text field keeps
             // focus and the reader's keyboard is dead after the overlay closes.
             LaunchedEffect(paletteVisible) { if (!paletteVisible) focusRequester.requestFocus() }
+            // The cursor hides together with the overlay and is restored the instant
+            // controlsVisible flips back or this branch leaves composition. Only the hiding is
+            // conditional on hideCursorInReader; the overlay itself always hides.
+            HideCursorWhile(hidden = hideCursorInReader && !controlsVisible && !paletteVisible)
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .focusRequester(focusRequester)
                     .focusable()
-                    // The cursor hides together with the overlay; restored the instant
-                    // controlsVisible flips back (never leaks past this Box's lifetime). Only the
-                    // blanking is conditional on hideCursorInReader — the overlay itself always hides.
-                    .pointerHoverIcon(
-                        if (controlsVisible || !hideCursorInReader) PointerIcon.Default else BLANK_CURSOR_ICON,
-                        overrideDescendants = true,
-                    )
                     .onPointerEvent(PointerEventType.Move) { event ->
                         val position = event.changes.firstOrNull()?.position
                         // Keyboard paging/N/P never reach this handler — only a genuine pointer
