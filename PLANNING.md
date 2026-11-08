@@ -75,15 +75,16 @@ either future cheap.
 ## 3. Tech stack
 
 All Kotlin, all first-party or well-established, all Kotlin Multiplatform capable (except the
-optional JVM-only server). Versions below are the latest as of July 2026; pin them in a Gradle
-version catalog (`libs.versions.toml`) and let Renovate/Dependabot bump them.
+optional JVM-only server). Exact pins live in the Gradle version catalog (`libs.versions.toml`);
+the table records the line each concern is on (refreshed 2026-11-08).
 
-| Concern | Choice | Version (Jul 2026) | Notes |
+| Concern | Choice | Version (Nov 2026) | Notes |
 |---|---|---|---|
-| Language | **Kotlin** | **2.4.0** | latest stable (Jun 3 2026); 2.4.20 is EAP only |
-| UI | **Compose Multiplatform** | **1.11.0** | Skia-rendered; desktop is the target that matters |
-| JS engine | **GraalJS** (`org.graalvm.polyglot`) | **25.1.x** | JVM polyglot: real object handles from Kotlin, promise interop, strong sandbox controls. Replaced quickjs-kt 2026-07-10 when JVM-only became acceptable. |
-| HTTP | **Ktor Client** | **3.5.1** | JetBrains, multiplatform |
+| Language | **Kotlin** | **2.4.21** | JDK 25 (Temurin) toolchain via foojay; never a JetBrains Runtime (its bundled JCEF shadows jcefmaven's `org.cef`) |
+| UI | **Compose Multiplatform** | **1.12.2** | Skia-rendered; desktop is the target that matters |
+| Window | **Nucleus** (Tao backend) | **2.5.18** | `DecoratedWindow` + native caption controls, no JBR. Tao ignores AWT custom cursors (reader hides the cursor via user32 `ShowCursor`); Swing windows (JCEF solver, JFileChooser) still work beside it |
+| JS engine | **GraalJS** (`org.graalvm.polyglot:js`) | **25.5.x** | JVM polyglot: real object handles from Kotlin, promise interop, strong sandbox controls. Replaced quickjs-kt 2026-07-10 when JVM-only became acceptable. |
+| HTTP | **Ktor Client** | **3.6.1** | JetBrains, multiplatform |
 | Persistence | **SQLDelight** (chosen over Room, 2026-07-10) | latest via catalog | typesafe SQL, all targets |
 | Serialization | **kotlinx.serialization** | latest via catalog | match the Kotlin 2.4.0 line |
 | Async | **kotlinx.coroutines** | latest via catalog | match the Kotlin 2.4.0 line |
@@ -399,9 +400,8 @@ De-risk the unknown before building around it.
   is open (paletteVisible in the drive loop's keys/guard) and auto-resumes on close.
 - ~~M5+ — Apple targets~~ moved to §12 backlog (2026-07-11): not needed now or anytime soon.
 - **MU — UI overhaul (DONE 2026-07-13).** Chunks U1–U6: token theme system with JSON
-  export/import, JBR merged window chrome (mechanism and stock-JDK fallback documented in
-  `Chrome.kt`; dev-run needs the machine-local `mango.jbrHome` property, packaged builds
-  must bundle a JBR — §12), frosted overlay sidebar (haze blur, Ctrl+S), component kit,
+  export/import, merged window chrome (since 2026-11-08 on Nucleus Tao; see Refresh below),
+  frosted overlay sidebar (haze blur, Ctrl+S), component kit,
   Library grid/list with unread badges, immersive reader overlay, per-screen restyles +
   Spotlight palette. Spec of record: `design/lookbook-handoff.md`. Behaviors that read as
   bugs but are decisions: filled buttons have no hover fill (the design defines no such
@@ -415,6 +415,18 @@ De-risk the unknown before building around it.
   shelves with a filing picker and inline creation. Ceilings: collection filter selection
   is session-only; search-history keyboard navigation, drag-a-cover-onto-a-tab, and
   Ctrl+1–9 tab jumps deferred.
+- **Refresh (2026-11-08, branch `refresh`).** Gradle 9.8.2 / Kotlin 2.4.21 / Compose 1.12.2 on a
+  Temurin 25 toolchain; main window moved from the borrowed-JBR title bar to Nucleus 2.5.18 Tao
+  (a spike proved jcefmaven's Swing JFrame, cookie harvest, ShowCursor cursor hiding, fullscreen
+  and double-Shift all work beside Tao); per-user MSI via the Compose plugin with an explicit
+  `modules(...)` list (Temurin 25 is a linkable runtime, so `includeAllModules` fails on
+  jdk.jlink; the core suite passes under `--limit-modules` set to the packaged list; the
+  MSI's ProductCode is derived from the version, so a rebuild at the same `packageVersion` must
+  uninstall first or bump the version); covers run
+  the extension interceptor once per source (MangaBat's image host 403s without its Referer).
+  Live check the same day: FlameComics, MangaBat, Toonily work end to end; WebtoonXYZ's site is
+  gone. A visual redesign runs separately on branch `design-refresh` (brief:
+  `DESIGN-SESSION.md` in that worktree).
 
 ---
 
@@ -434,8 +446,9 @@ De-risk the unknown before building around it.
   canonical header casing via `SourceHeaderPolicy`. Reader pages and downloads additionally
   run through the extension's own request-interceptor chain
   (`MangaSource.prepareImageRequests`, batched once per chapter), so Referer-stamping and
-  URL-signing sources work. Residual ceilings: covers skip the interceptor chain (no known
-  source needs it; the batch amortization doesn't fit per-cover loads); prepared page URLs
+  URL-signing sources work. Covers run the interceptor once per source and reuse the headers
+  it adds (`coverHeadersFor`). Residual ceilings: cover URL rewrites and per-URL cover headers
+  are not applied (a source that signs cover URLs would need per-URL interception); prepared page URLs
   are computed once per chapter load, so signatures that expire mid-chapter would break late
   pages; and none of these paths go through `ApplicationHost`'s per-host rate limit
   (`PolicyImageFetcher` is the hook where that policy would live; it deliberately carries
@@ -517,8 +530,14 @@ design pass and unread badges (MU). Still open, in rough priority order:
   the design wants a 4dp track with a 14dp round thumb
 - Details chapter rows: "· X%" instead of "reading · p. N" needs per-chapter page counts
   loaded on Details
-- packaging chunk: distributable image must bundle a JBR so the merged window chrome
-  ships (dev-run relies on the machine-local `mango.jbrHome` property)
+- Haze 1.7.2 -> 2.x (frosted sidebar): an API migration (styles via factory DSLs, remembered
+  `HazeBlurStyle`), held back from the refresh bump
+- Cloudflare solver on Nucleus's in-window WebView2 (`composewebview`): proven to return
+  HttpOnly `cf_clearance`; would drop jcefmaven and its ~100 MB CEF download. Needs an explicit
+  `dataDirectory` and drop-before-create when swapping webviews (a same-call-site re-key
+  crashes WebView2 creation)
+- Gradle 10 readiness: the build prints "Deprecated Gradle features were used"; trace with
+  `--warning-mode all` before the next major
 - HoverListRow extraction: re-evaluate now that `rememberHoverFill` landed — remaining
   duplication may be too thin to justify a slotted component
 - purge-source-data action (R6 ceiling, 2026-07-11): extension removal deliberately keeps

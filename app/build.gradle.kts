@@ -1,3 +1,5 @@
+import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.kotlin.compose)
@@ -94,10 +96,21 @@ compose.desktop {
         jvmArgs(*jcefJvmArgs.toTypedArray())
         jvmArgs(*quietNativeWarningArgs(25).toTypedArray())
         nativeDistributions {
+            targetFormats(TargetFormat.Msi)
             packageName = "mango"
+            packageVersion = "1.0.0"
+            description = "Manhwa reader for Paperback extensions"
+            vendor = "Justin Goldstock"
+            // jdeps finds the first four; Truffle, non-UTF-8 site charsets, locale date parsing and the Windows accessibility bridge need the rest at runtime.
+            modules("java.instrument", "java.management", "java.sql", "jdk.unsupported", "jdk.management", "jdk.charsets", "jdk.localedata", "jdk.accessibility")
             windows {
                 // Regenerated from design/icon/mango.svg by IconRenderTest; see its KDoc.
                 iconFile.set(project.file("icons/mango.ico"))
+                perUserInstall = true
+                menuGroup = "mango"
+                shortcut = true
+                upgradeUuid = "8d3f2c41-6b7a-4e59-9c0d-2a7e5f1b3c64"
+                dirChooser = false
             }
         }
     }
