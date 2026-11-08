@@ -115,14 +115,8 @@ import dev.mango.core.domain.SourceHeaderPolicy
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.seconds
 
-/**
- * Shared visual primitives every screen restyle builds on: reads [LocalMangoTheme]
- * exclusively, never a hardcoded color. Components take data and lambdas only — no
- * screen-specific logic.
- */
 
-
-/** True while the most recent input was a key press, so focus rings show for the keyboard only. */
+/** True while the latest input was a key press, so focus rings show for the keyboard only. */
 val LocalLastInputWasKeyboard = staticCompositionLocalOf<State<Boolean>> { mutableStateOf(false) }
 
 /** Present on a node exactly while its keyboard focus ring is drawn. */
@@ -133,10 +127,7 @@ private var SemanticsPropertyReceiver.focusRing by FocusRingKey
 private val FOCUS_RING_WIDTH = 2.dp
 private val FOCUS_RING_GAP = 2.dp
 
-/**
- * Records whether the latest input was a key press or a mouse press. The pointer hook runs on
- * the Initial pass so a press a child consumes still counts.
- */
+/** Hooks the Initial pass so a press a child consumes still counts. */
 @OptIn(ExperimentalComposeUiApi::class)
 fun Modifier.trackLastInput(lastInputWasKeyboard: MutableState<Boolean>): Modifier = this
     .onPreviewKeyEvent {
@@ -145,11 +136,7 @@ fun Modifier.trackLastInput(lastInputWasKeyboard: MutableState<Boolean>): Modifi
     }
     .onPointerEvent(PointerEventType.Press, PointerEventPass.Initial) { lastInputWasKeyboard.value = false }
 
-/**
- * Draws the theme's focus color outside the control, a gap away from it, while the control holds
- * focus after keyboard input. Place it before the control's `clip` and `clickable` in the chain:
- * it watches focus of what follows and draws past the bounds the clip would cut off.
- */
+/** Place before the control's `clip` and `clickable`: it draws past the bounds the clip cuts. */
 @Composable
 fun Modifier.keyboardFocusRing(shape: Shape, gap: Dp = FOCUS_RING_GAP): Modifier {
     val theme = LocalMangoTheme.current
@@ -160,7 +147,6 @@ fun Modifier.keyboardFocusRing(shape: Shape, gap: Dp = FOCUS_RING_GAP): Modifier
             .drawBehind {
                 val grow = (gap + FOCUS_RING_WIDTH / 2).toPx()
                 val grown = Size(size.width + 2 * grow, size.height + 2 * grow)
-                // Corners grow by the same distance as the ring, so it stays concentric with the control.
                 val outline = if (shape is CornerBasedShape) {
                     shape.createOutline(
                         grown,
@@ -184,12 +170,6 @@ fun Modifier.keyboardFocusRing(shape: Shape, gap: Dp = FOCUS_RING_GAP): Modifier
     return onFocusChanged { focused = it.isFocused }.then(ring)
 }
 
-/**
- * Centers screen content in a width-capped column, web-page style. Below [max] the content
- * fills the window exactly as an unwrapped `fillMaxWidth` would; beyond it, the column stops
- * growing and centers in the remaining space. Use [MangoSpace.contentMaxWidth] for reading/form
- * screens and [MangoSpace.gridMaxWidth] for cover grids. The reader never uses this.
- */
 @Composable
 fun ContentColumn(
     max: Dp,
@@ -201,7 +181,6 @@ fun ContentColumn(
     }
 }
 
-/** Shimmer placeholder for a reserved shape whose content is still loading: bg1-bg2-bg1 sweep. */
 @Composable
 fun SkeletonBlock(modifier: Modifier = Modifier) {
     val motion = LocalMangoMotion.current
@@ -223,22 +202,11 @@ fun SkeletonBlock(modifier: Modifier = Modifier) {
     Box(modifier = modifier.background(color))
 }
 
-/**
- * A hoverable's [interaction] source paired with its animated hover [fill]. [interaction] is
- * exposed so the same source can also drive `.hoverable()`, `.clickable()`, and any other
- * interaction-derived state a caller needs (a pressed-scale animation, say), instead of forcing
- * a second [MutableInteractionSource] to be threaded through by hand.
- */
 class HoverFill(val interaction: MutableInteractionSource, fillState: State<Color>) {
     val fill: Color by fillState
 }
 
-/**
- * Fades between [rest] and [hover] as the returned [HoverFill.interaction] reports hover state.
- * [rest] must be [hover] at zero alpha — never [Color.Transparent]: a fade toward transparent
- * black passes through darker mid-frames on the way out, a visible flash at the end of the
- * hover-exit animation that an alpha-only fade of the same color never produces.
- */
+/** [rest] must be [hover] at zero alpha, never Transparent, or the exit animation flashes. */
 @Composable
 fun rememberHoverFill(rest: Color, hover: Color): HoverFill {
     val motion = LocalMangoMotion.current
@@ -251,12 +219,6 @@ fun rememberHoverFill(rest: Color, hover: Color): HoverFill {
     return HoverFill(interaction, fill)
 }
 
-/**
- * The "↻" refresh affordance shared by Library and Details headers: a 32×30 dp glyph button
- * that spins continuously and ignores clicks while [checking] is true. The rotation transition
- * runs unconditionally (an [rememberInfiniteTransition] can't be entered/left conditionally) but
- * only ever shows while [checking].
- */
 @Composable
 fun RefreshGlyphButton(
     checking: Boolean,
@@ -294,17 +256,8 @@ fun RefreshGlyphButton(
     }
 }
 
-/** The four button treatments every action in the app uses; see [KitButton]. */
 enum class KitButtonStyle { PRIMARY, SECONDARY, GHOST, DANGER }
 
-/**
- * The one button component for the app: fill and text color come from [style], height and
- * radius are shared across all four. Hover is a fill-only fade (alpha-only, same color at zero
- * alpha at rest — never [androidx.compose.ui.graphics.Color.Transparent] — so the exit never
- * flashes); [KitButtonStyle.GHOST] is the only style whose fill actually changes on hover, since
- * the other three are already filled at rest. Press is a uniform 0.97 scale. No ripple: the
- * animated fill and scale together are the indication.
- */
 @Composable
 fun KitButton(
     label: String,
@@ -355,10 +308,6 @@ fun KitButton(
     }
 }
 
-/**
- * Centered placeholder for a list or screen with nothing in it yet: a dashed 2:3 outline (the
- * cover-card silhouette), a title, guidance text, and an optional single CTA.
- */
 @Composable
 fun EmptyState(
     title: String,
@@ -396,11 +345,6 @@ fun EmptyState(
     }
 }
 
-/**
- * A dismissible, non-blocking failure notice: a background action failed but whatever content
- * is already on screen stays interactive. Reused wherever a background action can fail, not
- * just Extensions. Slides down and fades in on first composition.
- */
 @Composable
 fun ErrorBanner(
     headline: String,
@@ -499,7 +443,6 @@ private fun ErrorBannerDismissButton(onClick: () -> Unit) {
     }
 }
 
-/** A small rounded label chip: caller supplies both fill and text color. */
 @Composable
 fun Pill(
     text: String,
@@ -518,7 +461,6 @@ fun Pill(
     }
 }
 
-/** A keyboard-hint chip, e.g. for the command palette's shortcut hints. */
 @Composable
 fun Keycap(text: String, modifier: Modifier = Modifier) {
     val theme = LocalMangoTheme.current
@@ -535,11 +477,6 @@ fun Keycap(text: String, modifier: Modifier = Modifier) {
 private val KIT_SEARCH_FIELD_RADIUS = MangoRadius.row
 private val KIT_SEARCH_FIELD_RING_RADIUS = KIT_SEARCH_FIELD_RADIUS + 2.dp
 
-/**
- * The app's styled text query field: bg2 fill, rounded, a focus ring offset from the control by
- * a bg gap, an accent caret, and a leading search glyph. Single-line; Enter (IME search action)
- * fires [onSearch]. [placeholder] shows only while [value] is empty.
- */
 @Composable
 fun KitSearchField(
     value: String,
@@ -577,8 +514,7 @@ fun KitSearchField(
                 modifier = Modifier
                     .weight(1f)
                     .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-                    // Esc in a focused field only drops focus; it must not reach the window,
-                    // where an unconsumed Esc means back.
+                    // Esc in a focused field only drops focus; an unconsumed Esc would mean back.
                     .onPreviewKeyEvent { event ->
                         if (event.key != Key.Escape) return@onPreviewKeyEvent false
                         if (event.type == KeyEventType.KeyDown) focusManager.clearFocus()
@@ -603,14 +539,6 @@ fun KitSearchField(
     }
 }
 
-/**
- * A horizontal progress bar: [progress] animates width changes, and with [successAtFull] the
- * fill turns [MangoTheme.success] once it reaches 1f (a finished chapter/download reads as
- * done, not just "full accent"); pass false to keep the fill accent throughout (the reader's
- * position bar, where 1f is just "at the bottom", not an achievement). [trackColor] overrides
- * the resting-track fill (e.g. the reader overlay's white-on-dark track); null keeps the
- * default [MangoTheme.bg2].
- */
 @Composable
 fun ProgressTrack(
     progress: Float,
@@ -643,7 +571,6 @@ fun ProgressTrack(
     }
 }
 
-/** A row of mutually-exclusive text segments, e.g. the Library grid/list toggle. */
 @Composable
 fun SegmentedControl(
     options: List<String>,
@@ -675,7 +602,6 @@ private fun SegmentedControlOption(text: String, selected: Boolean, onClick: () 
     val motion = LocalMangoMotion.current
     val interaction = remember { MutableInteractionSource() }
     val fill by animateColorAsState(
-        // Same-color-at-zero-alpha rest state; see rememberHoverFill's KDoc for why.
         targetValue = if (selected) theme.surface else theme.surface.copy(alpha = 0f),
         animationSpec = tween(motion.hoverMs),
     )
@@ -698,15 +624,10 @@ private fun SegmentedControlOption(text: String, selected: Boolean, onClick: () 
     }
 }
 
-/** The active [SourceHeaderPolicy] for cover fetches; null outside of [AppShell] (e.g. tests, previews). */
+/** Null outside [AppShell] (tests, previews). */
 val LocalSourceHeaderPolicy = staticCompositionLocalOf<SourceHeaderPolicy?> { null }
 
-/**
- * The Coil request for a cover image at [url], scoped to [sourceId]. With no [LocalSourceHeaderPolicy]
- * provided this is a plain request (today's behavior); with one, the request is withheld (null)
- * until [SourceHeaderPolicy.headersFor] resolves the source's cookie jar and User-Agent, so no
- * cookieless request ever reaches the site.
- */
+/** Withheld (null) until [SourceHeaderPolicy.headersFor] resolves, so no cookieless request reaches the site. */
 @Composable
 fun rememberCoverRequest(sourceId: String, url: String?): ImageRequest? {
     if (url == null) return null
@@ -720,11 +641,6 @@ fun rememberCoverRequest(sourceId: String, url: String?): ImageRequest? {
     return state.value
 }
 
-/**
- * Marks a cover as the same element on every screen it appears on, so opening a series grows the
- * clicked cover into the Details cover and Back shrinks it home. A no-op outside the screen host
- * and under reduced motion, where screens only fade.
- */
 @Composable
 fun Modifier.sharedCover(sourceId: String, mangaId: String): Modifier {
     val sharedTransitionScope = LocalSharedTransitionScope.current
@@ -735,17 +651,12 @@ fun Modifier.sharedCover(sourceId: String, mangaId: String): Modifier {
         this@sharedCover.sharedElement(
             sharedContentState = rememberSharedContentState("cover:$sourceId/$mangaId"),
             animatedVisibilityScope = animatedVisibilityScope,
-            // The default spring outlasts the screen transition; motion stays at 320 ms or less.
+            // The default spring outlasts the screen transition.
             boundsTransform = { _, _ -> tween(motion.screenMs, easing = motion.decel) },
         )
     }
 }
 
-/**
- * The Library/Browse cover-card grammar: a 2:3 cover with its title beneath. Rest shows an
- * unread-count pill; hovering scales the cover up; a finished series dims the cover and swaps
- * the pill for a checkmark.
- */
 @Composable
 fun CoverCard(
     title: String,
@@ -761,9 +672,7 @@ fun CoverCard(
     val theme = LocalMangoTheme.current
     val motion = LocalMangoMotion.current
     val interaction = remember { MutableInteractionSource() }
-    // Pulses the unread pill once when unreadCount rises while the card stays composed (a
-    // fresh chapter landing during this session) — never on first composition, since that
-    // would fire for every card the moment the library loads.
+    // Pulses only when unreadCount rises while composed, not on first composition.
     val pillRing = remember { Animatable(0f) }
     var previousUnreadCount by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(unreadCount) {
@@ -806,7 +715,6 @@ fun CoverCard(
                     model = rememberCoverRequest(sourceId, coverUrl),
                     contentDescription = title,
                     contentScale = ContentScale.Crop,
-                    // Only the artwork dims when finished; the ✓ pill above stays crisp.
                     modifier = Modifier.fillMaxSize().alpha(if (finished) 0.7f else 1f),
                 )
             }
@@ -855,23 +763,11 @@ fun CoverCard(
 
 private val KIT_DROPDOWN_MAX_MENU_HEIGHT = 320.dp
 
-/** Fixed option-row height; the scroll-into-view math derives offsets from it, so they cannot drift. */
+/** The scroll-into-view math derives offsets from this. */
 private val KIT_DROPDOWN_ITEM_HEIGHT = 36.dp
 
-/** Option count above which the menu pins a filter field on top; short lists stay a plain menu. */
 private const val KIT_DROPDOWN_FILTER_THRESHOLD = 12
 
-/**
- * The app's single-select dropdown: a kit-styled trigger row showing the current value, opening
- * a scrollable menu of [options]. The menu is at least as wide as the trigger (wider when an
- * option needs it); the selected option renders in accent color. Selection is by value, not
- * index — [onSelect] receives the clicked option string.
- *
- * Long lists get a filter field pinned above the options, focused on open: typing narrows the
- * list (case-insensitive contains), Up/Down move the active row through the matches without
- * wrapping, Enter selects the active row, Escape dismisses. Short lists omit the field — a
- * search box above a handful of rows is noise.
- */
 @Composable
 fun KitDropdown(
     selected: String,
@@ -953,8 +849,7 @@ fun KitDropdown(
                                     true
                                 }
 
-                                // Runs before the filter field, which would otherwise keep Esc
-                                // to drop its own focus and leave the menu open.
+                                // Runs before the filter field, which would otherwise keep Esc for itself.
                                 Key.Escape -> {
                                     expanded = false
                                     true
@@ -1039,13 +934,6 @@ private fun KitDropdownItem(text: String, selected: Boolean, active: Boolean, on
     }
 }
 
-/**
- * A two-segment accent button: [label] fills the main segment (rounded only on its outer/left
- * corners) and a fixed-width ▾ segment (rounded only on its outer/right corners) follows a
- * hairline divider. Both segments share the button's accent fill and 38 dp height; [onMainClick]
- * and [onArrowClick] are independent click targets, so a caller can give the main segment one
- * meaning (add) and the arrow another (open a picker) without a shared enabled/disabled state.
- */
 @Composable
 fun SplitButton(
     label: String,
@@ -1101,7 +989,7 @@ fun SplitButton(
     }
 }
 
-/** Holds at most one toast; a fresh [show] replaces any pending message rather than queuing behind it. */
+/** A fresh [show] replaces any pending message rather than queuing. */
 class ToastState {
     var message by mutableStateOf<String?>(null)
         private set
@@ -1109,7 +997,7 @@ class ToastState {
         private set
     private var action: (() -> Unit)? = null
 
-    /** Shows [message] for 5 s. [actionLabel]/[onAction] are optional and only meaningful together. */
+    /** [actionLabel]/[onAction] are only meaningful together. */
     fun show(message: String, actionLabel: String? = null, onAction: (() -> Unit)? = null) {
         this.message = message
         this.actionLabel = actionLabel
@@ -1122,20 +1010,12 @@ class ToastState {
         action = null
     }
 
-    /** Runs the toast's action if it has one, then dismisses — the only way a toast closes early. */
     fun runAction() {
         action?.invoke()
         dismiss()
     }
 }
 
-/**
- * A bottom-center, self-dismissing notice: renders nothing while [ToastState.message] is null,
- * otherwise shows it for 5 s (the timer restarts on every new message) unless
- * [ToastState.runAction] closes it first via its optional action label.
- *
- * ponytail: single toast, no queue — add one if two producers ever race.
- */
 @Composable
 fun Toast(state: ToastState, modifier: Modifier = Modifier) {
     val theme = LocalMangoTheme.current

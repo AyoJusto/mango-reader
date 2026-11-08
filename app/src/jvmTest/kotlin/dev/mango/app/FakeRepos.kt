@@ -27,13 +27,11 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 
-/** An always-empty jar — for tests that need a [CookieStore] but don't exercise cookies themselves. */
 class NoOpCookieStore : CookieStore {
     override suspend fun cookiesFor(host: String): List<StoredCookie> = emptyList()
     override suspend fun put(cookie: StoredCookie) = Unit
 }
 
-/** Records solve calls; returns [result] (default false = user didn't pass the challenge). */
 class FakeChallengeSolver(private val result: Boolean = false) : ChallengeSolver {
     val solved = mutableListOf<Pair<String, String>>()
     override suspend fun solve(sourceId: String, url: String): Boolean {
@@ -42,7 +40,6 @@ class FakeChallengeSolver(private val result: Boolean = false) : ChallengeSolver
     }
 }
 
-/** In-memory [LibraryRepository] for tests. No DB, no network. */
 class FakeLibraryRepository(initial: List<LibraryItem> = emptyList()) : LibraryRepository {
     private val state = MutableStateFlow(initial)
 
@@ -53,30 +50,20 @@ class FakeLibraryRepository(initial: List<LibraryItem> = emptyList()) : LibraryR
         initial.forEach { membership[it.entry.sourceId to it.entry.mangaId] = it.collectionIds }
     }
 
-    // Keyed by (sourceId, mangaId, chapterId) — a real in-memory stand-in for persistence,
-    // not canned responses, since the reader reads its own writes (progress round-trips).
     private val progressByChapter = mutableMapOf<Triple<String, String, String>, ReadProgress>()
 
-    // Monotonically increasing stand-in for updated_at, keyed the same way as progressByChapter —
-    // matches the SQL ORDER BY updated_at ordering latestProgress() needs, without relying on
-    // real clock time (ties/resolution would make ordering flaky in a fast-running test).
+    // Counter instead of wall-clock time: ties would make ordering flaky.
     private var writeCounter = 0L
     private val updatedAtOrder = mutableMapOf<Triple<String, String, String>, Long>()
 
-    // Records setChapterCount calls; unlike the real repository, not wired into observeLibrary()
-    // (LibraryItem entries here come straight from the constructor list, not a derived query) —
-    // the unread-count math itself is covered by LibraryRepositoryTest against the real SQL.
     val chapterCountBySeries = mutableMapOf<Pair<String, String>, Int>()
 
-    // Records markOpened calls; like chapterCountBySeries, not wired into observeLibrary() output —
-    // LibraryItem.newCount is derived from real SQL in LibraryRepositoryTest, not reproduced here.
     val openedAt = mutableMapOf<Pair<String, String>, Long>()
 
     override fun observeLibrary(): Flow<List<LibraryItem>> = state
 
     override suspend fun addToLibrary(entry: MangaEntry) {
         if (state.value.none { it.entry.sourceId == entry.sourceId && it.entry.mangaId == entry.mangaId }) {
-            // only a fresh add files into the default; a re-add (download path) leaves memberships alone
             membership[entry.sourceId to entry.mangaId] = setOf(collections.value.first { it.isDefault }.id)
             state.value = state.value + LibraryItem(entry, Clock.System.now())
             reflectMembership()
@@ -181,7 +168,6 @@ class FakeLibraryRepository(initial: List<LibraryItem> = emptyList()) : LibraryR
     }
 }
 
-/** Canned [CatalogRepository] for tests. Unstubbed members throw. No DB, no network. */
 class FakeCatalogRepository(
     private val sources: List<SourceInfo> = emptyList(),
     private val results: Map<String, List<MangaEntry>> = emptyMap(),
@@ -190,24 +176,17 @@ class FakeCatalogRepository(
     private val pages: Map<Triple<String, String, String>, List<Page>> = emptyMap(),
     private val sectionsBySource: Map<String, List<HomeSection>> = emptyMap(),
 ) : CatalogRepository {
-    /** How many times [pages] was called — offline-reader tests assert this stays 0. */
     var pagesCallCount: Int = 0
         private set
 
-    /** How many times [details] was called — cache tests assert a hit doesn't call through. */
     var detailsCallCount: Int = 0
         private set
 
-    /** How many times [chapters] was called — cache tests assert a hit doesn't call through. */
     var chaptersCallCount: Int = 0
         private set
 
-    /** Records every [setUserAgent] call, keyed by sourceId — no-op otherwise (no cache to evict). */
     val userAgentsBySourceId = mutableMapOf<String, String>()
 
-    // mutable so install() can behave like the real contract (round-trips into
-    // installedSources()) for ExtensionsScreen's flow test; every other caller only ever reads
-    // the fixed constructor list, so this changes nothing for them
     private val sourcesState = MutableStateFlow(sources)
 
     override suspend fun installedSources(): List<SourceInfo> = sourcesState.value
@@ -249,13 +228,6 @@ class FakeCatalogRepository(
     }
 }
 
-/**
- * In-memory [DownloadManager] for tests. No DB, no HTTP, no disk. [processQueue] is a no-op —
- * these tests only need to observe that a chapter was queued, not that a fake drain occurred.
- *
- * [localPagesByKey] is keyed by "sourceId/mangaId/chapterId"; a missing key means "not
- * downloaded" (null), matching [DownloadManager.localPages]'s contract.
- */
 class FakeDownloadManager(
     initial: List<Download> = emptyList(),
     var localPagesByKey: Map<String, List<String>> = emptyMap(),
@@ -279,7 +251,6 @@ class FakeDownloadManager(
     }
 
     override suspend fun processQueue() {
-        // no-op: nothing to drain in tests
     }
 
     override suspend fun localPages(sourceId: String, mangaId: String, chapterId: String): List<String>? =
@@ -294,10 +265,6 @@ class FakeDownloadManager(
     }
 }
 
-/**
- * In-memory [CatalogCache] for tests, seeded with [initial] entries. [put] overwrites wholesale,
- * same contract as the real cache, and is counted so tests can assert a revalidation wrote through.
- */
 class FakeCatalogCache(initial: Map<Pair<String, String>, CachedManga> = emptyMap()) : CatalogCache {
     private val entries = initial.toMutableMap()
     private var stampCounter = 0L
@@ -307,9 +274,6 @@ class FakeCatalogCache(initial: Map<Pair<String, String>, CachedManga> = emptyMa
 
     override suspend fun get(sourceId: String, mangaId: String): CachedManga? = entries[sourceId to mangaId]
 
-    // Mirrors SqlCatalogCache's stamping contract: surviving chapter ids keep their existing
-    // first_seen_at, unseen ids on a manga that already had rows get a fresh (counter-based,
-    // deterministic) stamp, and a first fill stamps everything at epoch 0.
     override suspend fun put(sourceId: String, mangaId: String, details: MangaDetails, chapters: List<Chapter>) {
         putCount++
         val existing = entries[sourceId to mangaId]
@@ -326,10 +290,6 @@ class FakeCatalogCache(initial: Map<Pair<String, String>, CachedManga> = emptyMa
     }
 }
 
-/**
- * Wraps [FakeCatalogRepository] to count [search] calls. Kept local to this test file rather
- * than added to FakeCatalogRepository itself.
- */
 internal class CountingCatalogRepository(private val delegate: CatalogRepository) : CatalogRepository {
     var searchCallCount = 0
         private set
@@ -361,12 +321,10 @@ internal class CountingCatalogRepository(private val delegate: CatalogRepository
     override suspend fun uninstall(sourceId: String) = delegate.uninstall(sourceId)
 }
 
-/** A [details] fetch that never completes — proves a cached render doesn't wait on it. */
 internal class SuspendingCatalogRepository(private val delegate: CatalogRepository) : CatalogRepository by delegate {
     override suspend fun details(sourceId: String, mangaId: String): MangaDetails = awaitCancellation()
 }
 
-/** A [details] fetch that always fails with [exception] — proves stale content survives a bad revalidation. */
 internal class ThrowingCatalogRepository(
     private val delegate: CatalogRepository,
     private val exception: Exception,
@@ -374,11 +332,6 @@ internal class ThrowingCatalogRepository(
     override suspend fun details(sourceId: String, mangaId: String): MangaDetails = throw exception
 }
 
-/**
- * Canned [ExtensionRepo] for tests. [install] calls through to [catalog] exactly like the real
- * InkdexRepo does, so a screen that refreshes [CatalogRepository.installedSources] after an
- * install sees the change reflected.
- */
 class FakeExtensionRepo(
     private val available: List<AvailableSource> = emptyList(),
     private val catalog: CatalogRepository,

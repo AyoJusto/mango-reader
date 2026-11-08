@@ -1,31 +1,13 @@
 package dev.mango.core.domain
 
-/**
- * The per-source transport policy — cookie jar, pinned or default User-Agent, canonical header
- * casing — for image fetches (reader pages, downloads, covers) that never go through the
- * extension's own request pipeline, so they would otherwise ship with none of a source's cookies
- * or UA.
- */
+/** Transport policy (cookies, User-Agent, header casing) for image fetches outside the extension's request pipeline. */
 interface SourceHeaderPolicy {
-    /**
-     * [headers] with the wire-boundary precedence applied: canonical header-name casing, a
-     * User-Agent (a caller-supplied one wins untouched, else the pinned or default one), and a
-     * Cookie header built from the source's jar with a caller-supplied Cookie pair overriding the
-     * jar on a name collision. Any failure reading the jar, resolving the User-Agent, or parsing
-     * [url] degrades to the canonicalized [headers] — a policy fault here must never sink an
-     * image the site would otherwise have served.
-     *
-     * Runs no source interceptor; see [withPolicyHeaders] for pages and [coverHeadersFor] for covers.
-     */
+    /** [headers] with jar cookies, User-Agent and canonical casing applied; a policy fault degrades to canonicalized [headers]. */
     suspend fun headersFor(sourceId: String, url: String, headers: Map<String, String>): Map<String, String>
 
-    /**
-     * The headers for a cover image at [url]. Implementations may add the source interceptor's
-     * headers, computed once per source rather than per cover.
-     */
+    /** Cover headers, possibly including the source interceptor's, computed once per source. */
     suspend fun coverHeadersFor(sourceId: String, url: String): Map<String, String> =
         headersFor(sourceId, url, emptyMap())
 
-    /** [headersFor] applied to every page's own url and headers. */
     suspend fun withPolicyHeaders(sourceId: String, pages: List<Page>): List<Page>
 }

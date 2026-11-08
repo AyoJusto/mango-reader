@@ -18,11 +18,6 @@ const val FLAME_COMICS_FIXTURE = "FlameComics.index.js"
 const val FLAME_COMICS_SHA256 = "7bc0747ee748f812b9b42d585b83e6da0f9c45c6467a0044b22ad77ae144629a"
 const val VERSIONING_SHA256 = "adc1923c9760b85e020fcdc1688f28956605b3415a4627c1a9ba26012e4a1e4d"
 
-/**
- * Registry entries served by [readFixture]: name -> (subpath under the pinned registry
- * commit, expected sha256). The registry commit is immutable, so a cached file whose hash
- * matches is trusted forever; a mismatch means a stale/corrupt cache entry, not a moved target.
- */
 private val FIXTURE_REGISTRY: Map<String, Pair<String, String>> = mapOf(
     FLAME_COMICS_FIXTURE to ("FlameComics/index.js" to FLAME_COMICS_SHA256),
     MANGABAT_FIXTURE to ("MangaBat/index.js" to MANGABAT_SHA256),
@@ -37,11 +32,6 @@ private val fixtureCacheDir: Path = Paths.get(System.getProperty("user.dir"), "b
 private fun sha256Hex(bytes: ByteArray): String =
     MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
-/**
- * Downloads and caches extension bundle fixtures from the pinned Inkdex registry commit,
- * verifying each against its expected sha256. All lookups share one lock so concurrent test
- * classes in a single JVM run don't race the same download.
- */
 internal fun readFixture(name: String): ByteArray = synchronized(FIXTURE_REGISTRY) {
     val (subpath, expectedSha) = checkNotNull(FIXTURE_REGISTRY[name]) {
         "unknown fixture $name; add it to FIXTURE_REGISTRY in BundleLoaderTest.kt"

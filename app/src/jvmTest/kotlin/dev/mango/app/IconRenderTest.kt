@@ -12,13 +12,6 @@ import java.nio.file.Paths
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
-/**
- * Regenerates the app icon rasters from the vector source of truth, design/icon/mango.svg:
- * a PNG ladder plus a multi-size mango.ico, all under build/icon/. When the mark changes,
- * copy build/icon/mango.ico over app/icons/mango.ico (the packaged Windows icon) and the
- * SVG over app/src/jvmMain/composeResources/drawable/mango_icon.svg (the live window icon) —
- * kept as a test so regeneration needs no tooling beyond the suite itself.
- */
 class IconRenderTest {
     private val icoSizes = listOf(16, 24, 32, 48, 64, 128, 256)
 
@@ -35,8 +28,6 @@ class IconRenderTest {
             assertTrue(Files.size(file) > 0)
         }
 
-        // ICO container: ICONDIR header, one ICONDIRENTRY per size, then the PNG payloads
-        // verbatim (PNG-compressed entries are valid for Vista+). All fields little-endian.
         val pngs = icoSizes.map { Files.readAllBytes(outDir.resolve("mango-$it.png")) }
         val header = ByteBuffer.allocate(6 + 16 * icoSizes.size).order(ByteOrder.LITTLE_ENDIAN)
         header.putShort(0)

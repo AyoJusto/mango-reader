@@ -3,7 +3,6 @@ package dev.mango.app
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-/** Unit coverage for [recordSearch] and [removeSearch] — pure list transforms, no I/O. */
 class SearchHistoryTest {
     @Test
     fun reRunningAQueryMovesItToTheTopWithTheNewTimestamp() {
@@ -22,7 +21,6 @@ class SearchHistoryTest {
 
     @Test
     fun capsAtTenDroppingTheOldestEntry() {
-        // newest-first order: index 0 is the most recent, index 9 ("query10") the oldest.
         val history = (1..10).map { SearchHistoryEntry("query$it", it.toLong()) }
 
         val result = recordSearch(history, "new query", 11L)

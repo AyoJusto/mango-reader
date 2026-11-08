@@ -10,7 +10,6 @@ import kotlin.test.assertNull
 import org.junit.Rule
 import org.junit.Test
 
-/** [rememberCoverRequest]'s two branches: a plain request with no policy, a header-merged one with one. */
 class KitCoverRequestTest {
     @get:Rule
     val rule = createComposeRule()

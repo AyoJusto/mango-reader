@@ -5,7 +5,6 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** Unit tests for [fuzzyScore] — pure function, no Compose, no coroutines. */
 class FuzzyScoreTest {
     @Test
     fun subsequenceInOrderMatches() {
@@ -42,8 +41,6 @@ class FuzzyScoreTest {
 
     @Test
     fun anchoringRetriesEveryFirstCharOccurrenceSoWordStartAnchorsWin() {
-        // a single greedy pass anchors "lev" at the first 'l' it sees (Solo's), scattering the
-        // match; multi-start must also try Leveling's 'l' and take that run's higher score
         val leveling = fuzzyScore("lev", "Solo Leveling")
         val television = fuzzyScore("lev", "Television")
         assertNotNull(leveling)

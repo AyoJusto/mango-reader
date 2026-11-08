@@ -12,16 +12,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.runBlocking
 
-/** A [CookieStore] whose [cookiesFor] always throws — proves a jar fault degrades, never sinks the caller. */
 private class ThrowingCookieStore : CookieStore {
     override suspend fun cookiesFor(host: String): List<StoredCookie> = error("jar read boom")
     override suspend fun put(cookie: StoredCookie) = error("not used")
 }
 
-/**
- * [DefaultSourceHeaderPolicy] mirrors [ApplicationHost]'s wire-boundary precedence for image
- * fetches, which never go through ApplicationHost itself.
- */
 class SourceHeaderPolicyTest {
     private fun newStore(): CookieStore {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())
@@ -83,7 +78,6 @@ class SourceHeaderPolicyTest {
             mapOf("Cookie" to "session=fresh"),
         )
 
-        // Set, not string equality: the jar's own cookie order isn't part of its contract.
         val pairs = result.getValue("Cookie").split("; ").map { it.substringBefore('=') to it.substringAfter('=') }
         assertEquals(setOf("session" to "fresh", "lang" to "en"), pairs.toSet())
     }

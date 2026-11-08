@@ -33,14 +33,8 @@ private fun held(virtualKey: Int): Boolean {
     return (state.toInt() and KEY_HELD) != 0
 }
 
-/**
- * Which mouse side button is held right now. Nucleus reports every extra mouse button as a
- * primary press, so a press handler calls this to learn what the user actually pressed. A held
- * left button wins: the press is then a real click.
- */
-// ponytail: reads the Win32 key state at press time, so Windows only and only correct on the
-// window thread that received the press; drop it once Nucleus maps its OTHER mouse button to
-// PointerButton.Back/Forward.
+/** The held side button; a held left button wins, since Nucleus reports side buttons as primary presses. */
+// Windows only, and only correct on the window thread that received the press.
 fun pressedSideButton(): SideButton =
     try {
         when {
@@ -56,15 +50,9 @@ fun pressedSideButton(): SideButton =
         SideButton.None
     }
 
-/** How [sideButtons] learns which side button is held; tests provide a canned answer. */
 val LocalSideButton = staticCompositionLocalOf<() -> SideButton> { ::pressedSideButton }
 
-/**
- * Turns a mouse side-button press anywhere inside this element into [onBack] for Back and nothing
- * for Forward. The press is consumed on the Initial pass, so no clickable inside treats it as the
- * primary click Nucleus reports it as. Popups and dialogs are separate scene layers that a
- * handler on the window content never sees, so each one applies its own.
- */
+/** Consumed on the Initial pass; popups and dialogs are separate scene layers that each apply their own. */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun Modifier.sideButtons(onBack: () -> Unit): Modifier {

@@ -23,8 +23,6 @@ class DetailsCacheFlowTest {
     @get:Rule
     val rule = createComposeRule()
 
-    // Warm-cache stale-while-revalidate: a hit paints the persisted copy immediately, then a
-    // live fetch always runs in the background and only ever improves or is silently ignored.
     @Test
     fun warmCacheRendersImmediatelyWhileTheLiveFetchNeverCompletes() {
         val library = FakeLibraryRepository()
@@ -160,7 +158,6 @@ class DetailsCacheFlowTest {
         )
         val catalogCache = FakeCatalogCache(mapOf(("FlameComics" to "manga-1") to CachedManga(details, chapters)))
         val catalog = SuspendingCatalogRepository(FakeCatalogRepository())
-        // autoContinue only ever resumes existing progress — nothing to continue without it.
         runBlocking { library.setProgress("FlameComics", "manga-1", "c1", page = 2, finished = false) }
         var opened: Chapter? = null
 
@@ -184,8 +181,6 @@ class DetailsCacheFlowTest {
         assertEquals("c1", opened?.chapterId)
     }
 
-    // An auto-continue pass-through is headless: the veil renders, never the Details content,
-    // and the jump still fires off the cached chapter list.
     @Test
     fun autoContinuePassThroughNeverRendersDetailsContent() {
         val library = FakeLibraryRepository()
@@ -221,8 +216,6 @@ class DetailsCacheFlowTest {
         rule.onNodeWithText("Solo Leveling").assertDoesNotExist()
     }
 
-    // The veil must not strand the user when there is nothing to continue into: once the
-    // chapter list settles without a target, the normal Details render takes over.
     @Test
     fun autoContinueVeilFallsBackToDetailsWhenThereIsNothingToContinueInto() {
         val library = FakeLibraryRepository()
@@ -254,7 +247,6 @@ class DetailsCacheFlowTest {
         rule.onNodeWithText("Solo Leveling").assertExists()
     }
 
-    // A cold-cache auto-continue that fails must surface the error card, not hold the veil.
     @Test
     fun coldCacheAutoContinueFailureShowsTheErrorCardNotTheVeil() {
         val library = FakeLibraryRepository()
@@ -281,8 +273,6 @@ class DetailsCacheFlowTest {
         rule.onNodeWithText("boom").assertExists()
     }
 
-    // Guards that the pre-cache path is untouched: nothing cached means a fetch failure still
-    // surfaces the error card instead of being swallowed.
     @Test
     fun emptyCacheFailureStillShowsTheErrorCard() {
         val library = FakeLibraryRepository()
@@ -308,8 +298,6 @@ class DetailsCacheFlowTest {
         rule.onNodeWithText("boom").assertExists()
     }
 
-    // A chapter first seen after the series' last open is NEW; one seen before it is not —
-    // markOpened must still fire so the next visit's snapshot moves forward.
     @Test
     fun aChapterFirstSeenAfterTheLastOpenShowsExactlyOneNewChip() {
         val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
@@ -320,8 +308,8 @@ class DetailsCacheFlowTest {
         )
         val lastOpenedAt = Instant.fromEpochMilliseconds(1_000)
         val firstSeenAt = mapOf(
-            "c1" to Instant.fromEpochMilliseconds(500), // seen before last open: not new
-            "c2" to Instant.fromEpochMilliseconds(2_000), // seen after last open: new
+            "c1" to Instant.fromEpochMilliseconds(500),
+            "c2" to Instant.fromEpochMilliseconds(2_000),
         )
         val catalogCache = FakeCatalogCache(
             mapOf(("FlameComics" to "manga-1") to CachedManga(details, chapters, firstSeenAt = firstSeenAt)),
@@ -352,8 +340,6 @@ class DetailsCacheFlowTest {
         assertNotNull(library.openedAt["FlameComics" to "manga-1"])
     }
 
-    // A series that has never been opened (null lastOpenedAt) has nothing to compare
-    // first-seen stamps against, so no chapter can be NEW regardless of when it was cached.
     @Test
     fun aSeriesNeverOpenedShowsNoNewChips() {
         val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")

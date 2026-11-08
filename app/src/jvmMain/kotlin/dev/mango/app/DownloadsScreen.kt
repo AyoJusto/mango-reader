@@ -30,7 +30,6 @@ import dev.mango.core.domain.Download
 import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.DownloadStatus
 
-/** Pure, data-driven content — the screenshot harness renders this directly. */
 @Composable
 fun DownloadsScreenContent(items: List<Download>) {
     val theme = LocalMangoTheme.current
@@ -69,7 +68,6 @@ fun DownloadsScreenContent(items: List<Download>) {
     }
 }
 
-/** One queued/active/finished chapter download: bg1 card, thumb, title/chapter, state, progress. */
 @Composable
 private fun DownloadRow(download: Download) {
     val theme = LocalMangoTheme.current
@@ -144,7 +142,6 @@ private fun DownloadStateText(status: DownloadStatus) {
     Text(text = label, style = MangoType.caption, color = color)
 }
 
-/** Stateful loader: streams the live queue from [DownloadManager]. */
 @Composable
 fun DownloadsScreen(downloads: DownloadManager) {
     val items by downloads.observeDownloads().collectAsState(initial = emptyList())

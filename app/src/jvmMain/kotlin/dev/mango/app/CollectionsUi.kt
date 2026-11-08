@@ -63,9 +63,6 @@ import dev.mango.core.domain.CollectionInfo
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-/** Collections UI: the add-to-collections picker and the manage-collections dialog. */
-
-/** Enter commits, Escape cancels — the key handling shared by every inline collection-name edit. */
 internal fun Modifier.inlineEditKeys(onCommit: () -> Unit, onCancel: () -> Unit): Modifier =
     onPreviewKeyEvent { event ->
         if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
@@ -82,11 +79,7 @@ internal fun Modifier.inlineEditKeys(onCommit: () -> Unit, onCancel: () -> Unit)
         }
     }
 
-/**
- * Calls [onCancel] once a field that had focus loses it — not on the unfocused state every
- * freshly composed field reports before its `requestFocus()` (fired from a [LaunchedEffect]) has
- * actually run, which would otherwise cancel the field the instant it appears.
- */
+/** Calls onCancel only after the field gained focus and then lost it. */
 @Composable
 internal fun Modifier.cancelOnFocusLoss(onCancel: () -> Unit): Modifier {
     var hasBeenFocused by remember { mutableStateOf(false) }
@@ -99,7 +92,6 @@ internal fun Modifier.cancelOnFocusLoss(onCancel: () -> Unit): Modifier {
     }
 }
 
-/** One row of [AddToCollectionsPicker]: [checked] reflects current membership, [isDefault] draws the DEFAULT badge. */
 data class CollectionCheckboxRow(val id: Long, val name: String, val isDefault: Boolean, val checked: Boolean)
 
 @Composable
@@ -156,19 +148,7 @@ private fun PickerActionRow(text: String, color: Color, onClick: () -> Unit) {
     }
 }
 
-/**
- * The Details split button's ▾ popup: a micro-label header, one checkbox row per [rows] entry,
- * a hairline, an inline "＋ New collection…" row, and — only while [inLibrary] — another hairline
- * then a danger "Remove from library" row, the only row here that leaves the library; toggling
- * checkboxes never does, even down to zero. Anchors under whatever composable shares its parent
- * [Box], the same Popup anatomy [KitDropdown] uses.
- *
- * Clicking "＋ New collection…" turns that row into a text field in place: Enter calls
- * [onCreateAndFile] with the trimmed name, which the caller implements as create-then-file so the
- * series ends up a member of the new collection in one step; a thrown duplicate-name rejection
- * (see [dev.mango.core.domain.LibraryRepository.createCollection]) renders inline under the field
- * instead of closing it. Escape or losing focus (a click elsewhere) cancels back to the plain row.
- */
+/** Toggling checkboxes never leaves the library; only the danger row removes it. */
 @Composable
 fun AddToCollectionsPicker(
     expanded: Boolean,
@@ -254,19 +234,7 @@ fun AddToCollectionsPicker(
     }
 }
 
-/**
- * The scrim-and-panel that manages the user's shelves: reorder (up/down arrows), inline rename,
- * default flagging, delete, and create. Rows render sorted by [CollectionInfo.position]. Follows
- * the same full-screen-scrim-plus-centered-panel anatomy [PaletteOverlay] uses: a click on the
- * scrim invokes [onDismiss], a click on the panel itself is consumed so it doesn't also close
- * the dialog. [onRename] and [onCreate] are suspend so a duplicate-name rejection from the repo
- * (see [dev.mango.core.domain.LibraryRepository.createCollection]) can be caught and shown
- * in-place instead of crashing; [onDelete]/[onReorder]/[onSetDefault] need no such handling
- * because the UI already keeps them within the repo's accepted states (e.g. the last collection
- * can't be deleted because its row never draws a delete affordance). The footer's "＋ New
- * collection" appends an empty row at the list's bottom already in rename mode; Enter commits via
- * [onCreate], Escape or losing focus cancels and removes the pending row.
- */
+/** Manage-shelves overlay; duplicate-name rejections from onRename/onCreate render inline. */
 @Composable
 fun ManageCollectionsDialog(
     collections: List<CollectionInfo>,
@@ -281,8 +249,7 @@ fun ManageCollectionsDialog(
     val theme = LocalMangoTheme.current
     var creatingNew by remember { mutableStateOf(false) }
     val ordered = collections.sortedBy { it.position }
-    // Holding focus keeps Esc here: it is an overlay inside the window, so an Esc nothing
-    // inside it consumes would otherwise reach the window and go back underneath it.
+    // Holding focus keeps Esc here instead of going back underneath the overlay.
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
     Box(
@@ -312,7 +279,6 @@ fun ManageCollectionsDialog(
                 .shadow(elevation = 32.dp, shape = RoundedCornerShape(MangoRadius.large))
                 .clip(RoundedCornerShape(MangoRadius.large))
                 .background(theme.bg1)
-                // consumes the click so it doesn't fall through to the scrim's onDismiss above
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
                 .padding(MangoSpace.md),
         ) {
@@ -370,12 +336,6 @@ fun ManageCollectionsDialog(
     }
 }
 
-/**
- * The bottom-of-list row [ManageCollectionsDialog] appends while creating a shelf: the same
- * accent-underline text field [ManageCollectionsRow] uses for renaming, with no backing
- * [CollectionInfo] yet. Enter calls [onCreate]; a thrown duplicate-name rejection renders under
- * the row instead of closing it. Escape or losing focus calls [onClose] without creating anything.
- */
 @Composable
 private fun PendingCollectionRow(onCreate: suspend (String) -> Unit, onClose: () -> Unit) {
     val theme = LocalMangoTheme.current
@@ -446,13 +406,6 @@ private fun PendingCollectionRow(onCreate: suspend (String) -> Unit, onClose: ()
     }
 }
 
-/**
- * One [ManageCollectionsDialog] row: double-click [collection]'s name to rename it inline (Enter
- * commits via [onRename], Escape cancels; a duplicate-name rejection renders under the row
- * instead of closing or crashing). The up/down arrows and the non-default "Make default" text
- * only draw while the row is hovered; the delete ✕ is omitted entirely when [canDelete] is
- * false.
- */
 @Composable
 private fun ManageCollectionsRow(
     collection: CollectionInfo,
@@ -572,7 +525,6 @@ private fun ManageCollectionsRow(
                     ),
                 )
             }
-            // ponytail: up/down buttons stand in for drag reorder — add drag if the buttons chafe
             if (hovered) {
                 Text(
                     text = "▲",

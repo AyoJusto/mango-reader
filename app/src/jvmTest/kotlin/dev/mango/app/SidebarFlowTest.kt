@@ -21,11 +21,6 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 
-/**
- * End-to-end sidebar flows through [AppShell] (via [TestAppShell]'s hoisted-state wiring),
- * backed by the shared fakes. Lookups for text that also renders on the screen behind the
- * overlay are scoped to [SIDEBAR_TEST_TAG]'s subtree, same idiom as [PaletteFlowTest].
- */
 class SidebarFlowTest {
     @get:Rule
     val rule = createComposeRule()
@@ -62,9 +57,6 @@ class SidebarFlowTest {
         rule.onNodeWithTag(SIDEBAR_TEST_TAG).assertDoesNotExist()
     }
 
-    // The sidebar's Continue card opens Details with the one-shot auto-continue, which fires
-    // the existing Continue action into the Reader. Pages come from local downloads so the
-    // reader renders offline with no network.
     @Test
     fun continueCardResumesStraightIntoTheReader() {
         val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
@@ -97,8 +89,6 @@ class SidebarFlowTest {
         rule.waitForIdle()
         rule.waitForIdle()
 
-        // The bar's "offline" label is Reader-only text: its presence proves the Continue
-        // card ended in the Reader, serving the downloaded pages.
         rule.onNode(hasText("offline")).assertExists()
         rule.onNodeWithTag(SIDEBAR_TEST_TAG).assertDoesNotExist()
     }
@@ -126,13 +116,9 @@ class SidebarFlowTest {
         rule.onNodeWithTag(SIDEBAR_TOGGLE_TAG).performClick()
         rule.waitForIdle()
 
-        // Only the QUEUED row counts; the DONE row must not inflate the pill.
         rule.onNode(hasText("1") and inSidebar).assertExists()
     }
 
-    // Continue cards show the chapter number once it's known (set alongside the page on every
-    // Reader write), falling back to the saved page only for progress written before that
-    // column existed (chapterNumber defaults to 0).
     @Test
     fun continueCardShowsTheChapterNumberWhenKnownAndFallsBackToTheSavedPageOtherwise() {
         val withChapter = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")

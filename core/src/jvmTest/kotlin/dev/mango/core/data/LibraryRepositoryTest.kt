@@ -17,18 +17,13 @@ import kotlin.time.Instant
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 
-/** Integration tests for [SqlLibraryRepository], driven only through the [LibraryRepository] contract. */
 class LibraryRepositoryTest {
-    /**
-     * A tick-per-call clock: back-to-back writes in a fast test can otherwise land in the same
-     * real millisecond, making updated_at ties (and ordering by it) nondeterministic.
-     */
+    /** Tick-per-call clock so back-to-back writes never tie on updated_at. */
     private class TickingClock : Clock {
         private var millis = 0L
         override fun now(): Instant = Instant.fromEpochMilliseconds(++millis)
     }
 
-    /** A clock a test can move forward on demand, to control first_seen_at vs. last_opened_at ordering. */
     private class ManualClock(var instant: Instant) : Clock {
         override fun now(): Instant = instant
     }
@@ -174,7 +169,6 @@ class LibraryRepositoryTest {
         repo.addToLibrary(MangaEntry(sourceId = "MangaBat", mangaId = "m1", title = "Solo Leveling"))
         repo.setChapterCount("MangaBat", "m1", 10)
 
-        // c1 is only opened (not finished) — still counts as started, not unread.
         repo.setProgress("MangaBat", "m1", "c1", page = 0, finished = false)
         repo.setProgress("MangaBat", "m1", "c2", page = 5, finished = true)
 
@@ -199,8 +193,6 @@ class LibraryRepositoryTest {
         val repo = newRepository()
         repo.addToLibrary(MangaEntry(sourceId = "MangaBat", mangaId = "m1", title = "Solo Leveling"))
 
-        // chapter_count defaults to 0 (never loaded via Details yet); a stray progress row must
-        // not drive the MAX(0, ...) floor negative.
         repo.setProgress("MangaBat", "m1", "c1", page = 0, finished = true)
 
         assertEquals(0, repo.observeLibrary().first().single().unreadCount)
@@ -227,8 +219,6 @@ class LibraryRepositoryTest {
         repo.addToLibrary(entry)
         repo.setChapterCount("MangaBat", "m1", 42)
 
-        // Re-adding an already-library manga happens on every chapter download of an existing
-        // series (AppShell.onDownloadChapter), not just the first add.
         repo.addToLibrary(entry.copy(title = "Solo Leveling (renamed)"))
 
         assertEquals(42, repo.observeLibrary().first().single().unreadCount)
@@ -260,7 +250,6 @@ class LibraryRepositoryTest {
         cache.put("MangaBat", "m1", newChapterDetails, initialChapters)
         repo.setChapterCount("MangaBat", "m1", initialChapters.size)
 
-        // first cache fill: nothing counts as new yet
         assertEquals(0, repo.observeLibrary().first().single().newCount)
 
         clock.instant = Instant.fromEpochMilliseconds(5_000)
@@ -311,8 +300,6 @@ class LibraryRepositoryTest {
         repo.markOpened("MangaBat", "m1")
         assertEquals(0, repo.observeLibrary().first().single().newCount)
 
-        // re-add (fires on every chapter download of an already-library series) must not
-        // reset last_opened_at back to 0, or every download would resurrect the "new" pill
         repo.addToLibrary(entry.copy(title = "Solo Leveling (renamed)"))
 
         assertEquals(0, repo.observeLibrary().first().single().newCount)

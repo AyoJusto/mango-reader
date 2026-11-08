@@ -10,14 +10,6 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Tag
 
-/**
- * Live smoke test: the PRODUCTION composition — AppGraph on the real %APPDATA%/mango, real
- * bundle file, live network — drives the full read path and leaves one real series in the
- * library so the launched app has something to show.
- *
- * Deliberately mutates real app data; tagged "live" so it never runs in a normal test pass.
- * Run: .\gradlew.bat :app:jvmTest -Plive --tests *LiveSmokeTest*
- */
 @Tag("live")
 class LiveSmokeTest {
     @Test
@@ -41,8 +33,6 @@ class LiveSmokeTest {
             assertTrue(pages.isNotEmpty(), "live pages returned nothing")
             println("SMOKE read path: '${details.entry.title}' ${chapters.size} chapters, first has ${pages.size} pages")
 
-            // One page image fetched with the same policy headers production image fetches
-            // send; a source that rejects them here rejects them in the reader and downloads.
             val page = pages.first()
             val policyHeaders = graph.headerPolicy.headersFor("FlameComics", page.url, page.headers)
             val request = HttpRequest.newBuilder(URI(page.url)).apply {

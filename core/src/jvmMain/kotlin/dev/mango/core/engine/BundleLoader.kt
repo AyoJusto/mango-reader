@@ -5,17 +5,10 @@ import java.security.MessageDigest
 class BundleVerificationException(message: String, cause: Throwable? = null) :
     Exception(message, cause)
 
-// ponytail: JVM-only via MessageDigest; expect/actual when native targets land
 object BundleLoader {
     const val MAX_BUNDLE_BYTES = 2 * 1024 * 1024
 
-    /**
-     * Gate every third-party bundle before it reaches the JS engine: size cap, pinned
-     * sha256, and strict UTF-8. Returns the bundle source only if all three pass.
-     *
-     * The size cap here is defense-in-depth: the bytes are already in memory. Whatever
-     * downloads bundles owns the streaming cap that aborts oversized transfers.
-     */
+    /** Returns the bundle source only if size cap, pinned sha256 and strict UTF-8 all pass. */
     fun verify(bytes: ByteArray, expectedSha256: String): String {
         if (bytes.size > MAX_BUNDLE_BYTES) {
             throw BundleVerificationException(

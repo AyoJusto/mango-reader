@@ -8,7 +8,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 
-/** In-memory [LibraryRepository] stand-in: only [observeLibrary] and [setChapterCount] are exercised by [LibraryUpdater]. */
 private class FakeLibraryRepository(items: List<LibraryItem>) : LibraryRepository {
     private val state = MutableStateFlow(items)
     val chapterCounts = mutableMapOf<Pair<String, String>, Int>()
@@ -49,10 +48,6 @@ private class FakeLibraryRepository(items: List<LibraryItem>) : LibraryRepositor
         error("not used by LibraryUpdater")
 }
 
-/**
- * Canned [CatalogRepository] stand-in. [chapters] throws for any sourceId in [failingSourceIds],
- * simulating a source that's unreachable for the whole check pass.
- */
 private class FakeCatalogRepository(
     private val chaptersBySeries: Map<Pair<String, String>, List<Chapter>>,
     private val detailsBySeries: Map<Pair<String, String>, MangaDetails>,
@@ -86,7 +81,6 @@ private class FakeCatalogRepository(
     override suspend fun uninstall(sourceId: String) = error("not used by LibraryUpdater")
 }
 
-/** In-memory [CatalogCache] stand-in, seeded with [initial] entries. */
 private class FakeCatalogCache(initial: Map<Pair<String, String>, CachedManga> = emptyMap()) : CatalogCache {
     private val entries = initial.toMutableMap()
     val putCalls = mutableListOf<Pair<String, String>>()
@@ -208,9 +202,7 @@ class LibraryUpdaterTest {
         )
         val catalog = FakeCatalogRepository(
             chaptersBySeries = mapOf(
-                // brand-new series: three live chapters, nothing cached yet
                 firstFillSeries to listOf(chapter("c1"), chapter("c2"), chapter("c3")),
-                // two of these four chapters are new since the cache below only knows c1/c2
                 existingCacheSeries to listOf(chapter("c1"), chapter("c2"), chapter("c3"), chapter("c4")),
             ),
             detailsBySeries = mapOf(firstFillSeries to details("MangaBat", "m1")),

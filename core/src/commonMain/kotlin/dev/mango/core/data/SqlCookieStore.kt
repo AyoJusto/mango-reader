@@ -8,7 +8,6 @@ import kotlin.time.Clock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** SQLDelight-backed [CookieStore], scoped to [sourceId] at construction. */
 class SqlCookieStore(
     private val db: MangoDatabase,
     private val sourceId: String,
@@ -35,8 +34,7 @@ class SqlCookieStore(
         Unit
     }
 
-    // ponytail: RFC 6265 domain suffix match only, path ignored; per-path matching can
-    // arrive with a real source that needs it
+    // Domain suffix match only; cookie paths are ignored.
     private fun domainMatches(host: String, domain: String): Boolean {
         val d = domain.removePrefix(".")
         return host == d || host.endsWith(".$d")

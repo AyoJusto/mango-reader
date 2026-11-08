@@ -4,12 +4,7 @@ import org.graalvm.polyglot.PolyglotException
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
 
-/**
- * Pins the sandbox: the production context builder must deny every capability beyond
- * pure JS execution. If a future change to [newExtensionContext] or [newExtensionEngine]
- * opens host access, these fail. Probes run through the exact builders production uses —
- * both the standalone-context path and the shared-engine path [ExtensionRuntime] runs.
- */
+/** Pins the sandbox: the production context builders must deny every capability beyond pure JS. */
 class SandboxTest {
     private fun probe(js: String) {
         newExtensionContext().use { context ->

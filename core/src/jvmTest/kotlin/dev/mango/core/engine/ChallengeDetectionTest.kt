@@ -10,12 +10,6 @@ import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
 
-/**
- * Offline proof that a Cloudflare challenge surfaces as [ChallengeRequiredException]
- * (never a generic [ExtensionCallException], never a hang) through the REAL bundles:
- * each source's own interceptResponse throws its in-bundle `type: "cloudflareError"`
- * error, and the engine boundary names it. MockEngine plays the challenged site.
- */
 class ChallengeDetectionTest {
     @Test
     fun mangaBatCfMitigatedHeaderSurfacesAsCloudflareChallenge() = runBlocking {
@@ -46,8 +40,6 @@ class ChallengeDetectionTest {
 
     @Test
     fun syntheticWireCasedChallengeHeaderIsStillDetected() = runBlocking {
-        // real sites have served `Cf-Mitigated: challenge` (wire casing); bundles look up the
-        // lowercase key, so the host must normalize or detection silently misses
         val challengedSite = HttpClient(MockEngine {
             respond(
                 "<html>checking your browser</html>".encodeToByteArray(),

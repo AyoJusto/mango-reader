@@ -8,10 +8,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
-/**
- * Drives the Cloudflare-challenge detection path through fake ProxyObjects (no authored
- * JS text), same style as ApplicationHostTest.
- */
 class CloudflareChallengeTest {
     private fun newContext(): Context =
         Context.newBuilder("js").option("engine.WarnInterpreterOnly", "false").build()
@@ -26,8 +22,6 @@ class CloudflareChallengeTest {
                     "resolutionRequest" to ProxyObject.fromMap(mapOf("url" to challengeUrl)),
                 )
             )
-            // a fake extension whose method returns a promise that rejects with the
-            // Cloudflare-challenge error shape
             val fakeExtension = ProxyObject.fromMap(
                 mapOf(
                     "getSearchResults" to ProxyExecutable {

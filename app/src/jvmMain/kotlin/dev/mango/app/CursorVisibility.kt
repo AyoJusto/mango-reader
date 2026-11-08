@@ -25,11 +25,7 @@ private fun showCursor(show: Boolean) {
     if (isWindows) Win32.showCursor(show)
 }
 
-/**
- * Hides the mouse cursor while [hidden] is true. ShowCursor is a per-thread display counter,
- * so every hide is paired with exactly one show and both run on the window's UI thread
- * (composition apply). The cursor reappears whenever it leaves the window.
- */
+/** Every hide is paired with exactly one show, both on the window's UI thread: ShowCursor is a per-thread counter. */
 @Composable
 fun HideCursorWhile(hidden: Boolean) {
     DisposableEffect(hidden) {

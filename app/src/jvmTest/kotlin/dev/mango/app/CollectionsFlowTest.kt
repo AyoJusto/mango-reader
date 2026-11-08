@@ -59,8 +59,6 @@ class CollectionsFlowTest {
         rule.onNodeWithText("In library ✓").assertExists()
     }
 
-    // Clicking the split button's main segment on a non-library series both adds it and files
-    // it into the default collection; the toast names that collection.
     @Test
     fun addingToLibraryFilesIntoTheDefaultCollectionAndTheToastNamesIt() {
         val library = FakeLibraryRepository()
@@ -96,8 +94,6 @@ class CollectionsFlowTest {
         assertEquals(setOf(1L), stored.collectionIds)
     }
 
-    // Opening the split button's ▾ picker on a library series and toggling checkboxes updates
-    // membership directly; unchecking every box leaves the series in the library, just unfiled.
     @Test
     fun togglingPickerCheckboxesUpdatesMembershipAndUncheckingEveryBoxKeepsTheSeriesInTheLibrary() {
         val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
@@ -144,8 +140,6 @@ class CollectionsFlowTest {
         assertEquals(emptySet<Long>(), afterRemoveAll.single().collectionIds)
     }
 
-    // Checking a picker box before the series is in the library must add it first — setMembership
-    // alone would write a membership row with no library row behind it, invisible to the user.
     @Test
     fun togglingAPickerCheckboxOnANotInLibrarySeriesAddsItWithExactlyThatMembership() {
         val library = FakeLibraryRepository()
@@ -184,9 +178,6 @@ class CollectionsFlowTest {
         assertEquals(setOf(2L), stored.collectionIds)
     }
 
-    // The picker's "＋ New collection…" row turns into a text field in place; Enter creates the
-    // collection, checks it, and files the series in one step — membership ends up the previously
-    // checked set plus the new id, not just the new id alone.
     @Test
     fun creatingACollectionInThePickerChecksItAndFilesTheSeriesAlongsideWhatWasAlreadyChecked() {
         val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
@@ -217,15 +208,11 @@ class CollectionsFlowTest {
         rule.onNodeWithTag("split-button-arrow").performClick()
         rule.waitForIdle()
 
-        // Check the pre-existing "Later" collection first, so the new one must join it rather
-        // than replace it.
         rule.onNodeWithText("Later").performClick()
         rule.waitForIdle()
 
         rule.onNodeWithText("＋ New collection…").performClick()
         rule.waitForIdle()
-        // The picker renders in a Popup, a second semantics root alongside the window's own —
-        // onRoot() would be ambiguous, so the key input targets the field node directly instead.
         val field = rule.onNode(hasSetTextAction())
         field.performTextInput("Finished")
         rule.waitForIdle()
@@ -236,8 +223,6 @@ class CollectionsFlowTest {
         assertEquals(setOf(1L, 2L, 3L), stored.collectionIds)
     }
 
-    // The picker's danger row is the only checkbox-adjacent action that actually leaves the
-    // library.
     @Test
     fun removeFromLibraryRowInThePickerRemovesTheSeries() {
         val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")

@@ -21,14 +21,12 @@ kotlin {
             implementation(libs.compose.material3)
             implementation(libs.compose.material.icons.extended)
             implementation(libs.compose.components.resources)
-            // real backdrop blur (frosted sidebar panel) — Compose has no built-in
-            // way to blur only the region behind an overlay
+            // frosted sidebar needs real backdrop blur; Compose has no built-in region blur
             implementation(libs.haze)
             implementation(libs.nucleus.application)
             implementation(libs.nucleus.decorated.window.tao)
             implementation(libs.kotlinx.coroutines.core)
-            // Provides Dispatchers.Main (Swing EDT) on the JVM — nothing supplies it
-            // transitively, and Coil's enqueue() dispatches to Main for prefetch
+            // supplies Dispatchers.Main (Swing EDT); Coil prefetch needs it and nothing else provides it
             implementation(libs.kotlinx.coroutines.swing)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.ktor.client.cio)
@@ -38,24 +36,20 @@ kotlin {
             implementation(libs.sqldelight.sqlite.driver)
             // ktor logs through slf4j; without a provider every launch prints NOP warnings
             runtimeOnly(libs.slf4j.simple)
-            // M4.3b: embedded Chromium (JCEF) for the Cloudflare solve — CEF natives
-            // download at runtime into a dir we choose, not bundled in the jar
+            // embedded Chromium for the Cloudflare solve; CEF natives download at runtime
             implementation(libs.jcefmaven)
         }
         jvmTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.compose.ui.test.junit4)
             implementation(libs.ktor.client.mock)
-            // uiTestJUnit4 tests are JUnit4; without the vintage engine the JUnit5 platform
-            // silently discovers zero tests in them and the suite "passes" without running
+            // without the vintage engine JUnit5 silently discovers zero tests in the JUnit4 UI tests
             runtimeOnly(libs.junit.vintage.engine)
         }
     }
 }
 
-// JCEF needs these AWT internals opened on JDK 16+ (jcefmaven README). sun.lwawt* exist only
-// in the macOS java.desktop module; opening them on Windows/Linux is a no-op the JVM warns
-// about ("package sun.lwawt not in java.desktop"), so add them only where they exist.
+// sun.lwawt* exist only in macOS java.desktop; opening them elsewhere makes the JVM warn, so gate on Mac.
 val jcefJvmArgs = buildList {
     add("--add-opens"); add("java.desktop/sun.awt=ALL-UNNAMED")
     if (System.getProperty("os.name").startsWith("Mac", ignoreCase = true)) {
@@ -64,12 +58,7 @@ val jcefJvmArgs = buildList {
     }
 }
 
-/**
- * Silences boot warnings on modern JDKs: sqlite-jdbc loads its native library via the
- * restricted System::load (warned since JDK 24, needs --enable-native-access), and Truffle
- * still uses sun.misc.Unsafe field offsets (warned since JDK 24, allowed via a flag that
- * exists only on JDK 23+). Older JVMs neither warn nor accept the flags, hence the gates.
- */
+// Gated by JDK major: older JVMs neither warn nor accept these flags.
 fun quietNativeWarningArgs(major: Int) = buildList {
     if (major >= 22) add("--enable-native-access=ALL-UNNAMED")
     if (major >= 23) add("--sun-misc-unsafe-memory-access=allow")
@@ -77,8 +66,7 @@ fun quietNativeWarningArgs(major: Int) = buildList {
 
 compose.resources {
     packageOfResClass = "dev.mango.app.resources"
-    // Auto-detection looks for the resources dependency on commonMain; this module is
-    // JVM-only and declares it on jvmMain instead, so ask explicitly.
+    // JVM-only module declares the resources dependency on jvmMain, so auto-detection needs this.
     generateResClass = always
 }
 
@@ -90,8 +78,7 @@ compose.desktop {
             languageVersion.set(JavaLanguageVersion.of(25))
             vendor.set(JvmVendorSpec.ADOPTIUM)
         }.get().metadata.installationPath.asFile.absolutePath
-        // stock JDK can't load TruffleAttach (optimized Truffle unavailable — GraalJS runs
-        // interpreted; fine, extension calls are network-bound). Silence the boot warning.
+        // stock JDK can't load TruffleAttach and GraalJS runs interpreted; silence the boot warning
         jvmArgs("-Dpolyglotimpl.AttachLibraryFailureAction=ignore")
         jvmArgs(*jcefJvmArgs.toTypedArray())
         jvmArgs(*quietNativeWarningArgs(25).toTypedArray())
@@ -101,10 +88,9 @@ compose.desktop {
             packageVersion = "1.0.0"
             description = "Manhwa reader for Paperback extensions"
             vendor = "Justin Goldstock"
-            // jdeps finds the first four; Truffle, non-UTF-8 site charsets, locale date parsing and the Windows accessibility bridge need the rest at runtime.
+            // jdeps finds the first four; the rest are needed at runtime (Truffle, charsets, locales, accessibility)
             modules("java.instrument", "java.management", "java.sql", "jdk.unsupported", "jdk.management", "jdk.charsets", "jdk.localedata", "jdk.accessibility")
             windows {
-                // Regenerated from design/icon/mango.svg by IconRenderTest; see its KDoc.
                 iconFile.set(project.file("icons/mango.ico"))
                 perUserInstall = true
                 menuGroup = "mango"
@@ -118,12 +104,9 @@ compose.desktop {
 
 tasks.withType<Test> {
     useJUnitPlatform {
-        // live tests open a real browser / hit the network (and download CEF once); run them
-        // on demand with -Plive, never on a normal test run
+        // live tests open a real browser and hit the network; run with -Plive
         if (!project.hasProperty("live")) excludeTags("live")
     }
-    // JCEF needs the same AWT opens in the test JVM when a live test drives it
     jvmArgs(jcefJvmArgs)
     jvmArgs(quietNativeWarningArgs(25))
 }
-

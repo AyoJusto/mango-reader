@@ -13,7 +13,6 @@ import kotlin.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** SQLDelight-backed [CatalogCache]. The only place in :core allowed to know about the DB. */
 class SqlCatalogCache(
     private val db: MangoDatabase,
     private val context: CoroutineContext = Dispatchers.Default,
@@ -71,18 +70,15 @@ class SqlCatalogCache(
                 updated_at = clock.now().toEpochMilliseconds(),
             )
 
-            // read before the delete so surviving chapters keep the first_seen_at they already had
+            // Read before the delete so surviving chapters keep their first_seen_at.
             val previousFirstSeenAt =
                 db.catalog_cacheQueries.selectChapterFirstSeen(source_id = sourceId, manga_id = mangaId)
                     .executeAsList()
                     .associate { it.chapter_id to it.first_seen_at }
-            // no prior rows at all means this is the manga's first fill: every chapter is
-            // "already there" as far as the user is concerned, so none of them count as new
+            // No prior rows means a first fill: none of these chapters count as new.
             val isFirstFill = previousFirstSeenAt.isEmpty()
             val now = clock.now().toEpochMilliseconds()
 
-            // atomic replace: delete then re-insert with fresh positions, so a shrunk chapter
-            // list can't leave orphaned rows behind
             db.catalog_cacheQueries.deleteChapterCache(source_id = sourceId, manga_id = mangaId)
             chapters.forEachIndexed { index, chapter ->
                 val firstSeenAt = when {
@@ -109,8 +105,7 @@ class SqlCatalogCache(
         if (value.isEmpty()) emptyList() else value.split(LIST_DELIMITER)
 
     private companion object {
-        // ASCII unit separator: cannot occur in extension-supplied author/tag text, so no
-        // escaping is needed on join or split.
+        // ASCII unit separator cannot occur in extension-supplied text, so no escaping is needed.
         const val LIST_DELIMITER = "\u001F"
     }
 }

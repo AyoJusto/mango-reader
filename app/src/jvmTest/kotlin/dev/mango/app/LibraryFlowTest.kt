@@ -33,10 +33,6 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 
-/**
- * End-to-end Library view-toggle flows through [AppShell] (via [TestAppShell]'s hoisted
- * [LIBRARY_VIEW_GRID]/[LIBRARY_VIEW_LIST] state, same idiom as its sidebar-state hoisting).
- */
 class LibraryFlowTest {
     @get:Rule
     val rule = createComposeRule()
@@ -63,8 +59,6 @@ class LibraryFlowTest {
         rule.onNodeWithTag(LIBRARY_LIST_TEST_TAG).assertExists()
     }
 
-    // Completeness test for the actions registry: the library-view toggle must surface a palette
-    // hit, and running it must actually flip the Library screen's rendered view.
     @Test
     fun toggleLibraryViewActionSurfacesAPaletteHitAndRunningItSwitchesTheView() {
         val library = FakeLibraryRepository(libraryItems())
@@ -78,10 +72,6 @@ class LibraryFlowTest {
         palette.visible = true
         rule.waitForIdle()
 
-        // "toggle library" is a subsequence of no other hit title (in particular, not of the
-        // "Setting: Library view" hit the settings registry also produces — that title has no
-        // 'o' at all), so the action is both proven present and left as the single (selected)
-        // hit for Enter below.
         rule.onNodeWithText("Search everywhere…").performTextInput("toggle library")
         rule.waitForIdle()
 
@@ -228,10 +218,6 @@ class LibraryFlowTest {
         assertTrue(invoked)
     }
 
-    // AppShell-level wiring: clicking the header's refresh button must run a real library-wide
-    // check through LibraryUpdater — the call count on the fake catalog is the observable proof
-    // (TestAppShell's onLibraryChecked isn't asserted separately here since the call count
-    // already proves checkForUpdates ran end to end through the shell).
     @Test
     fun clickingLibraryRefreshRunsALibraryWideUpdateCheckThroughAppShell() {
         val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
@@ -251,8 +237,6 @@ class LibraryFlowTest {
         assertTrue(catalog.chaptersCallCount >= 1)
     }
 
-    // Clicking a shelf chip narrows the grid to its members; "All" always shows everything
-    // regardless of membership.
     @Test
     fun clickingACollectionChipFiltersToItsMembersAndAllShowsEverythingAgain() {
         val collectionA = CollectionInfo(1, "Reading", 0, true)
@@ -297,8 +281,6 @@ class LibraryFlowTest {
         rule.onNodeWithText("Tower of God").assertExists()
     }
 
-    // End to end through AppShell: the manage-collections dialog's rename, delete (with the
-    // default-promotion fallback), and create all round-trip into the chip row.
     @Test
     fun manageCollectionsDialogRenamesDeletesTheDefaultAndCreates() {
         val library = FakeLibraryRepository(
@@ -318,12 +300,6 @@ class LibraryFlowTest {
         rule.onNodeWithText("⋯").performClick()
         rule.waitForIdle()
 
-        // The dialog panel's own click-swallowing modifier (so a click on it doesn't fall
-        // through to the scrim's dismiss) merges every descendant into one semantics node, so
-        // everything inside the dialog below is looked up against the unmerged tree instead.
-
-        // Rename the default collection ("Reading", inside the dialog row — the chip row's own
-        // text always carries a " · N" suffix, so it can't collide with this exact match).
         rule.onNodeWithText("Reading", useUnmergedTree = true).performTouchInput { doubleClick() }
         rule.waitForIdle()
         rule.onNode(hasSetTextAction(), useUnmergedTree = true).performTextReplacement("Currently Reading")
@@ -333,9 +309,6 @@ class LibraryFlowTest {
 
         rule.onNodeWithText("Currently Reading · 1").assertExists()
 
-        // Delete the (renamed) default; the fake promotes the remaining collection to default.
-        // Both rows have a "✕" (both are deletable while two collections remain), so the first
-        // one in tree order is targeted — "Currently Reading" (still position 0) sorts first.
         rule.onAllNodes(hasText("✕"), useUnmergedTree = true).onFirst().performClick()
         rule.waitForIdle()
         rule.onNodeWithText("Delete").performClick()
@@ -346,9 +319,6 @@ class LibraryFlowTest {
         assertEquals(listOf("Dropped"), afterDelete.map { it.name })
         assertTrue(afterDelete.single().isDefault)
 
-        // Create a new shelf via the dialog's own affordance: the footer appends an empty row
-        // already in rename mode, so typing straight into it and pressing Enter commits it —
-        // no separate dialog anywhere.
         rule.onNodeWithText("＋ New collection", useUnmergedTree = true).performClick()
         rule.waitForIdle()
         rule.onNode(hasSetTextAction(), useUnmergedTree = true).performTextInput("Finished")
@@ -359,8 +329,6 @@ class LibraryFlowTest {
         rule.onNodeWithText("Finished · 0").assertExists()
     }
 
-    // The Library "＋" chip creates inline: no NewCollectionDialog, just a text field swapped in
-    // for the chip itself.
     @Test
     fun libraryPlusChipTurnsIntoAnInlineFieldThatCreatesTheShelf() {
         val library = FakeLibraryRepository(libraryItems())

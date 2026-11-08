@@ -43,10 +43,8 @@ import kotlinx.coroutines.launch
 import java.util.logging.Level
 import java.util.logging.Logger
 
-/** Cover width used by both the search-results grid and the discover shelves: board 07's "5-column feel". */
 private val BROWSE_COVER_WIDTH = 190.dp
 
-/** Loading placeholder for the search-results grid: shapes mirror [CoverCard]'s cover + title. */
 @Composable
 private fun CoverGridSkeleton(modifier: Modifier = Modifier) {
     LazyVerticalGrid(
@@ -77,7 +75,6 @@ private fun CoverGridSkeleton(modifier: Modifier = Modifier) {
     }
 }
 
-/** Loading placeholder for discover sections: shapes mirror [BrowseSectionRow]'s title + shelf. */
 @Composable
 private fun SectionsSkeleton(modifier: Modifier = Modifier) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(MangoSpace.md)) {
@@ -105,15 +102,13 @@ private fun SectionsSkeleton(modifier: Modifier = Modifier) {
     }
 }
 
-/** One discover/home section: a title above a horizontal shelf of covers. */
 @Composable
 private fun BrowseSectionRow(section: HomeSection, onOpenDetails: (MangaEntry) -> Unit) {
     val theme = LocalMangoTheme.current
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(text = section.title, style = MangoType.bodyStrong, color = theme.textPrimary)
         Spacer(modifier = Modifier.height(MangoSpace.xs))
-        // no item keys: extension data is untrusted and a duplicate mangaId in one
-        // response must not crash composition with a duplicate-key exception
+        // No item keys: untrusted duplicate mangaIds must not crash composition.
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(18.dp),
             modifier = Modifier.fillMaxWidth(),
@@ -134,7 +129,6 @@ private fun BrowseSectionRow(section: HomeSection, onOpenDetails: (MangaEntry) -
     }
 }
 
-/** Pure, data-driven content — the screenshot harness renders this directly. */
 @Composable
 fun BrowseScreenContent(
     sources: List<SourceInfo>,
@@ -156,8 +150,6 @@ fun BrowseScreenContent(
     solvingSourceId: String? = null,
     onSolveChallenge: () -> Unit = {},
 ) {
-    // one solve at a time within this screen: the button is disabled while ANY source is
-    // solving, but the progress hint only shows on this source (see BrowseState.solvingSourceId)
     val solving = solvingSourceId != null && solvingSourceId == selectedSourceId
     val solveEnabled = solvingSourceId == null
     val theme = LocalMangoTheme.current
@@ -183,8 +175,6 @@ fun BrowseScreenContent(
                 Spacer(modifier = Modifier.height(MangoSpace.md))
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     if (selectedSourceId == null) {
-                        // nothing to browse: either the registry read failed (say so honestly) or
-                        // there are genuinely no sources — never the sections-mode hint
                         Text(
                             text = sourcesError ?: "No sources installed — add one from the Extensions tab",
                             style = MangoType.body,
@@ -205,8 +195,7 @@ fun BrowseScreenContent(
                                 title = "No results",
                                 guidance = "Try a different search term.",
                             )
-                            // no item keys: extension data is untrusted and a duplicate mangaId in one
-                            // response must not crash composition with a duplicate-key exception
+                            // No item keys: untrusted duplicate mangaIds must not crash composition.
                             else -> LazyVerticalGrid(
                                 columns = GridCells.Adaptive(minSize = BROWSE_COVER_WIDTH),
                                 contentPadding = PaddingValues(0.dp),
@@ -242,8 +231,7 @@ fun BrowseScreenContent(
                                 modifier = Modifier.fillMaxSize(),
                                 verticalArrangement = Arrangement.spacedBy(MangoSpace.md),
                             ) {
-                                // no item keys: extension-provided section ids are untrusted and a
-                                // duplicate must not crash composition with a duplicate-key exception
+                                // No item keys: untrusted duplicate section ids must not crash composition.
                                 items(sections) { section ->
                                     BrowseSectionRow(section = section, onOpenDetails = onOpenDetails)
                                 }
@@ -261,58 +249,36 @@ fun BrowseScreenContent(
     }
 }
 
-/**
- * Browse's screen state, hoisted out of [BrowseScreen] so the caller can `remember` it at the
- * shell level (see [AppShell]): switching tabs away from and back to Browse must not lose the
- * query, results, or selection. The source list itself reloads on each entry so fresh installs
- * from the Extensions tab appear immediately.
- */
 class BrowseState {
     var sources by mutableStateOf<List<SourceInfo>>(emptyList())
     var selectedSourceId by mutableStateOf<String?>(null)
     var query by mutableStateOf("")
 
-    // why the last installed-sources reload failed; shown only when there is nothing to select
     var sourcesError by mutableStateOf<String?>(null)
 
-    // discover/home sections, cached per source for the lifetime of this state (session cache):
-    // a tab revisit after a successful load never re-fetches. Errors are NOT cached as terminal —
-    // see fetchSections below — so a revisit after a failure retries.
     var sectionsBySource by mutableStateOf<Map<String, List<HomeSection>>>(emptyMap())
     var sectionsPending by mutableStateOf<Set<String>>(emptySet())
     var sectionsErrors by mutableStateOf<Map<String, String>>(emptyMap())
 
-    // challenge urls are split by mode (this map vs searchChallengeUrl below): a stale search
-    // challenge must never render a Solve button on a sections error, and vice versa
+    // Split by mode so a stale search challenge never renders Solve on a sections error.
     var sectionsChallengeUrls by mutableStateOf<Map<String, String>>(emptyMap())
 
-    // one solve at a time within this screen; the app-wide one-embedded-browser invariant
-    // currently holds because single-pane navigation composes one screen at a time — hoisting
-    // a real gate into the solver would be needed if that assumption ever breaks
+    // One solve at a time relies on single-pane navigation; move the gate into the solver if that changes.
     var solvingSourceId by mutableStateOf<String?>(null)
 
-    // search is single-source-at-a-time here (unlike Search tab's fan-out), so a plain
-    // results/error pair is enough; searchedSourceId says which source they belong to so
-    // switching chips can tell "these are stale results for another source" from "these are S's".
     var results by mutableStateOf<List<MangaEntry>>(emptyList())
     var isLoading by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
     var searchChallengeUrl by mutableStateOf<String?>(null)
     var searchedSourceId by mutableStateOf<String?>(null)
 
-    // the query the current results/error came from: the post-solve rerun uses this, never the
-    // live text field (the user may have typed since); plain field, never rendered
+    // The post-solve rerun uses this, never the live text field.
     var searchedQuery: String = ""
 
-    // last search, cancelled when a new one is submitted so a slow older search can't
-    // overwrite a newer one's results/isLoading/error; plain field, not UI state
+    // Cancelled on a new submit so a slow older search can't overwrite newer results.
     var searchJob: Job? = null
 }
 
-/**
- * Stateful loader: one-shot-per-entry source list, lazy per-tab discover sections, and
- * search-on-submit against [CatalogRepository].
- */
 @Composable
 fun BrowseScreen(
     catalog: CatalogRepository,
@@ -323,8 +289,7 @@ fun BrowseScreen(
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
-        // Reload on every entry, not one-shot: an extension installed on the Extensions tab
-        // must show up here without restarting the app. Query/results retention is untouched.
+        // Reload on every entry so newly installed extensions appear without a restart.
         try {
             state.sources = catalog.installedSources()
             state.sourcesError = null
@@ -334,16 +299,13 @@ fun BrowseScreen(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            // a failed registry read keeps the previous (possibly empty) list; crashing the
-            // whole app out of a LaunchedEffect over a local DB hiccup would be worse
+            // Keep the previous list; a local DB hiccup must not crash the app out of a LaunchedEffect.
             state.sourcesError = e.message ?: "Failed to load sources"
             Logger.getLogger("BrowseScreen").log(Level.WARNING, "failed to load installed sources", e)
         }
     }
 
-    // One source's discover sections, isolated so a retry (tab revisit, or a challenge solve)
-    // never disturbs another source's cache entry. Clears its own stale error AND challenge url
-    // at start: a later non-challenge failure must not render a Solve button for an old URL.
+    // Clears its own stale error and challenge url so no old Solve button renders.
     suspend fun fetchSections(sourceId: String) {
         state.sectionsPending += sourceId
         state.sectionsErrors -= sourceId
@@ -363,28 +325,19 @@ fun BrowseScreen(
         }
     }
 
-    // the composition-captured selection, also the sections effect's key: the effect must act
-    // on the value it was keyed with, never a live state read — the entry effect can set the
-    // selection between composition and the null-keyed run executing, which would make that
-    // run fetch AND the keyed restart fetch again (an error entry is retryable by design)
+    // Captured at composition and used as the effect key: a live state read would double-fetch.
     val selected = state.selectedSourceId
 
     LaunchedEffect(selected) {
-        // Selected tab only, on demand: never prefetch other sources' sections (polite-scraper
-        // rule). A cached success is never re-fetched; a cached error is retried on revisit.
+        // Selected tab only, on demand: never prefetch other sources (polite-scraper rule).
         val sourceId = selected
         if (sourceId != null && sourceId !in state.sectionsBySource && sourceId !in state.sectionsPending) {
-            // launched into the screen scope, not this effect's own coroutine: a chip flip must
-            // not cancel an in-flight load (it completes into the cache — that's a requested
-            // fetch finishing, not a prefetch), and the pending-guard can no longer race a
-            // cancelled effect's finally block
+            // Launched in the screen scope so a chip flip doesn't cancel an in-flight load.
             scope.launch { fetchSections(sourceId) }
         }
     }
 
-    // Query is a parameter (like SearchScreen.searchOne), captured at submit time: the user may
-    // edit the text field while this is in flight, and the post-solve rerun must use what was
-    // actually searched. Touches ONLY search-mode challenge state, never the sections map.
+    // Touches only search-mode challenge state, never the sections map.
     suspend fun searchOnce(sourceId: String, query: String) {
         state.isLoading = true
         state.error = null
@@ -406,8 +359,7 @@ fun BrowseScreen(
     fun search() {
         val sourceId = state.selectedSourceId ?: return
         if (state.query.isBlank()) {
-            // Deliberate way back to sections mode: there is no explicit clear button, so
-            // submitting a blank query is how a tab returns to showing discover sections.
+            // Blank submit is the way back to sections mode; there is no clear button.
             state.searchJob?.cancel()
             state.results = emptyList()
             state.error = null
@@ -417,15 +369,11 @@ fun BrowseScreen(
         val query = state.query
         state.searchedSourceId = sourceId
         state.searchedQuery = query
-        // cancel any in-flight search first: a slow older search must not overwrite the
-        // results/isLoading/error trio after this newer one has rendered
         state.searchJob?.cancel()
         state.searchJob = scope.launch { searchOnce(sourceId, query) }
     }
 
-    // fromSearchMode is captured at click time (the Solve button only renders in the active
-    // mode), so the post-solve rerun targets the mode the user actually saw — never re-read
-    // from searchedSourceId after the solve returns.
+    // fromSearchMode is captured at click time so the rerun targets the mode the user saw.
     fun solveChallenge(sourceId: String, fromSearchMode: Boolean) {
         val url = (if (fromSearchMode) state.searchChallengeUrl else state.sectionsChallengeUrls[sourceId])
             ?: return
@@ -433,7 +381,7 @@ fun BrowseScreen(
             state.solvingSourceId = sourceId
             try {
                 if (challengeSolver.solve(sourceId, url)) {
-                    // polite-scraper rule: rerun only this source's fetch in the solved mode
+                    // Polite-scraper rule: rerun only this source's fetch.
                     if (fromSearchMode) searchOnce(sourceId, state.searchedQuery) else fetchSections(sourceId)
                 }
             } finally {

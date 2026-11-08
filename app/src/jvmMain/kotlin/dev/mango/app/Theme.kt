@@ -19,12 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 
-/**
- * The app's full semantic color set. Every screen reads colors through [LocalMangoTheme] —
- * never a hardcoded [Color] — so switching themes or importing a JSON file recolors the whole
- * app without touching a screen. Exported/imported as JSON by [ThemeJson]; [focus] is the one
- * token deliberately excluded from that file because it is always derived from [accent].
- */
+/** All semantic colors; screens read them via LocalMangoTheme, never a hardcoded Color. */
 data class MangoTheme(
     val name: String,
     val bg0: Color,
@@ -42,11 +37,11 @@ data class MangoTheme(
     val warning: Color,
     val danger: Color,
 ) {
-    /** Keyboard focus ring color: the current accent at reduced opacity — never stored or exported. */
+    /** Derived from accent; never stored or exported. */
     val focus: Color get() = accent.copy(alpha = 0.45f)
 }
 
-/** The built-in default theme; also the fallback when no theme file exists or it fails to load. */
+/** Also the fallback when no theme file exists or it fails to load. */
 val MangoDark = MangoTheme(
     name = "Mango Dark",
     bg0 = Color(0xFF0D0D0F),
@@ -65,11 +60,6 @@ val MangoDark = MangoTheme(
     danger = Color(0xFFF26055),
 )
 
-/**
- * Built-in accent swatches offered on the Settings screen and in the palette. Picking one keeps
- * every other token (including [MangoTheme.accentOn]) fixed — full independent control over
- * every token belongs to JSON import.
- */
 val ACCENT_PRESETS: List<Pair<String, Color>> = listOf(
     "Amber" to Color(0xFFFFAD33),
     "Violet" to Color(0xFFA78BFA),
@@ -79,11 +69,7 @@ val ACCENT_PRESETS: List<Pair<String, Color>> = listOf(
     "Red" to Color(0xFFF26055),
 )
 
-/**
- * The type ramp: sizes, weights, and tracking, independent of any theme's colors. [fontFamily]
- * applies to every style except [monoKeycap] and [monoChapter], which stay monospace regardless
- * of the chosen interface font (they render literal key names and chapter numbers, not prose).
- */
+/** fontFamily applies to every style except the monospace ones. */
 class MangoTypeRamp(fontFamily: FontFamily?) {
     val display = TextStyle(
         fontSize = 28.sp,
@@ -113,13 +99,8 @@ class MangoTypeRamp(fontFamily: FontFamily?) {
     val monoChapter = TextStyle(fontSize = 12.5.sp, fontFamily = FontFamily.Monospace)
 }
 
-/** The active [MangoTypeRamp] for the current composition; defaults to the platform font outside [ProvideMangoTheme]. */
 val LocalMangoType = staticCompositionLocalOf { MangoTypeRamp(null) }
 
-/**
- * Facade over [LocalMangoType] so every existing `MangoType.foo` call site keeps compiling and
- * reading the app's current font choice without threading it through every screen by hand.
- */
 object MangoType {
     val display: TextStyle @Composable get() = LocalMangoType.current.display
     val title: TextStyle @Composable get() = LocalMangoType.current.title
@@ -134,7 +115,6 @@ object MangoType {
     val monoChapter: TextStyle @Composable get() = LocalMangoType.current.monoChapter
 }
 
-/** Padding/gap steps on the 4-dp base grid. */
 object MangoSpace {
     val base = 4.dp
     val xs = 8.dp
@@ -144,14 +124,11 @@ object MangoSpace {
     val xl = 28.dp
     val screenGutter = 28.dp
 
-    /** Width ceiling for reading/form screens (settings, lists, details) — content centers beyond it. */
     val contentMaxWidth = 840.dp
 
-    /** Width ceiling for cover-grid screens; grids stop adding columns past this and center. */
     val gridMaxWidth = 1320.dp
 }
 
-/** Corner radii, smallest to largest. */
 object MangoRadius {
     val keycap = 6.dp
     val control = 10.dp
@@ -159,21 +136,15 @@ object MangoRadius {
     val panel = 14.dp
     val large = 18.dp
 
-    /** Large enough to round any control height into a full stadium/circle shape. */
     val pill = 999.dp
 }
 
-/**
- * Easings and named durations shared by every transition in the app; nothing bounces, nothing
- * exceeds 320 ms. With [reduced] set, movement (slides, lifts, scales) is gone and every
- * animation is a short fade. [readerIdleMs] is a delay rather than an animation, so it never changes.
- */
+/** With reduced set, movement is gone and every animation is a short fade. */
 @Immutable
 class MangoMotion(val reduced: Boolean = false) {
     val decel = CubicBezierEasing(0.2f, 0f, 0f, 1f)
     val standard = CubicBezierEasing(0.4f, 0f, 0.2f, 1f)
 
-    /** Whether things may travel across the screen; false means they only fade. */
     val slides: Boolean get() = !reduced
 
     private fun fade(ms: Int) = if (reduced) REDUCED_FADE_MS else ms
@@ -207,20 +178,10 @@ class MangoMotion(val reduced: Boolean = false) {
     }
 }
 
-/** The active [MangoMotion]; Main.kt derives it from the Windows animation setting. */
 val LocalMangoMotion = staticCompositionLocalOf { MangoMotion() }
 
-/** The active [MangoTheme] for the current composition; defaults to [MangoDark] outside [ProvideMangoTheme]. */
 val LocalMangoTheme = staticCompositionLocalOf { MangoDark }
 
-/**
- * Provides [theme] to [LocalMangoTheme] for [content] and maps it onto a Material
- * [androidx.compose.material3.ColorScheme] so Material components keep rendering correctly.
- * Screens should prefer [LocalMangoTheme] directly; the Material mapping exists only because
- * Material3 components need one. [fontFamily] becomes the interface font (via [LocalMangoType])
- * and the ambient text style, so both [MangoType]-styled and raw-`fontSize` `Text` calls inherit
- * it; null keeps the platform default.
- */
 @Composable
 fun ProvideMangoTheme(theme: MangoTheme, fontFamily: FontFamily? = null, content: @Composable () -> Unit) {
     val typeRamp = remember(fontFamily) { MangoTypeRamp(fontFamily) }
@@ -239,8 +200,7 @@ fun ProvideMangoTheme(theme: MangoTheme, fontFamily: FontFamily? = null, content
                 onSurfaceVariant = theme.textSecondary,
                 outline = theme.divider,
                 scrim = theme.bg0,
-                // Pinned to the surface color so Material tonal elevation is a no-op: depth
-                // comes from stepping the bg tokens, never from tinting toward the accent.
+                // Pinned to surface so tonal elevation is a no-op; depth comes from the bg tokens.
                 surfaceTint = theme.bg1,
             ),
         ) {

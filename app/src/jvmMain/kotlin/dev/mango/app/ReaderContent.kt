@@ -1,4 +1,3 @@
-/** Pure, data-driven reader presentation: the flattened row model and the long-strip content with its controls overlay. */
 package dev.mango.app
 
 import androidx.compose.animation.AnimatedVisibility
@@ -42,26 +41,16 @@ import androidx.compose.ui.unit.dp
 import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.Page
 
-/** The reading strip's default width — the spec's literal value; a user-facing width slider is not wired yet. */
 internal const val DEFAULT_STRIP_WIDTH_DP = 880f
 
-/**
- * One chapter's worth of pages in the flattened strip, plus display labels — the public,
- * screenshot-harness-friendly view of a loaded chapter. [ReaderScreen]'s private [ChapterSegment]
- * (which carries the full, possibly-absent [Chapter]) is mapped down to this before reaching
- * [ReaderContent], so the pure content composable never needs a private type in its signature.
- */
 data class ReaderSegment(
     val chapterId: String,
-    /** "Ch. 12" — no title. Used in divider rows, which name both chapters by number only. */
     val shortLabel: String,
-    /** "Ch. 12 — Title" (or just [shortLabel] when there's no title). Used as the top-bar title. */
     val label: String,
     val pages: List<Page>,
     val offline: Boolean = false,
 )
 
-/** One row in the flattened, multi-chapter LazyColumn strip. Internal: a rendering detail shared with the prefetch helper below. */
 internal sealed interface ReaderRow {
     data class PageRow(val segmentIndex: Int, val page: Page) : ReaderRow
     data class DividerRow(val toChapterId: String, val fromLabel: String, val toLabel: String) : ReaderRow
@@ -78,7 +67,6 @@ private fun ReaderRow.rowKey(segmentChapterId: (Int) -> String): String = when (
     is ReaderRow.FailedTailRow -> "tail:failed"
 }
 
-/** Flattens [segments] into rows: pages, a divider between consecutive chapters, then one tail row. */
 internal fun buildRows(
     segments: List<ReaderSegment>,
     isLastChapter: Boolean,
@@ -104,11 +92,7 @@ internal fun buildRows(
     return rows
 }
 
-/**
- * The next up-to-[count] pages strictly after [lastVisibleIndex] in [rows], for network
- * prefetch. Pages whose segment is offline are skipped (local files need no prefetch) without
- * consuming the count.
- */
+/** Offline segments are skipped without consuming the count. */
 internal fun pagesToPrefetch(
     rows: List<ReaderRow>,
     segments: List<ReaderSegment>,
@@ -125,11 +109,7 @@ internal fun pagesToPrefetch(
 
 internal data class ReaderPosition(val segmentIndex: Int, val pageIndex: Int)
 
-/**
- * Maps a flattened row index to the segment currently "current" there. Divider and tail rows
- * attribute to the PRECEDING segment (its pages already finished, its chapter not yet begun) —
- * never mark the next chapter read while only its divider has scrolled into view.
- */
+/** Divider and tail rows map to the preceding segment, never marking the next chapter read. */
 internal fun currentPosition(rows: List<ReaderRow>, flattenedIndex: Int): ReaderPosition? {
     if (rows.isEmpty()) return null
     val clamped = flattenedIndex.coerceIn(0, rows.lastIndex)
@@ -140,27 +120,18 @@ internal fun currentPosition(rows: List<ReaderRow>, flattenedIndex: Int): Reader
     return null
 }
 
-/** The chapter immediately after [currentChapterId] in [chapters], or null at the last chapter (or if not found). */
 internal fun nextChapter(chapters: List<Chapter>, currentChapterId: String): Chapter? {
     val index = chapters.indexOfFirst { it.chapterId == currentChapterId }
     if (index == -1 || index == chapters.lastIndex) return null
     return chapters[index + 1]
 }
 
-/** The chapter immediately before [currentChapterId] in [chapters], or null at the first chapter (or if not found). */
 internal fun previousChapter(chapters: List<Chapter>, currentChapterId: String): Chapter? {
     val index = chapters.indexOfFirst { it.chapterId == currentChapterId }
     if (index <= 0) return null
     return chapters[index - 1]
 }
 
-/**
- * Pure, data-driven long-strip content — the screenshot harness renders this directly.
- * Full-bleed pages of every loaded chapter in one [LazyColumn] on [LocalMangoTheme]'s `bg0`, centered at a
- * max width so ultrawide monitors don't stretch pages absurdly, with a fading controls overlay
- * on top. [chapters] only backs the Prev/Next enabled-state (whether a neighbor exists); loading
- * a neighbor is [ReaderScreen]'s job.
- */
 @Composable
 fun ReaderContent(
     segments: List<ReaderSegment>,
@@ -248,13 +219,7 @@ fun ReaderContent(
     }
 }
 
-/**
- * Bottom-centered floating status bar, per board 05: chapter title and panel progress on the
- * left, chapter nav and the auto-scroll toggle on the right, a thin progress track below.
- *
- * The nav buttons keep their historical "‹ Prev" / "Next ›" text (rather than icon-only glyphs)
- * because existing flow tests locate them by that exact text; only the surrounding chrome is new.
- */
+/** The "‹ Prev" / "Next ›" labels are matched by flow tests. */
 @Composable
 private fun ReaderOverlayBar(
     label: String,
@@ -278,7 +243,6 @@ private fun ReaderOverlayBar(
             .clip(RoundedCornerShape(MangoRadius.panel))
             .background(theme.overlay)
             .padding(vertical = MangoSpace.sm, horizontal = MangoSpace.md)
-            // Position has no visible text; assistive tech and tests read it here.
             .semantics {
                 if (pageNumber != null && pageCount != null) contentDescription = "Page $pageNumber of $pageCount"
             },
@@ -308,7 +272,6 @@ private fun ReaderOverlayBar(
             progress = progress,
             trackColor = theme.textPrimary.copy(alpha = 0.10f),
             height = 3.dp,
-            // Reaching the strip's bottom is just a position, not a completion state.
             successAtFull = false,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -336,7 +299,6 @@ private fun ReaderChapterNavButton(label: String, enabled: Boolean, onClick: () 
     }
 }
 
-/** Wires to the existing auto-scroll toggle; a leading dot appears only while it's running. */
 @Composable
 private fun AutoScrollPill(active: Boolean, onClick: () -> Unit) {
     val theme = LocalMangoTheme.current
@@ -387,11 +349,7 @@ private fun LoadingTailRow() {
     }
 }
 
-/**
- * The next-chapter load failed. A Cloudflare challenge reads as warning (per the challenge
- * grammar in ChallengeUi.kt — the user did nothing wrong); any other failure stays danger. The
- * "Solve challenge" and "Retry" button labels are exact — flow tests locate them by that text.
- */
+/** The "Solve challenge" and "Retry" labels are matched by flow tests. */
 @Composable
 private fun FailedTailRow(
     message: String,

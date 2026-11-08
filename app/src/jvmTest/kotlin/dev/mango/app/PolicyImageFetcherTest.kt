@@ -28,11 +28,6 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
 import okio.Path.Companion.toPath
 
-/**
- * [PolicyImageFetcher] is the fix for reader pages and covers 403ing through Coil on
- * Cloudflare-walled sources: Coil's own network fetcher lowercases header names on the wire,
- * and this fetcher must send them exactly as [policyHeaders] built them.
- */
 class PolicyImageFetcherTest {
     private val policyRequestHeaders = mapOf(
         "User-Agent" to "X/1.0",
@@ -46,9 +41,6 @@ class PolicyImageFetcherTest {
         return out.toByteArray()
     }
 
-    // No disk cache: these tests assert MockEngine call counts, and Coil's Builder() default
-    // (a real singleton disk cache) would let a hit on a prior run's cached bytes silently skip
-    // the network call. The disk-cache tests below build their own loader with an explicit cache.
     private fun loaderWith(engine: MockEngine): ImageLoader =
         ImageLoader.Builder(PlatformContext.INSTANCE)
             .components { add(PolicyImageFetcher.Factory(HttpClient(engine))) }
@@ -72,8 +64,6 @@ class PolicyImageFetcherTest {
         val result = runBlocking { loaderWith(engine).execute(requestWithPolicyHeaders()) }
         assertIs<SuccessResult>(result)
 
-        // Name equality, not a case-insensitive lookup: a case-insensitive get would pass even
-        // if the names had been lowercased, which is exactly the bug this fetcher exists to avoid.
         val names = recorded.single().headers.entries().map { it.key }.toSet()
         assertTrue("User-Agent" in names, "expected the literal name \"User-Agent\", got $names")
         assertTrue("Cookie" in names, "expected the literal name \"Cookie\", got $names")
@@ -128,9 +118,6 @@ class PolicyImageFetcherTest {
             .components { add(PolicyImageFetcher.Factory(HttpClient(engine))) }
             .diskCache(diskCache)
             .build()
-        // Memory cache disabled so the second execute() can only be satisfied by the disk cache
-        // (or a second network request) — a memory hit would make this test pass for the wrong
-        // reason.
         val request = ImageRequest.Builder(PlatformContext.INSTANCE)
             .data("https://example.test/cover.jpg")
             .policyHeaders(policyRequestHeaders)

@@ -15,10 +15,6 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 
-/**
- * Screenshot plus an install flow for the Extensions screen, backed by
- * [FakeExtensionRepo]/[FakeCatalogRepository]. Style mirrors DownloadsTest/ScreenFlowTest.
- */
 class ExtensionsScreenTest {
     @get:Rule
     val rule = createComposeRule()
@@ -31,10 +27,6 @@ class ExtensionsScreenTest {
             AvailableSource(sourceId = "SourceA", name = "SourceA", version = "3.0.0", language = "en"),
             AvailableSource(sourceId = "SourceB", name = "SourceB", version = "1.5.0", language = "en"),
         )
-        // FlameComics: not installed -> "Install"
-        // MangaBat: installed at the current version -> "Installed"
-        // SourceA: installed at an older version -> "Update to 3.0.0"
-        // SourceB: install in flight -> spinner
         val installed = mapOf("MangaBat" to "2.0.0", "SourceA" to "2.9.0")
         val busy = setOf("SourceB")
 

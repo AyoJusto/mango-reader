@@ -20,17 +20,12 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import org.graalvm.polyglot.proxy.ProxyObject
 
-/**
- * The Paperback adapter: one installed 0.9 extension, normalized to [MangaSource]'s
- * domain types at this boundary.
- */
+/** Paperback 0.9 adapter that normalizes extension output to [MangaSource] domain types. */
 class PaperbackExtension(
     override val sourceId: String,
     bundleJs: String,
     host: ApplicationHost,
 ) : MangaSource {
-    // one runtime for the extension's lifetime so its parsed-bundle cache is shared across
-    // calls; each call still runs in its own fresh context (see ExtensionRuntime)
     private val runtime = ExtensionRuntime(bundleJs, host)
 
     override suspend fun search(query: String, page: Int): List<MangaEntry> =
@@ -57,7 +52,7 @@ class PaperbackExtension(
         runtime.withExtension { handle ->
             val extension = handle.extension(sourceId)
             handle.invokeAwait(extension, "initialise")
-            // 0.9 getMangaDetails takes the raw mangaId string (confirmed in the bundle)
+            // 0.9 getMangaDetails takes the raw mangaId string.
             val result = Json.parseToJsonElement(
                 handle.invokeAwaitJson(extension, "getMangaDetails", mangaId)
             ).jsonObject
@@ -72,14 +67,11 @@ class PaperbackExtension(
                     title = info.requiredString("primaryTitle", sourceId),
                     cover = (info["thumbnailUrl"] as? JsonPrimitive)?.contentOrNull,
                 ),
-                // Paperback's author field is a single display string; sources join
-                // multiple names with ", "
                 authors = (info["author"] as? JsonPrimitive)?.contentOrNull
                     ?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }
                     .orEmpty(),
                 description = (info["synopsis"] as? JsonPrimitive)?.contentOrNull,
                 status = statusOf((info["status"] as? JsonPrimitive)?.contentOrNull),
-                // tags are best-effort: malformed elements are skipped, never fatal
                 tags = (info["tagGroups"] as? JsonArray).orEmpty()
                     .filterIsInstance<JsonObject>()
                     .flatMap { group -> (group["tags"] as? JsonArray).orEmpty() }
@@ -135,7 +127,6 @@ class PaperbackExtension(
                     "[$sourceId] chapter details has no pages array: ${result.keys}"
                 )
             pages.mapIndexed { index, page ->
-                // 0.9 ChapterDetails.pages is an array of URL strings
                 val url = (page as? JsonPrimitive)?.contentOrNull
                     ?: throw ExtensionDataException("[$sourceId] page $index has no url: $page")
                 Page(index = index, url = url)
@@ -158,8 +149,7 @@ class PaperbackExtension(
             }
             val seenIds = mutableSetOf<String>()
             val sections = mutableListOf<HomeSection>()
-            // policy: a hostile bundle can return unbounded stubs, each costing a
-            // getDiscoverSectionItems round-trip; real sources have <10. Truncate silently.
+            // A hostile bundle can return unbounded stubs, each costing a round-trip; truncate silently.
             for (i in 0 until minOf(stubs.arraySize, MAX_SECTION_STUBS)) {
                 val stub = stubs.getArrayElement(i)
                 if (!stub.hasMembers()) {
@@ -175,14 +165,12 @@ class PaperbackExtension(
                     ?: throw ExtensionDataException(
                         "[$sourceId] discover section stub '$id' has no string 'title': $stub"
                     )
-                // genres sections (type 4) carry no mangaId per item; skip before dedupe so
-                // a genres stub never claims an id that a later real section reuses.
-                // fitsInInt guards Graal's asInt, which throws on 4.5 or out-of-range numbers
+                // Skip genres stubs (type 4) before dedupe so they never claim an id a real section reuses.
+                // fitsInInt: asInt throws on non-integers and out-of-range numbers.
                 val type = stub.getMember("type")?.takeIf { it.isNumber && it.fitsInInt() }?.asInt()
                 if (type == 4) continue
-                if (!seenIds.add(id)) continue // dedupe by id, first wins
-                // pass the ORIGINAL stub Value back (bundles read section.type and possibly
-                // private fields off it); null metadata = first page only, no pagination
+                if (!seenIds.add(id)) continue
+                // Pass the original stub back: bundles read section.type and private fields off it.
                 val raw = handle.invokeAwaitJson(extension, "getDiscoverSectionItems", stub, null)
                 val result = Json.parseToJsonElement(raw) as? JsonObject
                     ?: throw ExtensionDataException(
@@ -206,7 +194,6 @@ class PaperbackExtension(
             handle.runRequestInterceptors(requests)
         }
 
-    /** The shared search/discover item shape: mangaId + title required, imageUrl optional. */
     private fun mangaEntriesOf(items: JsonArray): List<MangaEntry> = items.map { item ->
         val o = item.jsonObject
         MangaEntry(
@@ -221,7 +208,6 @@ class PaperbackExtension(
         MangaStatus.entries.firstOrNull { it.name == raw?.uppercase() } ?: MangaStatus.UNKNOWN
 }
 
-// policy: caps how many discover stubs getHomeSections will process (see the loop comment)
 private const val MAX_SECTION_STUBS = 32L
 
 class ExtensionDataException(message: String) : Exception(message)

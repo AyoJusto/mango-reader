@@ -20,11 +20,6 @@ import kotlin.test.Test
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
-/**
- * The host-side policy floor: per-host rate limiting, request timeout, and the
- * error taxonomy (ExtensionNetworkException, CancellationException passthrough) at the
- * engine boundary. See docs/application-surface.md's "Host policy" section.
- */
 class HostPolicyTest {
     private fun newContext(): Context =
         Context.newBuilder("js").option("engine.WarnInterpreterOnly", "false").build()
@@ -95,8 +90,7 @@ class HostPolicyTest {
         requestStarted.await()
         deferred.cancel()
 
-        // bounded: if cancellation never reached the nested runBlocking's blocking HTTP
-        // call, this would hang instead of completing
+        // bounded: hangs instead of completing if cancellation never reaches the blocking HTTP call
         withTimeout(1_000) {
             assertFailsWith<CancellationException> { deferred.await() }
         }

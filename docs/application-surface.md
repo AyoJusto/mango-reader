@@ -68,9 +68,8 @@ any of it.
 Before each dispatch, a synchronized map of `host -> lastDispatchAtMillis` is consulted; if the
 same host was last dispatched to less than `minRequestIntervalMillis` ago, the coroutine
 suspends (`delay`) for the remainder before the request goes out. A coarse single lock
-serializes every host through one map (`ponytail:` comment at `ApplicationHost.hostDispatchLock`
-names the upgrade path — a per-host token bucket — if a source ever needs real concurrency
-across hosts).
+serializes every host through one map; a per-host token bucket is the upgrade if a source ever
+needs real concurrency across hosts.
 
 **Request timeout.** `ApplicationHost(requestTimeoutMillis = 30_000)` (constructor default).
 The HTTP call and body read inside `scheduleRequest`'s dispatch are wrapped in

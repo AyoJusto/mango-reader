@@ -44,11 +44,7 @@ import javax.swing.JFileChooser
 import javax.swing.filechooser.FileNameExtensionFilter
 import kotlin.math.roundToInt
 
-/**
- * Every user-facing settings entry — the single source of truth the search-everywhere palette
- * derives its Settings hits from. A new setting is not done until it is registered here; the
- * completeness tests in PaletteFlowTest/SettingsScreenTest fail otherwise.
- */
+/** Single source for the palette's Settings hits; omitting a setting fails the completeness tests. */
 val SETTINGS_ENTRIES = listOf(
     "Theme",
     "Remove theme",
@@ -65,22 +61,11 @@ val SETTINGS_ENTRIES = listOf(
 
 private val settingsLog = Logger.getLogger("SettingsScreen")
 
-/** The App font dropdown's first option: no stored family, platform default rendering. */
 private const val FONT_SYSTEM_DEFAULT = "System default"
 
-/**
- * Test hook prefix: each row/control that backs a [SETTINGS_ENTRIES] title carries the tag
- * `"settings-entry-<title>"`, so the completeness tests can assert a real control exists for
- * every registered entry without depending on exact button/label wording.
- */
+/** Test hook prefix: `settings-entry-<title>` tags the control backing each entry. */
 internal fun settingsEntryTag(title: String): String = "settings-entry-$title"
 
-/**
- * Pure, data-driven content — the screenshot harness renders this directly. No stateful loader
- * needed: the current theme and the change callback are hoisted all the way up to Main.kt so a
- * theme or accent pick applies live without a restart. Same pattern for the auto-scroll speed,
- * strip width, and hide-cursor toggle.
- */
 @Composable
 fun SettingsScreenContent(
     theme: MangoTheme,
@@ -119,9 +104,6 @@ fun SettingsScreenContent(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs),
                             ) {
-                                // A stored theme no longer in the library (deleted from under it)
-                                // shows as the library's first entry rather than a stale name the
-                                // dropdown can't honor — same stance as the App font dropdown.
                                 val options = themeLibrary.map { it.name }
                                 val shownThemeName = theme.name.takeIf { it in options } ?: options.first()
                                 KitDropdown(
@@ -216,8 +198,6 @@ fun SettingsScreenContent(
                         title = "App font",
                         modifier = Modifier.testTag(settingsEntryTag("App font")),
                     ) {
-                        // A stored name whose font is gone shows as the default rather than
-                        // rendering a stale label the dropdown can't honor.
                         val shown = fontFamilyName?.takeIf { it in installedFonts } ?: FONT_SYSTEM_DEFAULT
                         KitDropdown(
                             selected = shown,
@@ -309,7 +289,6 @@ fun SettingsScreenContent(
     }
 }
 
-/** A micro-label group header over a bg1 card; rows inside supply their own [SettingsDivider]s. */
 @Composable
 private fun SettingsGroup(label: String, content: @Composable ColumnScope.() -> Unit) {
     val theme = LocalMangoTheme.current
@@ -325,7 +304,6 @@ private fun SettingsGroup(label: String, content: @Composable ColumnScope.() -> 
     }
 }
 
-/** One settings row: title + sub on the left, an arbitrary control on the right. */
 @Composable
 private fun SettingsRow(
     title: String,
@@ -350,7 +328,6 @@ private fun SettingsRow(
     }
 }
 
-/** A hairline divider between two rows of the same group, inset from both edges — never around a group. */
 @Composable
 private fun SettingsDivider() {
     val theme = LocalMangoTheme.current
@@ -363,12 +340,10 @@ private fun SettingsDivider() {
     )
 }
 
-/** One accent color swatch; the selected swatch gets an accent ring offset by a bg gap. */
 @Composable
 private fun AccentSwatch(label: String, color: Color, selected: Boolean, onClick: () -> Unit) {
     val theme = LocalMangoTheme.current
-    // Fixed footprint at ring size: the selection ring must not change the swatch's outer
-    // bounds, or the row jumps vertically and neighbors reflow when the selection moves.
+    // Fixed footprint at ring size so a selection change doesn't shift the row.
     Box(modifier = Modifier.size(34.dp), contentAlignment = Alignment.Center) {
         if (selected) {
             Box(
@@ -382,7 +357,6 @@ private fun AccentSwatch(label: String, color: Color, selected: Boolean, onClick
             modifier = Modifier
                 .testTag("accent-swatch-$label")
                 .size(26.dp)
-                // Past the selection ring (2 dp gap + 2 dp ring) so the two never coincide.
                 .keyboardFocusRing(CircleShape, gap = if (selected) 6.dp else 2.dp)
                 .clip(CircleShape)
                 .background(color)
@@ -391,7 +365,6 @@ private fun AccentSwatch(label: String, color: Color, selected: Boolean, onClick
     }
 }
 
-/** A label and its keycaps, right-aligned — one line of the display-only Shortcuts row. */
 @Composable
 private fun ShortcutLine(label: String, keys: List<String>) {
     val theme = LocalMangoTheme.current
@@ -405,10 +378,6 @@ private val TOGGLE_PILL_SIZE = 38.dp to 22.dp
 private val TOGGLE_THUMB_SIZE = 18.dp
 private val TOGGLE_THUMB_INSET = 2.dp
 
-/**
- * A 38x22 toggle pill: accent track when checked, a thumb that slides between the two edges.
- * File-private — not a Kit component, this is the one place the app needs it.
- */
 @Composable
 private fun TogglePill(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     val theme = LocalMangoTheme.current

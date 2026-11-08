@@ -13,10 +13,6 @@ import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
-/**
- * Flow test for the Settings screen: the current theme's name and controls are shown, and
- * picking an accent swatch fires the callback. Style mirrors ExtensionsScreenTest.
- */
 class SettingsScreenTest {
     @get:Rule
     val rule = createComposeRule()
@@ -29,7 +25,6 @@ class SettingsScreenTest {
             }
         }
 
-        // The dropdown is the only place the name shows.
         rule.onAllNodesWithText(MangoDark.name).assertCountEquals(1)
         rule.onNodeWithText("yours to edit", substring = true).assertDoesNotExist()
         rule.onNodeWithText("Export .json").assertExists()
@@ -58,7 +53,6 @@ class SettingsScreenTest {
         rule.onNodeWithText("880 dp").assertExists()
     }
 
-    // Structure smoke test for board 09: the three micro-label group headers must render.
     @Test
     fun showsAllThreeGroupHeaders() {
         rule.setContent {
@@ -90,10 +84,6 @@ class SettingsScreenTest {
         assertEquals(MangoDark.bg0, applied?.bg0)
     }
 
-    // Completeness test for the settings registry: every SETTINGS_ENTRIES title must back a
-    // real control on the rendered screen via its settingsEntryTag (not the visible label —
-    // button wording is free to change), so a future registry entry with no matching control
-    // fails loudly here.
     @Test
     fun everyRegisteredSettingsEntryHasARenderedControl() {
         rule.setContent {

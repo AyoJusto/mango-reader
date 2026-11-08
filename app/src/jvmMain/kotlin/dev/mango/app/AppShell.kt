@@ -58,29 +58,20 @@ import kotlin.time.Clock
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-/** Used only when a caller doesn't wire a real registry (e.g. tests exercising other tabs). */
 private object NoOpExtensionRepo : ExtensionRepo {
     override suspend fun available(): List<AvailableSource> = emptyList()
     override suspend fun install(source: AvailableSource) = Unit
 }
 
-/** Used only when a caller doesn't wire the real solver (tests exercising non-challenge flows). */
 private object NoOpChallengeSolver : ChallengeSolver {
     override suspend fun solve(sourceId: String, url: String): Boolean = false
 }
 
-/** Used only when a caller doesn't wire the real cache (tests exercising other tabs): every read misses. */
 private object NoOpCatalogCache : CatalogCache {
     override suspend fun get(sourceId: String, mangaId: String): CachedManga? = null
     override suspend fun put(sourceId: String, mangaId: String, details: MangaDetails, chapters: List<Chapter>) = Unit
 }
 
-/**
- * The whole application UI: the title bar on top (omitted when [showTitleBar] is false, because
- * the window draws it), the current screen filling the content area, an overlay sidebar for top-level navigation, and the command palette above everything.
- * Screens talk only to the repository ports passed in here — never engine or DB types
- * (CLAUDE.md boundary).
- */
 @Composable
 fun AppShell(
     library: LibraryRepository,
@@ -89,11 +80,7 @@ fun AppShell(
     extensions: ExtensionRepo = NoOpExtensionRepo,
     challengeSolver: ChallengeSolver = NoOpChallengeSolver,
     catalogCache: CatalogCache = NoOpCatalogCache,
-    // Optional hook, same style as the other repository ports above: production wires
-    // AppGraph.headerPolicy, tests leave it null.
     headerPolicy: SourceHeaderPolicy? = null,
-    // Optional hook, same style as ReaderScreen's own pageContent: lets tests intercept pages
-    // delivered to the Reader branch without hitting the network. Production leaves it null.
     readerPageContent: (@Composable (Page) -> Unit)? = null,
     theme: MangoTheme = MangoDark,
     onThemeChange: (MangoTheme) -> Unit = {},
@@ -121,21 +108,13 @@ fun AppShell(
     searchHistory: List<SearchHistoryEntry> = emptyList(),
     onSearchHistoryChange: (List<SearchHistoryEntry>) -> Unit = {},
     navigator: Navigator = remember { Navigator() },
-    // Owned by the caller so Esc and mouse back over the title bar, which production draws
-    // outside this function, can close the manage-collections dialog.
+    // Owned by the caller because production draws the title bar outside this function.
     manageCollectionsOpen: MutableState<Boolean> = remember { mutableStateOf(false) },
-    // Owned by the caller so the title bar, which production draws outside this function, shares it.
     lastInputWasKeyboard: MutableState<Boolean> = remember { mutableStateOf(false) },
 ) {
-    // Session-only, like searchState below: which collection the Library chip row is filtering
-    // to, and whether the manage-collections dialog is open.
     var selectedCollectionId by remember { mutableStateOf<Long?>(null) }
     var showManageCollections by manageCollectionsOpen
-    // Hoisted here (not inside BrowseScreen) so it survives tab switches: Library -> Browse ->
-    // Library -> Browse must show the previous query/results instead of resetting.
     val browseState = remember { BrowseState() }
-    // Same rationale as browseState: Search's query/results/enabled-sources must survive
-    // switching to another tab and back.
     val searchState = remember { SearchState() }
     val scope = rememberCoroutineScope()
 
@@ -143,12 +122,10 @@ fun AppShell(
     val updater = remember(catalog, catalogCache, library) { LibraryUpdater(catalog, catalogCache, library) }
     var checking by remember { mutableStateOf(false) }
 
-    // Single flight: a second click while a check is running is a no-op. The checked-at stamp
-    // only advances after a full run completes, so a cancelled run leaves it untouched.
+    // Single flight; the checked-at stamp only advances after a full run completes.
     fun checkForUpdates() {
         if (checking) return
-        // Set before launch: the launched body runs on a later event-loop turn, so flipping the
-        // flag inside it would let a second click pass the guard first.
+        // Set before launch so a second click can't pass the guard first.
         checking = true
         scope.launch {
             try {
@@ -160,13 +137,10 @@ fun AppShell(
         }
     }
 
-    // Continue cards are loaded once per sidebar open — the panel is transient, so a snapshot
-    // is enough; no need to observe progress while it is closed.
     var continueItems by remember { mutableStateOf<List<ContinueItem>>(emptyList()) }
     LaunchedEffect(sidebarOpen) {
         if (!sidebarOpen) return@LaunchedEffect
         val items = library.observeLibrary().first()
-        // ponytail: per-item latestProgress queries, one bulk query if libraries outgrow double digits
         continueItems = items
             .mapNotNull { item ->
                 library.latestProgress(item.entry.sourceId, item.entry.mangaId)?.let { item to it }
@@ -188,27 +162,18 @@ fun AppShell(
             }
     }
     val downloadRows by downloads.observeDownloads().collectAsState(initial = emptyList())
-    // Collected here (not just inside LibraryScreen) so the palette's collection hits stay
-    // in sync with the same data the chip row shows.
     val collections by library.observeCollections().collectAsState(initial = emptyList())
-    // Collected again here (LibraryScreen already collects its own copy) so the manage-collections
-    // dialog's member counts stay live while it's open.
     val libraryItems by library.observeLibrary().collectAsState(initial = emptyList())
     val collectionMemberCounts = remember(libraryItems) {
         libraryItems.flatMap { it.collectionIds }.groupingBy { it }.eachCount()
     }
-    // Pending = still going to happen on its own; FAILED needs a user retry, not a badge.
     val pendingDownloadCount = downloadRows.count {
         it.status == DownloadStatus.QUEUED || it.status == DownloadStatus.RUNNING
     }
-    // The sidebar's frosted panel blurs whatever screen content is behind it; the screen
-    // container below registers as the blur source, the panel samples it.
     val hazeState = rememberHazeState()
     val density = LocalDensity.current
     val slidePx = with(density) { motion.screenSlide.roundToPx() }
     val risePx = with(density) { motion.viewRise.roundToPx() }
-    // Stacked entries keep their scroll and other saveable state while covered; popped and
-    // cleared entries drop theirs.
     val screenStates = rememberSaveableStateHolder()
     ForgetPoppedState(navigator, screenStates)
 
@@ -227,12 +192,8 @@ fun AppShell(
                 onMouseBack = { mouseBack() },
             )
         }
-        // Content, sidebar, and palette live in one Box so the overlays can stack above
-        // whichever screen is showing; the title bar stays visible over all of them.
         Box(modifier = Modifier.weight(1f).fillMaxWidth().sideButtons { mouseBack() }) {
             CompositionLocalProvider(LocalSourceHeaderPolicy provides headerPolicy) {
-                // The content behind the palette blurs while it's open — the haze sidebar source
-                // modifier below stays untouched; this composes an ordinary blur onto the same Box.
                 val contentBlurDp by animateDpAsState(
                     targetValue = if (palette.visible) 10.dp else 0.dp,
                     animationSpec = tween(motion.paletteBackdropMs),
@@ -242,7 +203,7 @@ fun AppShell(
                     val sharedTransitionScope = this
                     AnimatedContent(
                         targetState = navigator.current,
-                        // The id, not the whole entry: replaceCurrent swaps the screen in place and must not animate.
+                        // The id, not the whole entry: replaceCurrent swaps in place and must not animate.
                         contentKey = { it.id },
                         transitionSpec = {
                             val reader = initialState.screen is Screen.Reader || targetState.screen is Screen.Reader
@@ -345,8 +306,7 @@ fun AppShell(
                                                         catalogCache = catalogCache,
                                                         autoContinue = current.autoContinue,
                                                         onOpenChapter = { chapter, chapters ->
-                                                            // The one-shot flag comes off the stack entry first,
-                                                            // so backing out of the Reader lands on plain Details.
+                                                            // Clear the one-shot flag first so backing out of the Reader lands on plain Details.
                                                             navigator.replaceCurrent(current.copy(autoContinue = false))
                                                             navigator.go(
                                                                 Screen.Reader(
@@ -357,9 +317,6 @@ fun AppShell(
                                                                 ),
                                                             )
                                                         },
-                                                        // Downloading a chapter (or the whole series) implies the user
-                                                        // cares about it: it lands in the library too, same as a manual
-                                                        // "Add to library" tap.
                                                         onDownloadChapter = { entry, chapter ->
                                                             scope.launch {
                                                                 library.addToLibrary(entry)
@@ -368,8 +325,7 @@ fun AppShell(
                                                             }
                                                         },
                                                         onDownloadAll = { entry, chapters ->
-                                                            // empty selection ("unread" with everything read) must
-                                                            // not side-effect the library or spin the queue
+                                                            // An empty selection must not touch the library or spin the queue.
                                                             if (chapters.isNotEmpty()) {
                                                                 scope.launch {
                                                                     library.addToLibrary(entry)
@@ -404,14 +360,10 @@ fun AppShell(
                     modifier = Modifier.align(Alignment.CenterStart),
                     hazeState = hazeState,
                 )
-                // The palette's toggle-sidebar/toggle-library-view hits read the CURRENT state at run
-                // time, not the value captured when the tab list was remembered below.
+                // Read current state at run time, not the value captured when the tab list was remembered.
                 val currentSidebarOpen by rememberUpdatedState(sidebarOpen)
                 val currentLibraryView by rememberUpdatedState(libraryView)
-                // keyed on theme and themeLibrary (not plain remember{}): the accent and theme
-                // providers close over the current theme and library by value, so either changing
-                // must rebuild the tab list or its hits would apply a stale theme, or one already
-                // deleted from the library
+                // Keyed on theme and themeLibrary: providers close over them by value and would apply stale ones.
                 val tabs = remember(theme, themeLibrary, collections) {
                     paletteTabs(
                         library = library,
@@ -448,10 +400,7 @@ fun AppShell(
     }
 }
 
-/**
- * What Esc and the mouse back button do: close the top-most open overlay, or go back when none
- * is open. False when there was nothing to close and nowhere to go back to.
- */
+/** False when there was nothing to close and nowhere to go back to. */
 fun backOrCloseOverlay(
     navigator: Navigator,
     palette: PaletteState,
@@ -468,19 +417,10 @@ fun backOrCloseOverlay(
     return true
 }
 
-/**
- * The [AnimatedVisibilityScope] of the screen transition, for screen content that animates
- * along with it; null outside the screen host.
- */
 val LocalAnimatedVisibilityScope = staticCompositionLocalOf<AnimatedVisibilityScope?> { null }
 
-/** The [SharedTransitionScope] screens share elements through; null outside the screen host. */
 val LocalSharedTransitionScope = staticCompositionLocalOf<SharedTransitionScope?> { null }
 
-/**
- * Pushes slide in from the right, pops from the left, and top-level switches rise in place.
- * Entering or leaving the [Screen.Reader] only fades, so the reader keeps its immersive entry.
- */
 private fun screenTransition(
     move: Move,
     involvesReader: Boolean,
@@ -504,7 +444,6 @@ private fun screenTransition(
     }
 }
 
-/** Drops the saved state of every entry that has left the back stack. */
 @Composable
 private fun ForgetPoppedState(navigator: Navigator, stateHolder: SaveableStateHolder) {
     val liveIds = navigator.liveIds

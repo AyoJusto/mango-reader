@@ -8,10 +8,6 @@ import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-/**
- * Search against the first-party Synthetic bundle, replayed from inline HTML served by a
- * fake host: gives the engine's HTML-parse path offline coverage fully under our control.
- */
 class SyntheticSearchTest {
     @Test
     fun searchParsesEntriesFromInlineHtml() = runBlocking {

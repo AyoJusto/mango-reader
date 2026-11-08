@@ -6,7 +6,6 @@ import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/** Unit tests for [DoubleShiftDetector] — pure class, fake millis, no Compose runtime needed. */
 class DoubleShiftDetectorTest {
     private val detector = DoubleShiftDetector()
 
@@ -24,7 +23,6 @@ class DoubleShiftDetectorTest {
     fun downUpDownMoreThan500msApartDoesNotTrigger() {
         assertFalse(down(Key.ShiftLeft, 0))
         assertFalse(up(Key.ShiftLeft, 50))
-        // window counts from the FIRST keydown, so 501ms after it is out
         assertFalse(down(Key.ShiftLeft, 501))
     }
 
@@ -50,7 +48,6 @@ class DoubleShiftDetectorTest {
 
     @Test
     fun heldShiftAutoRepeatNeverTriggers() {
-        // the OS repeats a held key as keydowns with NO keyup between them
         assertFalse(down(Key.ShiftLeft, 0))
         assertFalse(down(Key.ShiftLeft, 30))
         assertFalse(down(Key.ShiftLeft, 60))

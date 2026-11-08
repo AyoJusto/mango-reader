@@ -16,11 +16,6 @@ import dev.mango.core.domain.ChallengeSolver
 import dev.mango.core.domain.DownloadManager
 import dev.mango.core.domain.LibraryRepository
 
-/**
- * [AppShell] with self-managed sidebar state and the default theme, so flow tests can drive
- * sidebar navigation without each hoisting the state themselves (production hoists it in
- * Main.kt for the Ctrl+S window hotkey).
- */
 @Composable
 fun TestAppShell(
     library: LibraryRepository,
@@ -69,7 +64,6 @@ fun TestAppShell(
     }
 }
 
-/** Opens the sidebar via the title-bar glyph and clicks the [label] nav item. */
 fun ComposeContentTestRule.navigateVia(label: String) {
     onNodeWithTag(SIDEBAR_TOGGLE_TAG).performClick()
     waitForIdle()

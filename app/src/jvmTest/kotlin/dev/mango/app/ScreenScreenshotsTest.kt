@@ -23,10 +23,6 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 
-/**
- * Screenshots for the screens: rendered at 1280x800 with canned data via the content-level
- * composables, never asserted byte-exact.
- */
 class ScreenScreenshotsTest {
     @Test
     fun libraryEmpty() {
@@ -36,8 +32,6 @@ class ScreenScreenshotsTest {
         assertTrue(Files.size(file) > 0, "expected a non-empty PNG at $file")
     }
 
-    // Board data shared by libraryPopulated (grid) and libraryList: a mix of unread, partially
-    // read, and finished series so both boards exercise every CoverCard/list-row state.
     private fun libraryBoardItems(): List<LibraryItem> {
         val titles = listOf(
             "Solo Leveling",
@@ -52,17 +46,13 @@ class ScreenScreenshotsTest {
                 entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-$index", title = title),
                 addedAt = Clock.System.now(),
                 chapterCount = 142,
-                // manga-0 is fully unread, manga-1 is finished, the rest sit partway through.
                 unreadCount = when (index) {
                     0 -> 142
                     1 -> 0
                     else -> 142 - (index * 20)
                 },
                 lastReadAt = if (index == 0) null else Clock.System.now(),
-                // manga-0 also has chapters newer than its last open, exercising the grid's
-                // "+n new" caption prefix.
                 newCount = if (index == 0) 5 else 0,
-                // manga-0/2/4 sit in "Reading" so the chip row's counts are non-trivial.
                 collectionIds = if (index % 2 == 0) setOf(1L) else emptySet(),
             )
         }
@@ -227,8 +217,6 @@ class ScreenScreenshotsTest {
             )
         }
 
-        // One chapter per download state so the render exercises the whole row vocabulary:
-        // done (✓), running (pages + spinner), queued, failed (retry glyph).
         fun download(chapterId: String, status: DownloadStatus, done: Int = 0, total: Int = 0) = Download(
             sourceId = "FlameComics",
             mangaId = "manga-1",
@@ -253,8 +241,6 @@ class ScreenScreenshotsTest {
                         "ch-6" to download("ch-6", DownloadStatus.QUEUED),
                         "ch-5" to download("ch-5", DownloadStatus.FAILED, done = 3, total = 45),
                     ),
-                    // ch-1 (the newest chapter, sorted first) arrived since the last open —
-                    // exercises the amber NEW chip.
                     newChapterIds = setOf("ch-1"),
                     checkedAt = Clock.System.now(),
                     onOpenChapter = { _, _ -> },
@@ -276,8 +262,6 @@ class ScreenScreenshotsTest {
         assertTrue(Files.size(file) > 0, "expected a non-empty PNG at $file")
     }
 
-    // Georgia ships with Windows, so this render proves the chosen family flows end-to-end:
-    // resolveAppFontFamily's output through ProvideMangoTheme into every MangoType style.
     @OptIn(ExperimentalTextApi::class)
     @Test
     fun settingsFontGeorgia() {

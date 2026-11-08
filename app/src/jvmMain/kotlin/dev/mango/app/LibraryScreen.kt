@@ -53,28 +53,19 @@ import kotlin.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-/** Grid vs list mode, persisted by [Settings.libraryView] and mirrored in [SETTINGS_ENTRIES]. */
 internal const val LIBRARY_VIEW_GRID = "grid"
 internal const val LIBRARY_VIEW_LIST = "list"
 
-/** Test hook: the list view's row container, present only while [LIBRARY_VIEW_LIST] is active. */
 internal const val LIBRARY_LIST_TEST_TAG = "library-list"
 
-/** Test hook: the grid view's cell container, present only while [LIBRARY_VIEW_GRID] is active. */
 internal const val LIBRARY_GRID_TEST_TAG = "library-grid"
 
-/** A series' read fraction in [0, 1], or null when its chapter count is unknown (never opened yet). */
+/** Null when the chapter count is unknown. */
 private fun LibraryItem.readFraction(): Float? =
     if (chapterCount > 0) (chapterCount - unreadCount).toFloat() / chapterCount else null
 
-/**
- * A series counts as finished, for the library grid/list, once every known chapter has been
- * started and there is at least one chapter to read — the same signal [readFraction] reaching
- * 1.0 represents, named for the cover card's finished treatment.
- */
 private fun LibraryItem.isFinished(): Boolean = chapterCount > 0 && unreadCount == 0
 
-/** Pure, data-driven content — the screenshot harness renders this directly. */
 @Composable
 fun LibraryScreenContent(
     items: List<LibraryItem>,
@@ -174,8 +165,6 @@ fun LibraryScreenContent(
                         modifier = Modifier.fillMaxSize().testTag(LIBRARY_GRID_TEST_TAG),
                     ) {
                         items(visibleItems, key = { "${it.entry.sourceId}/${it.entry.mangaId}" }) { item ->
-                            // CoverCard itself checks `finished` before falling back to unreadCount
-                            // for which pill to show, so unreadCount is passed unconditionally here.
                             CoverCard(
                                 title = item.entry.title,
                                 coverUrl = item.entry.cover,
@@ -194,10 +183,6 @@ fun LibraryScreenContent(
     }
 }
 
-/**
- * One row of the Library's list view: a small cover thumb, the title, a flexible progress
- * track, and when the series was last read.
- */
 @Composable
 private fun LibraryListRow(item: LibraryItem, onClick: () -> Unit) {
     val theme = LocalMangoTheme.current
@@ -262,7 +247,6 @@ private fun LibraryListRow(item: LibraryItem, onClick: () -> Unit) {
     }
 }
 
-/** Stateful loader: wires [LibraryRepository.observeLibrary]/[LibraryRepository.observeCollections] into [LibraryScreenContent]. */
 @Composable
 fun LibraryScreen(
     library: LibraryRepository,
@@ -296,12 +280,7 @@ fun LibraryScreen(
     )
 }
 
-/**
- * The library's shelf tabs: "All · N" first, then one chip per [collections] entry in position
- * order, a "＋" chip that swaps itself for an inline name field to create a shelf, and a "⋯"
- * affordance pushed to the far right for [onManageCollections]. Counts are always computed
- * against the full [items] list, not whatever [selectedCollectionId] currently filters to.
- */
+/** Counts always use the full items list, not the selected filter. */
 @Composable
 private fun CollectionsChipRow(
     allCount: Int,
@@ -313,7 +292,6 @@ private fun CollectionsChipRow(
     onManageCollections: () -> Unit,
 ) {
     var creatingChip by remember { mutableStateOf(false) }
-    // ponytail: plain Row, no overflow scroll — revisit past ~8 shelves
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -343,7 +321,6 @@ private fun CollectionsChipRow(
     }
 }
 
-/** One chip in [CollectionsChipRow]: accent fill + accent-on text while active, else secondary text with a bg2 hover fill. */
 @Composable
 private fun CollectionChip(text: String, active: Boolean, onClick: () -> Unit) {
     val theme = LocalMangoTheme.current
@@ -368,12 +345,6 @@ private fun CollectionChip(text: String, active: Boolean, onClick: () -> Unit) {
     }
 }
 
-/**
- * The "＋" chip's in-place replacement while creating a shelf: a chip-shaped text field (same
- * radius/padding family as [CollectionChip]). Enter calls [onCreate]; a thrown duplicate-name
- * rejection renders as a caption under the field, which stays open so the name can be fixed.
- * Escape or losing focus (a click elsewhere) calls [onClose] without creating anything.
- */
 @Composable
 private fun NewCollectionChip(onCreate: suspend (String) -> Unit, onClose: () -> Unit) {
     val theme = LocalMangoTheme.current

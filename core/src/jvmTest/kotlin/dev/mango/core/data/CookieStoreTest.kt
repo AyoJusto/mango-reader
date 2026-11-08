@@ -11,7 +11,6 @@ import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlinx.coroutines.test.runTest
 
-/** [SqlCookieStore] through the CookieStore contract: matching, expiry, source isolation. */
 class CookieStoreTest {
     private fun newDb(): MangoDatabase {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())

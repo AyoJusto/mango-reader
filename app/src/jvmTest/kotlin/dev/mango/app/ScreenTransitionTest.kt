@@ -41,7 +41,6 @@ class ScreenTransitionTest {
         chapters = mapOf(("FlameComics" to "manga-0") to listOf(Chapter(chapterId = "c1", number = 1.0, title = null, publishedAt = null))),
     )
 
-    /** Advances the clock frame by frame for [sampleMs], recording [tag]'s left edge each frame. */
     private fun ComposeUiTest.leftEdgesOf(tag: String, sampleMs: Long = 300): List<Float> = List((sampleMs / FRAME_MS).toInt()) {
         mainClock.advanceTimeBy(FRAME_MS)
         onAllNodesWithTag(tag).fetchSemanticsNodes().firstOrNull()?.boundsInRoot?.left
@@ -94,7 +93,6 @@ class ScreenTransitionTest {
         repeat(SETTLE_FRAMES) { mainClock.advanceTimeByFrame() }
         val settledLeft = onNodeWithTag("screen:Details").fetchSemanticsNode().boundsInRoot.left
 
-        // Series 1 has no chapters, so the toggled flag has nothing to continue into.
         val details = navigator.current.screen as Screen.Details
         navigator.replaceCurrent(details.copy(autoContinue = !details.autoContinue))
         repeat(6) {
@@ -134,16 +132,11 @@ class ScreenTransitionTest {
         onNodeWithText("Series 20").assertIsDisplayed()
     }
 
-    /** Unclipped, unlike boundsInRoot: a cover in flight pokes outside its column. */
     private fun ComposeUiTest.boundsOf(tag: String): Rect {
         val node = onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode()
         return Rect(node.positionInRoot, node.size.toSize())
     }
 
-    /**
-     * Opens Series 0's Details from the Library grid. Returns the tile's bounds, then the Details
-     * cover's on the first frame it exists (it waits on the details load) and once settled.
-     */
     private fun ComposeUiTest.openSeries0Cover(motion: MangoMotion): Triple<Rect, Rect, Rect> {
         mainClock.autoAdvance = false
         setContent { TestAppShell(library(), catalog(), FakeDownloadManager(), motion = motion) }

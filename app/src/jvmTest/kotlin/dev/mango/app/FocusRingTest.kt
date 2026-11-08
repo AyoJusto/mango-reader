@@ -36,7 +36,6 @@ class FocusRingTest {
         rule.waitForIdle()
     }
 
-    // Focus starts on the sidebar glyph so the key event has a focused node to dispatch to.
     private fun pressTab() {
         rule.onNodeWithTag(SIDEBAR_TOGGLE_TAG).requestFocus()
         rule.onNodeWithTag(SIDEBAR_TOGGLE_TAG).performKeyInput { pressKey(Key.Tab) }
@@ -75,7 +74,6 @@ class FocusRingTest {
         rule.onAllNodes(hasRing).assertCountEquals(0)
     }
 
-    // The keyboard flag is pinned on so these exercise the focus rules alone.
     private fun setKeyboardContent(content: @Composable () -> Unit) {
         rule.setContent {
             ProvideMangoTheme(MangoDark) {

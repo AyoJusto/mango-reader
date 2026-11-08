@@ -13,11 +13,6 @@ import kotlin.test.assertIs
 import kotlinx.coroutines.runBlocking
 import okio.Path.Companion.toOkioPath
 
-/**
- * Regression test: Coil's default 4096px bitmap cap silently downsampled tall webtoon strips
- * (real pages are 800 x ~14000px) before the reader upscaled them back — unreadably pixelated
- * pages.
- */
 class ImageLoadingTest {
     @Test
     fun tallWebtoonStripsDecodeAtFullResolution() {
@@ -30,7 +25,6 @@ class ImageLoadingTest {
                 ImageRequest.Builder(PlatformContext.INSTANCE)
                     .data(file.toOkioPath())
                     .size(coil3.size.Size.ORIGINAL)
-                    // the reader's per-request config (see DefaultReaderPage)
                     .maxBitmapSize(WebtoonMaxBitmapSize)
                     .build()
             )
@@ -41,12 +35,6 @@ class ImageLoadingTest {
         assertEquals(800, success.image.width)
     }
 
-    /**
-     * Real sources slice chapters into segments far taller than a GPU texture: FlameComics
-     * serves 800 x ~24000-28600px pages. A height cap below that shrinks WIDTH proportionally
-     * at decode (e.g. 800 → ~460px), which the reader then upscales back to strip width —
-     * visibly blurry pages, but only for the tall segments of a chapter.
-     */
     @Test
     fun extremelyTallStripsKeepTheirNativeWidth() {
         val file = Files.createTempFile("strip-tall", ".png")

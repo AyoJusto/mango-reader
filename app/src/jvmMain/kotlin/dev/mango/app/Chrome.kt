@@ -66,22 +66,13 @@ import dev.mango.app.resources.mango_icon
 import dev.nucleusframework.window.noWindowDrag
 import org.jetbrains.compose.resources.painterResource
 
-/** Test hook: scopes sidebar node lookups to the panel's subtree (same idiom as [PALETTE_TEST_TAG]). */
 internal const val SIDEBAR_TEST_TAG = "mango-sidebar"
 
-/** Test hook: the title-bar glyph that toggles the sidebar. */
 internal const val SIDEBAR_TOGGLE_TAG = "sidebar-toggle"
 
-/** The title bar's height. */
 internal val TITLE_BAR_HEIGHT = 44.dp
 
-/**
- * The 44dp title bar: Back chevron, logo, sidebar-toggle glyph and app title on the left. Back
- * stays visible but dimmed and inert when [canGoBack] is false, so the bar never shifts. A mouse
- * back press anywhere on the bar runs [onMouseBack] instead of clicking what it lands on. In the app window
- * the caller passes a drag-area [modifier] and Nucleus's native [windowControls]; without them
- * (tests, previews) it renders the same content with no controls.
- */
+/** Back stays visible but inert when canGoBack is false; a mouse back press runs onMouseBack. */
 @Composable
 fun MangoTitleBar(
     sidebarOpen: Boolean,
@@ -132,8 +123,6 @@ fun MangoTitleBar(
                 modifier = Modifier.size(18.dp),
             )
             Spacer(modifier = Modifier.width(10.dp))
-            // sidebarOpen folds into both rest and hover so the toggle stays lit while the
-            // sidebar is open, regardless of live hover state.
             val hover = rememberHoverFill(
                 rest = if (sidebarOpen) theme.surface else theme.surface.copy(alpha = 0f),
                 hover = theme.surface,
@@ -147,8 +136,7 @@ fun MangoTitleBar(
                     .background(hover.fill)
                     .hoverable(hover.interaction)
                     .noWindowDrag()
-                    // The animated fill IS the indication; the default ripple would double-draw
-                    // and flash its own hover layer on exit.
+                    // The animated fill is the indication; the default ripple would double-draw.
                     .clickable(interactionSource = hover.interaction, indication = null, onClick = onToggleSidebar),
                 contentAlignment = Alignment.Center,
             ) {
@@ -166,7 +154,6 @@ fun MangoTitleBar(
     }
 }
 
-/** One resumable series shown as a Continue-reading card in the sidebar. */
 data class ContinueItem(
     val sourceId: String,
     val mangaId: String,
@@ -186,12 +173,6 @@ private val SIDEBAR_NAV_ITEMS = listOf(
     SidebarNavItem("Settings", Icons.Outlined.Settings, Screen.Settings),
 )
 
-/**
- * The collapsible overlay sidebar: Continue-reading cards on top, then the nav items. It
- * overlays the content area (never pushes it) as a frosted panel: the overlay token's alpha
- * plus a backdrop blur of the content behind it. Without [hazeState] (component previews,
- * screenshots) the fill falls back to the translucent token alone.
- */
 @Composable
 fun Sidebar(
     visible: Boolean,
@@ -249,9 +230,7 @@ fun Sidebar(
                         Modifier.background(theme.overlay)
                     },
                 )
-                // An input node makes this subtree opaque to hit testing: clicks and hovers
-                // stop at the panel instead of reaching the screen behind it. Events are not
-                // consumed, so the panel's own controls behave normally.
+                // An input node blocks hit testing behind the panel without consuming events.
                 .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } }
                 .padding(vertical = 16.dp, horizontal = 12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -273,8 +252,6 @@ fun Sidebar(
                     )
                 }
             }
-            // Offset by how many groups actually rendered before this one, not a fixed slot:
-            // with no continue items, nav is the first (and only) group, so it opens immediately.
             SidebarStaggerGroup(groupIndex = if (continueItems.isNotEmpty()) 1 else 0) {
                 SIDEBAR_NAV_ITEMS.forEach { nav ->
                     SidebarNavRow(
@@ -293,12 +270,6 @@ fun Sidebar(
     }
 }
 
-/**
- * One stagger group of the sidebar's contents: fades and rises in on first composition (the
- * panel opening), offset by [groupIndex] * [motion.sidebarStaggerMs] capped at
- * [motion.sidebarStaggerCapMs]. Content stays composed at full opacity once settled, so
- * closing the sidebar is just the outer panel's own slide-out — no separate exit animation here.
- */
 @Composable
 private fun SidebarStaggerGroup(groupIndex: Int, content: @Composable ColumnScope.() -> Unit) {
     val motion = LocalMangoMotion.current
@@ -307,8 +278,6 @@ private fun SidebarStaggerGroup(groupIndex: Int, content: @Composable ColumnScop
         val delayMs = (groupIndex * motion.sidebarStaggerMs).coerceAtMost(motion.sidebarStaggerCapMs)
         progress.animateTo(
             targetValue = 1f,
-            // delayMillis, not a raw suspend delay(): stays on the same frame-clock-driven
-            // timing every other animation in this file uses.
             animationSpec = tween(
                 durationMillis = motion.sidebarOpenMs,
                 delayMillis = delayMs,
@@ -337,7 +306,6 @@ private fun ContinueCard(item: ContinueItem, onClick: () -> Unit) {
             .clip(RoundedCornerShape(MangoRadius.control))
             .background(hover.fill)
             .hoverable(hover.interaction)
-            // Same rule as the title-bar glyph: the animated fill is the only indication.
             .clickable(interactionSource = hover.interaction, indication = null, onClick = onClick)
             .padding(vertical = 8.dp, horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -379,8 +347,6 @@ private fun ContinueCard(item: ContinueItem, onClick: () -> Unit) {
 @Composable
 private fun SidebarNavRow(nav: SidebarNavItem, active: Boolean, pill: String?, onClick: () -> Unit) {
     val theme = LocalMangoTheme.current
-    // active folds into both rest and hover so it wins over live hover state, same idiom as
-    // the title-bar glyph's sidebarOpen.
     val hover = rememberHoverFill(
         rest = if (active) theme.accent.copy(alpha = 0.12f) else theme.surface.copy(alpha = 0f),
         hover = if (active) theme.accent.copy(alpha = 0.12f) else theme.surface,
@@ -393,7 +359,6 @@ private fun SidebarNavRow(nav: SidebarNavItem, active: Boolean, pill: String?, o
             .clip(RoundedCornerShape(MangoRadius.control))
             .background(hover.fill)
             .hoverable(hover.interaction)
-            // Same rule as the title-bar glyph: the animated fill is the only indication.
             .clickable(interactionSource = hover.interaction, indication = null, onClick = onClick)
             .padding(vertical = 8.dp, horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,

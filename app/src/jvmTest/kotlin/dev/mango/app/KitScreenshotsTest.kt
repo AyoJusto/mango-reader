@@ -16,11 +16,6 @@ import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
-/**
- * One board rendering every [Kit.kt][dev.mango.app] primitive in every static state (hover is
- * excluded — it needs a live pointer) on bg0. This is the kit's visual contract: the screen restyles
- * restyle screens against what this board shows.
- */
 class KitScreenshotsTest {
     @Test
     fun kit() {

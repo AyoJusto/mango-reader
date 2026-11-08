@@ -39,10 +39,7 @@ fun main() {
     val graph = AppGraph()
     val settings = Settings(AppGraph.defaultDataDir())
     val themeStore = ThemeStore(AppGraph.defaultDataDir())
-    // Registers PolicyImageFetcher ahead of Coil's default network fetcher for requests
-    // carrying policyHeaders(); every other request falls through unaffected (see the
-    // factory's KDoc). Must be set before the first composition asks SingletonImageLoader
-    // for a loader (ReaderScreen's prefetch effect, Kit's cover requests).
+    // Must be set before the first composition asks SingletonImageLoader for a loader.
     SingletonImageLoader.setSafe { context -> ImageLoader.Builder(context).components { add(graph.imageFetcherFactory) }.build() }
     nucleusApplication(backend = NucleusBackend.Tao) {
         var theme by remember { mutableStateOf(themeStore.load()) }
@@ -54,24 +51,17 @@ fun main() {
         var fontFamilyName by remember { mutableStateOf(settings.fontFamilyName) }
         var libraryCheckedAt by remember { mutableStateOf(settings.libraryCheckedAt) }
         var searchHistory by remember { mutableStateOf(settings.searchHistory) }
-        // Enumerating a few hundred system font families isn't free; do it once, off the UI
-        // thread. The dropdown shows only "System default" until the list lands.
         var installedFonts by remember { mutableStateOf<List<String>>(emptyList()) }
         LaunchedEffect(Unit) {
             installedFonts = withContext(Dispatchers.Default) { installedFontFamilies() }
         }
         var sidebarOpen by remember { mutableStateOf(false) }
-        // Latch for the Ctrl+S toggle: a held key auto-repeats KeyDowns, and each one would
-        // re-toggle without it. Set on the first S down, cleared on S up.
+        // Latch: a held S auto-repeats KeyDowns and each would re-toggle.
         var sidebarKeyDown by remember { mutableStateOf(false) }
-        // A floating window this size fills a 2560x1440 monitor; the OS clamps it on smaller screens
         val windowState = rememberWindowState(size = DpSize(2560.dp, 1440.dp))
         val palette = remember { PaletteState() }
         val navigator = remember { Navigator() }
         val manageCollectionsOpen = remember { mutableStateOf(false) }
-        // A hand-rolled IntelliJ-style double-Shift chord detector, own file/class — this is
-        // Window-level, not a focusable Box inside AppShell, so it fires no matter which
-        // screen or field currently has focus.
         val detector = remember { DoubleShiftDetector() }
         val lastInputWasKeyboard = remember { mutableStateOf(false) }
         DecoratedWindow(
@@ -80,7 +70,6 @@ fun main() {
             title = "mango",
             icon = painterResource(Res.drawable.mango_icon),
             onPreviewKeyEvent = { keyEvent ->
-                // The window sees keys even when nothing inside holds focus yet (the first Tab).
                 if (keyEvent.type == KeyEventType.KeyDown) lastInputWasKeyboard.value = true
                 when {
                     keyEvent.key == Key.S && keyEvent.isCtrlPressed && keyEvent.type == KeyEventType.KeyDown -> {
@@ -90,21 +79,18 @@ fun main() {
                         }
                         true
                     }
-                    // Consume the matching S release only when the latch is armed; a plain S
-                    // (typing in a field) passes through untouched.
+                    // Consume the S release only when the latch is armed; a plain S in a field passes through.
                     keyEvent.key == Key.S && keyEvent.type == KeyEventType.KeyUp && sidebarKeyDown -> {
                         sidebarKeyDown = false
                         true
                     }
-                    // Esc closes the sidebar only when nothing above it is open; the palette
-                    // and the reader own their Esc semantics.
+                    // Esc closes the sidebar only when nothing above it is open; the palette and reader own theirs.
                     keyEvent.key == Key.Escape && keyEvent.type == KeyEventType.KeyDown &&
                             sidebarOpen && !palette.visible && !manageCollectionsOpen.value -> {
                         sidebarOpen = false
                         true
                     }
-                    // ALL remaining key events go in, downs AND ups: the detector needs Shift
-                    // releases to tell a real double-tap from one held Shift auto-repeating keydowns
+                    // Feed downs and ups: the detector needs Shift releases to tell a double-tap from auto-repeat.
                     detector.onKeyEvent(keyEvent.key, keyEvent.type, System.currentTimeMillis()) -> {
                         palette.visible = !palette.visible
                         true
@@ -113,8 +99,7 @@ fun main() {
                     else -> false
                 }
             },
-            // Bubbling, not preview: a focused field or the reader that wants Esc consumes it
-            // first, and only a leftover Esc means back.
+            // Bubbling, not preview: a field or the reader wanting Esc consumes it first.
             onKeyEvent = { keyEvent ->
                 if (keyEvent.key == Key.Escape && keyEvent.type == KeyEventType.KeyDown) {
                     backOrCloseOverlay(navigator, palette, sidebarOpen, { sidebarOpen = it }, manageCollectionsOpen)

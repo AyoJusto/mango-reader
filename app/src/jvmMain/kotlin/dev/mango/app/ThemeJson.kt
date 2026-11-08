@@ -22,18 +22,12 @@ private val TOKEN_NAMES = listOf(
 @Serializable
 private data class ThemeWire(val schema: Int, val name: String, val colors: Map<String, String>)
 
-/** Outcome of [ThemeJson.decode]: the parsed theme, or a human-readable reason it was rejected. */
 sealed class ThemeResult {
     data class Ok(val theme: MangoTheme) : ThemeResult()
     data class Error(val message: String) : ThemeResult()
 }
 
-/**
- * The theme wire format: `{"schema":1,"name":"...","colors":{"bg0":"#RRGGBB",...}}` with exactly
- * the 14 [MangoTheme] color tokens as `#RRGGBB` or `#AARRGGBB` hex strings. [decode] is a trust
- * boundary — malformed JSON, a schema mismatch, a missing or unknown token, or an unparsable hex
- * value all produce a [ThemeResult.Error]; it never throws.
- */
+/** decode is a trust boundary: malformed input yields ThemeResult.Error, never a throw. */
 object ThemeJson {
     fun encode(theme: MangoTheme): String {
         val wire = ThemeWire(
@@ -121,12 +115,11 @@ private fun Color.toHex(): String {
 
 private fun Int.toHex2(): String = toString(16).padStart(2, '0').uppercase()
 
-/** Parses `#RRGGBB` or `#AARRGGBB`; anything else (missing `#`, wrong length, non-hex digits) is null. */
 private fun parseHex(hex: String): Color? {
     if (!hex.startsWith("#")) return null
     val digits = hex.substring(1)
     if (digits.length != 6 && digits.length != 8) return null
-    // toLongOrNull(16) alone would accept a leading sign; only hex digits are valid here.
+    // toLongOrNull(16) alone would accept a leading sign.
     if (!digits.all { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' }) return null
     val value = digits.toLongOrNull(16) ?: return null
     return when (digits.length) {
@@ -135,15 +128,7 @@ private fun parseHex(hex: String): Color? {
     }
 }
 
-/**
- * Persists the active [MangoTheme] as JSON at `<dataDir>/theme.json`, and the imported theme
- * library as one JSON file per theme under `<dataDir>/themes/`. Missing or malformed files fall
- * back to [MangoDark] (for [load]) or are skipped (for [list]) and log a warning — same stance as
- * [Settings]'s loader: the theme files are a convenience, not a trust boundary worth failing
- * startup over. Theme names arrive from untrusted JSON, so every path derived from one goes
- * through [sanitizedThemeFileName] first — the file name is the trust boundary, not the name
- * stored inside the JSON.
- */
+/** Theme names are untrusted JSON, so every derived path goes through sanitizedThemeFileName. */
 class ThemeStore(dataDir: Path) {
     private val log = Logger.getLogger(ThemeStore::class.java.name)
     private val file: Path = dataDir.resolve("theme.json")
@@ -175,12 +160,7 @@ class ThemeStore(dataDir: Path) {
         }
     }
 
-    /**
-     * Every theme available to pick from: [MangoDark] always first (it is never a file), then
-     * every decodable file in `themes/` sorted by [MangoTheme.name]. A file that fails to read or
-     * decode is logged (WARNING) and skipped — same stance as [load]: one broken import must not
-     * take down the rest of the library.
-     */
+    /** MangoDark first, then decodable files sorted by name; a broken file is logged and skipped. */
     fun list(): List<MangoTheme> {
         if (!Files.isDirectory(libraryDir)) return listOf(MangoDark)
         val imported = try {
@@ -208,15 +188,7 @@ class ThemeStore(dataDir: Path) {
         }
     }
 
-    /**
-     * Adds [theme] to the library by writing `themes/<sanitized name>.json`; a second import
-     * under the same name overwrites the existing file. Returns a human-readable message and
-     * writes nothing if [theme]'s name matches [MangoDark]'s case-insensitively (reserved — it is
-     * never a file), if sanitizing the name leaves nothing but blank space, if the sanitized name
-     * is a Windows reserved device name, if the sanitized name collides with a file that decodes
-     * to a *different* theme name (distinct names can sanitize to the same file, and NTFS
-     * file names are case-insensitive), or if the write fails; returns null on success.
-     */
+    /** Returns an error message (nothing written) when the name is reserved or collides; null on success. */
     fun saveImported(theme: MangoTheme): String? {
         if (theme.name.equals(MangoDark.name, ignoreCase = true)) {
             return "\"${MangoDark.name}\" is a reserved name"
@@ -243,11 +215,7 @@ class ThemeStore(dataDir: Path) {
         }
     }
 
-    /**
-     * Deletes the library file matching [name], using the same sanitization [saveImported] used
-     * to write it. A missing file or an I/O failure is a logged no-op — deleting an
-     * already-gone or unwritable theme is not an error the caller needs to react to.
-     */
+    /** A missing file or I/O failure is a logged no-op. */
     fun deleteImported(name: String) {
         val sanitized = sanitizedThemeFileName(name)
         if (sanitized.isEmpty()) return
@@ -259,14 +227,10 @@ class ThemeStore(dataDir: Path) {
     }
 }
 
-/**
- * Keeps only `[A-Za-z0-9 _-]` from an untrusted theme name, so the result can never contain a
- * path separator or a `.` and therefore can never resolve outside `themes/`. May be empty, or
- * contain only spaces, if nothing else in [name] survives.
- */
+/** Keeps only [A-Za-z0-9 _-] so an untrusted name can never escape themes/. */
 private fun sanitizedThemeFileName(name: String): String =
     name.filter { it in 'A'..'Z' || it in 'a'..'z' || it in '0'..'9' || it == ' ' || it == '_' || it == '-' }
 
-/** Windows device names: reserved regardless of extension or case, on Windows they name a device, not a file. */
+/** Reserved on Windows regardless of extension or case. */
 private val WINDOWS_RESERVED_FILE_NAMES = setOf("CON", "PRN", "AUX", "NUL") +
     (1..9).map { "COM$it" } + (1..9).map { "LPT$it" }

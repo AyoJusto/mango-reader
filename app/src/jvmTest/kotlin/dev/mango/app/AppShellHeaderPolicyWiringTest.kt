@@ -29,11 +29,6 @@ private const val SOURCE_ID = "FlameComics"
 private const val MANGA_ID = "manga-1"
 private const val CHAPTER_ID = "ch-1"
 
-/**
- * [AppShell] with a hoisted sidebar (needed for [navigateVia]) plus [SourceHeaderPolicy] and a
- * reader page hook wired straight through — the same optional-hook idiom [TestAppShell] already
- * uses for its other ports, kept local to this file since no other flow test needs either hook.
- */
 @Composable
 private fun HeaderPolicyTestShell(
     library: LibraryRepository,
@@ -57,12 +52,6 @@ private fun HeaderPolicyTestShell(
     }
 }
 
-/**
- * Proves [AppShell] actually threads its own `headerPolicy` parameter into the `ReaderScreen`
- * call in its Reader branch. Navigates Browse -> Details -> Reader through real [AppShell]
- * composition (not a direct [ReaderScreen] composition, which [ReaderFlowTest] already covers
- * and which cannot catch a dropped argument at the AppShell call site).
- */
 class AppShellHeaderPolicyWiringTest {
     @get:Rule
     val rule = createComposeRule()

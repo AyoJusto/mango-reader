@@ -6,10 +6,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import dev.mango.core.domain.Chapter
 
-/**
- * Navigation state for the app shell. Hand-rolled — no nav library: the tree is a handful of
- * flat cases, not worth a dependency.
- */
 sealed interface Screen {
     data object Library : Screen
     data object Search : Screen
@@ -20,11 +16,7 @@ sealed interface Screen {
     data class Details(
         val sourceId: String,
         val mangaId: String,
-        /**
-         * One-shot: fires the Continue action into the Reader once chapters load. Must be
-         * cleared on the stack entry before the Reader is pushed, or backing out of the Reader
-         * would bounce straight back in.
-         */
+        /** Must be cleared on the stack entry before the Reader is pushed, or Back bounces straight in. */
         val autoContinue: Boolean = false,
     ) : Screen
 
@@ -32,21 +24,15 @@ sealed interface Screen {
         val sourceId: String,
         val mangaId: String,
         val chapterId: String,
-        // sorted ascending by number at construction (the only construction site sorts) so
-        // the reader can walk it directly for next/prev without re-sorting on every navigation
+        // Sorted ascending at the only construction site; the reader walks it directly.
         val chapters: List<Chapter>,
     ) : Screen
 }
 
 enum class Move { Push, Pop, Switch }
 
-/** One screen on the back stack; [id] tells two visits to the same screen apart. */
 data class NavEntry(val screen: Screen, val id: Long)
 
-/**
- * The back stack. Details and Reader stack on top of whatever opened them; every other screen
- * is top-level and starts a fresh stack, so back never walks through old tabs.
- */
 class Navigator {
     private var nextId = 0L
     private val stack = mutableStateListOf(NavEntry(Screen.Library, nextId++))

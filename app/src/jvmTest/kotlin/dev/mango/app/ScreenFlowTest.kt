@@ -45,11 +45,6 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 
-/**
- * End-to-end navigation and interaction flows through [AppShell] and [DetailsScreen], backed
- * by [FakeLibraryRepository]/[FakeCatalogRepository]. CMP 1.11 uses StandardTestDispatcher —
- * every action that launches a coroutine is followed by [waitForIdle] before the next assert.
- */
 class ScreenFlowTest {
     @get:Rule
     val rule = createComposeRule()
@@ -118,7 +113,6 @@ class ScreenFlowTest {
         assertEquals(1, catalog.searchCallCount)
     }
 
-    // The Continue button's three variants — no progress, in-progress, and finished.
     @Test
     fun startReadingButtonOpensTheFirstChapterWhenThereIsNoProgressYet() {
         val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
@@ -284,9 +278,6 @@ class ScreenFlowTest {
         rule.onNodeWithText("Add to library").assertDoesNotExist()
     }
 
-    // The sidebar's Continue card opens Details with a one-shot auto-continue; backing out of
-    // the Reader must land on Details without that flag, or Details would re-fire straight
-    // back into the Reader.
     @Test
     fun continueThenBackFromReaderStaysOnDetails() {
         val library = FakeLibraryRepository(listOf(LibraryItem(soloEntry, Clock.System.now())))
@@ -311,7 +302,6 @@ class ScreenFlowTest {
         rule.onNode(hasText("Solo Leveling") and hasAnyAncestor(hasTestTag(SIDEBAR_TEST_TAG))).performClick()
         rule.waitForIdle()
         rule.waitForIdle()
-        // "offline" is Reader-only text: the bar's label for downloaded pages.
         rule.onNode(hasText("offline")).assertExists()
 
         rule.runOnIdle { navigator.back() }
@@ -354,8 +344,6 @@ class ScreenFlowTest {
         rule.onNodeWithTag("screen:Reader").assertDoesNotExist()
     }
 
-    // Nucleus reports a side-button press as a primary click, so the shell must consume it
-    // before any clickable underneath sees it.
     @Test
     fun mouseBackButtonGoesBackAndDoesNotClick() {
         val library = FakeLibraryRepository(listOf(LibraryItem(soloEntry, Clock.System.now())))
@@ -376,8 +364,6 @@ class ScreenFlowTest {
         val stillInLibrary = runBlocking { library.observeLibrary().first() }.map { it.entry.mangaId }
         assertEquals(listOf("manga-1"), stillInLibrary)
 
-        // At the root back has nowhere to go, so only the consumed press keeps the cover
-        // underneath from opening.
         rule.onNodeWithText("Solo Leveling").performMouseInput { click() }
         rule.waitForIdle()
 
@@ -385,8 +371,6 @@ class ScreenFlowTest {
         rule.onNodeWithText("In library ✓").assertDoesNotExist()
     }
 
-    // Nucleus reports the side press as a primary click on the sidebar glyph too, so the title
-    // bar must consume it and go back rather than toggle the sidebar.
     @Test
     fun mouseBackOverTheSidebarGlyphGoesBackWithoutTogglingTheSidebar() {
         val library = FakeLibraryRepository(listOf(LibraryItem(soloEntry, Clock.System.now())))
@@ -430,8 +414,6 @@ class ScreenFlowTest {
         rule.onNodeWithTag("screen:Details").assertExists()
     }
 
-    // Manage collections is an in-shell overlay, not a Compose dialog, so nothing else stops
-    // Esc or mouse back from reaching the navigator underneath it.
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun escAndMouseBackCloseManageCollectionsWithoutLeavingTheScreen() {
@@ -487,8 +469,6 @@ class ScreenFlowTest {
         rule.onNodeWithText("In library ✓").assertDoesNotExist()
     }
 
-    // Esc-to-back listens on the window's bubbling key handler, which only sees an Esc no
-    // focused child consumed; a focused search field must keep Esc for itself.
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun escInFocusedSearchFieldIsConsumed() {
@@ -517,8 +497,6 @@ class ScreenFlowTest {
         rule.onNode(hasSetTextAction()).assertIsNotFocused()
     }
 
-    // The dropdown's filter is a search field too; Esc there must still close the menu, not
-    // just drop the field's focus.
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun escInAFilterableDropdownClosesTheMenu() {

@@ -58,48 +58,26 @@ import kotlinx.coroutines.flow.first
 import java.util.logging.Level
 import java.util.logging.Logger
 
-/** One candidate result in the palette: what a row shows and what Enter/click does. */
 data class PaletteHit(
-    val category: String, // display group: "Screens", "Appearance", "Manhwa"
+    val category: String,
     val title: String,
     val subtitle: String? = null,
-    // A right-aligned keycap hint (e.g. a shortcut), shown only when the hit carries one.
     val hint: String? = null,
     val run: () -> Unit,
 )
 
-/**
- * A source of palette candidates. Providers are dumb on purpose: candidates are fetched once
- * per palette open (and per tab switch), then filtered and ranked centrally by [fuzzyScore] on
- * every keystroke — providers are never re-queried while the user types, which keeps every
- * provider a one-liner instead of reimplementing fuzzy matching (or fetch throttling) per
- * feature. To wire up a new searchable feature, implement this and add one line to
- * [paletteTabs]; to add a new mode (its own tab in the palette), add a new [PaletteTab]
- * instead. A future tab whose providers need the live query (e.g. online search) will add a
- * per-tab fetch policy then — not before.
- */
+/** Providers ignore the query: candidates are fetched once per open/tab, then ranked centrally. */
 fun interface PaletteProvider {
-    /** Return candidate hits for [query]; the palette fuzzy-filters and ranks them centrally. */
     suspend fun query(query: String): List<PaletteHit>
 }
 
-/** One tab in the palette: a name shown in the tab row and the providers it fans out to. */
 data class PaletteTab(val name: String, val providers: List<PaletteProvider>)
 
 private const val WORD_START_BONUS = 5
 private const val PREFIX_BONUS = 20
 private val WORD_BOUNDARY_CHARS = charArrayOf(' ', '-', '_', ':')
 
-/**
- * Null unless every character of [query] appears in [text] in order (case-insensitive
- * subsequence match) — that null is the palette's whole filter. When it does match, higher is
- * better: consecutive runs of matched characters and a match landing right after a word
- * boundary (space/-/_/:) add bonus points, and [text] starting with [query] outright adds a
- * flat bonus. The greedy alignment is retried once per occurrence of the FIRST query character
- * in [text] and the best score wins (so "lev" anchors at "Leveling", not the stray 'l' in
- * "Television"); later characters are still matched greedily — a deliberate ceiling, full DP
- * alignment only if ranking complaints appear. A blank query matches everything at score 0.
- */
+/** Null unless [query] is a case-insensitive subsequence of [text]; greedy alignment, full DP if ranking suffers. */
 fun fuzzyScore(query: String, text: String): Int? {
     if (query.isBlank()) return 0
     val q = query.lowercase()
@@ -116,7 +94,6 @@ fun fuzzyScore(query: String, text: String): Int? {
     return if (t.startsWith(q)) best + PREFIX_BONUS else best
 }
 
-/** One greedy left-to-right alignment of [q] into [t] with the first char pinned at [anchor]. */
 private fun greedyScoreFrom(q: String, t: String, anchor: Int): Int? {
     var score = 0
     var searchFrom = anchor
@@ -132,12 +109,11 @@ private fun greedyScoreFrom(q: String, t: String, anchor: Int): Int? {
     return score
 }
 
-/** Test hook: scopes `PaletteFlowTest`'s node lookups to just the palette overlay's subtree. */
 internal const val PALETTE_TEST_TAG = "mango-palette"
 
 private const val PALETTE_MAX_HITS = 50
 
-/** Score, filter, and order [candidates] for [query]: score desc, then category, then title; cap 50. */
+/** Score desc, then category, then title; capped at 50. */
 internal fun rankHits(candidates: List<PaletteHit>, query: String): List<PaletteHit> =
     candidates
         .mapNotNull { hit -> fuzzyScore(query, hit.title)?.let { score -> score to hit } }
@@ -149,37 +125,21 @@ internal fun rankHits(candidates: List<PaletteHit>, query: String): List<Palette
         .map { it.second }
         .take(PALETTE_MAX_HITS)
 
-/**
- * Palette's screen state, hoisted so [AppShell] can [remember] it once (see [BrowseState] for
- * the same idiom) and so Main.kt's double-shift detector can flip [visible] directly.
- */
 class PaletteState {
     var visible by mutableStateOf(false)
     var query by mutableStateOf("")
     var activeTabIndex by mutableStateOf(0)
 
-    // raw provider output for the active tab, fetched once per open/tab-switch; the rendered
-    // list is derived from this synchronously per keystroke (see PaletteOverlay's rankHits)
     var candidates by mutableStateOf<List<PaletteHit>>(emptyList())
 
     var selectedIndex by mutableStateOf(0)
 }
 
-/**
- * Stateful orchestration: fetches the active tab's candidates once per open/tab-switch (never
- * per keystroke), ranks them synchronously as the user types, and renders [PaletteContent].
- * A provider that throws contributes nothing (logged) — see the per-provider try/catch below —
- * so one broken provider never blanks the rest.
- */
 @Composable
 fun PaletteOverlay(state: PaletteState, tabs: List<PaletteTab>) {
     if (!state.visible) return
 
-    // Opening always starts from a clean slate — a previous session's query/tab/selection and
-    // stale candidates (still rendered and Enter-runnable otherwise) must never leak into the
-    // next open. Plain remember{}: the early-return above removes this subtree from
-    // composition while closed, so the initializer re-runs on every open; a key would be dead
-    // weight (visible is always true here).
+    // Plain remember: the early return drops this subtree while closed, so it re-inits on every open.
     remember {
         state.query = ""
         state.activeTabIndex = 0
@@ -187,10 +147,7 @@ fun PaletteOverlay(state: PaletteState, tabs: List<PaletteTab>) {
         state.candidates = emptyList()
     }
 
-    // Candidates are fetched once per tab — and once per open, since this overlay only
-    // composes while visible, so re-entering composition restarts the effect. The effect
-    // restart IS the cancellation of an in-flight fetch: no manual Job, no scope.launch.
-    // Providers ignore the query, hence query("").
+    // Effect restart cancels any in-flight fetch; providers ignore the query.
     LaunchedEffect(state.activeTabIndex) {
         val providers = tabs.getOrNull(state.activeTabIndex)?.providers.orEmpty()
         val collected = mutableListOf<PaletteHit>()
@@ -206,8 +163,6 @@ fun PaletteOverlay(state: PaletteState, tabs: List<PaletteTab>) {
         state.candidates = collected
     }
 
-    // Ranking is synchronous per keystroke: a few hundred local candidates filter in
-    // microseconds, and providers are never touched while typing.
     val hits = remember(state.candidates, state.query) { rankHits(state.candidates, state.query) }
 
     PaletteContent(
@@ -224,7 +179,6 @@ fun PaletteOverlay(state: PaletteState, tabs: List<PaletteTab>) {
     )
 }
 
-/** Category-to-glyph map for [PaletteResultTile]; a category with no entry falls back to the hit title's initial letter. */
 private val PALETTE_CATEGORY_GLYPHS = mapOf(
     "Screens" to "▤",
     "Appearance" to "◐",
@@ -236,19 +190,9 @@ private val PALETTE_PANEL_WIDTH = 660.dp
 private val PALETTE_PANEL_TOP_OFFSET = 120.dp
 private val PALETTE_RESULTS_MAX_HEIGHT = 600.dp
 
-/** The input row's glyph, query text, and placeholder all share this size — the palette's largest text. */
 private val PALETTE_INPUT_TYPE = TextStyle(fontSize = 19.sp)
 
-/**
- * Pure, data-driven content — the screenshot harness renders this directly. Full-screen scrim
- * (click closes) with a centered, Spotlight-styled panel: an autofocused search field, filter
- * tab pills, and a text-only [LazyColumn] of hits (no cover images anywhere — an IntelliJ-style
- * list is meant to be scanned fast, and extension covers are untrusted network fetches this
- * palette has no business making — every category, including manhwa, renders a glyph tile
- * instead). No item keys: hit titles come from extension-provided library data, and a duplicate
- * title must not crash composition with a duplicate-key exception (same rationale as
- * Browse/Search's result grids).
- */
+/** Text-only list with no item keys: duplicate extension-supplied titles must not crash composition. */
 @Composable
 fun PaletteContent(
     tabNames: List<String>,
@@ -268,8 +212,6 @@ fun PaletteContent(
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
     val listState = rememberLazyListState()
 
-    // Keep the keyboard selection visible, IntelliJ-style: scroll the minimal amount, so
-    // moving down pins the selection to the bottom edge instead of jumping it to the top.
     LaunchedEffect(selectedIndex, hits) {
         if (hits.isEmpty()) return@LaunchedEffect
         val layout = listState.layoutInfo
@@ -293,12 +235,9 @@ fun PaletteContent(
         modifier = Modifier
             .fillMaxSize()
             .testTag(PALETTE_TEST_TAG)
-            // scrim role, not a Color literal: Theme.kt owns every color decision
             .background(theme.bg0.copy(alpha = 0.55f))
             .clickable(onClick = onDismiss)
-            // On the scrim — an ancestor of everything in the panel — not on the text field:
-            // ancestor preview sees keys no matter which descendant (chip, row, field) holds
-            // focus, so the palette's keyboard survives focus wandering off the field.
+            // On the scrim so key preview sees keys wherever focus wanders.
             .onPreviewKeyEvent { keyEvent ->
                 if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (keyEvent.key) {
@@ -360,7 +299,7 @@ fun PaletteContent(
                     .clip(RoundedCornerShape(MangoRadius.large))
                     .background(theme.overlay)
                     .border(1.dp, theme.divider, RoundedCornerShape(MangoRadius.large))
-                    // consumes the click so it doesn't fall through to the scrim's onDismiss above
+                    // Consumes the click so it doesn't reach the scrim's onDismiss.
                     .clickable(onClick = {}),
             ) {
                 Column(modifier = Modifier.padding(MangoSpace.md)) {
@@ -386,17 +325,9 @@ fun PaletteContent(
     }
 }
 
-/**
- * The palette's input row: magnifier glyph, the query field, and a trailing esc keycap. A bare
- * [BasicTextField] — the spec has no border/fill chrome around it, just glyph + text + keycap —
- * with the placeholder composed through [BasicTextField]'s own decorationBox so it merges into
- * the field's semantics node the same way Material's TextField does (preserving every existing
- * `onNodeWithText("Search everywhere…").performTextInput(...)` call across the flow tests).
- */
 @Composable
 private fun PaletteInputRow(query: String, onQueryChange: (String) -> Unit, focusRequester: FocusRequester) {
     val theme = LocalMangoTheme.current
-    // The 19sp input size is palette-specific, but the face must follow the app font choice.
     val inputType = PALETTE_INPUT_TYPE.copy(fontFamily = MangoType.body.fontFamily)
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)) {
         Text(text = "⌕", style = inputType, color = theme.textTertiary)
@@ -420,7 +351,6 @@ private fun PaletteInputRow(query: String, onQueryChange: (String) -> Unit, focu
     }
 }
 
-/** Filter tabs as accent-fill/surface-fill pills; Tab cycling is handled by the caller, this is click-only. */
 @Composable
 private fun PaletteFilterTabs(tabNames: List<String>, activeTabIndex: Int, onTabIndexChange: (Int) -> Unit) {
     val theme = LocalMangoTheme.current
@@ -437,7 +367,6 @@ private fun PaletteFilterTabs(tabNames: List<String>, activeTabIndex: Int, onTab
     }
 }
 
-/** One result row: a glyph tile, primary/secondary text, and an optional right-aligned keycap hint. */
 @Composable
 private fun PaletteResultRow(hit: PaletteHit, selected: Boolean, onClick: () -> Unit) {
     val theme = LocalMangoTheme.current
@@ -461,7 +390,6 @@ private fun PaletteResultRow(hit: PaletteHit, selected: Boolean, onClick: () -> 
     }
 }
 
-/** A 26 dp glyph tile: a category glyph where one is defined, otherwise the hit title's initial letter. */
 @Composable
 private fun PaletteResultTile(category: String, title: String) {
     val theme = LocalMangoTheme.current
@@ -477,7 +405,6 @@ private fun PaletteResultTile(category: String, title: String) {
     }
 }
 
-/** The static screen list (in rail order) as palette hits; run navigates the shell to it. */
 private fun screenProvider(navigate: (Screen) -> Unit): PaletteProvider {
     val entries = listOf(
         "Library" to Screen.Library,
@@ -492,7 +419,6 @@ private fun screenProvider(navigate: (Screen) -> Unit): PaletteProvider {
     }
 }
 
-/** Every built-in accent preset as a palette hit; run applies it to the current theme immediately. */
 private fun accentProvider(theme: MangoTheme, onThemeChange: (MangoTheme) -> Unit): PaletteProvider =
     PaletteProvider { _ ->
         ACCENT_PRESETS.map { (label, color) ->
@@ -504,10 +430,6 @@ private fun accentProvider(theme: MangoTheme, onThemeChange: (MangoTheme) -> Uni
         }
     }
 
-/**
- * Every theme in the library as a palette hit; run applies the pristine library entry — the
- * same accent-reset path as picking one from the Settings screen's dropdown.
- */
 private fun themeProvider(themes: List<MangoTheme>, onThemeChange: (MangoTheme) -> Unit): PaletteProvider =
     PaletteProvider { _ ->
         themes.map { entry ->
@@ -519,7 +441,6 @@ private fun themeProvider(themes: List<MangoTheme>, onThemeChange: (MangoTheme) 
         }
     }
 
-/** One-off app actions as palette hits; run invokes the callback threaded from the shell. */
 private fun actionsProvider(
     onToggleSidebar: () -> Unit,
     onToggleLibraryView: () -> Unit,
@@ -537,7 +458,6 @@ private fun actionsProvider(
         )
     }
 
-/** "Collection: All" plus one hit per shelf; run calls [onSelectCollection] with the collection id (null for All). */
 private fun collectionsProvider(
     collections: List<CollectionInfo>,
     onSelectCollection: (Long?) -> Unit,
@@ -553,14 +473,12 @@ private fun collectionsProvider(
                 }
     }
 
-/** Every registered settings entry as a palette hit; run opens the Settings screen. */
 private fun settingsProvider(navigate: (Screen) -> Unit): PaletteProvider = PaletteProvider { _ ->
     SETTINGS_ENTRIES.map { title ->
         PaletteHit(category = "Settings", title = "Setting: $title", run = { navigate(Screen.Settings) })
     }
 }
 
-/** Every library entry as a palette hit; run opens its Details screen. */
 private fun libraryProvider(library: LibraryRepository, navigate: (Screen) -> Unit): PaletteProvider =
     PaletteProvider { _ ->
         library.observeLibrary().first().map { item ->
@@ -573,11 +491,6 @@ private fun libraryProvider(library: LibraryRepository, navigate: (Screen) -> Un
         }
     }
 
-/**
- * The tab set: "All" fans out to every provider, "Manhwa" is just the library provider,
- * "Actions" is screens + accents + settings + one-off actions. A tab-bar from day one so a
- * future online-search tab slots in later without rework.
- */
 fun paletteTabs(
     library: LibraryRepository,
     navigate: (Screen) -> Unit,

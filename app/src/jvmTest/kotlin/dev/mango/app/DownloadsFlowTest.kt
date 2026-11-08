@@ -26,8 +26,6 @@ class DownloadsFlowTest {
     @get:Rule
     val rule = createComposeRule()
 
-    // "Unread" means "not finished" — an in-progress (opened but unfinished) chapter still
-    // counts as unread for downloading; only a fully-finished chapter is excluded.
     @Test
     fun downloadUnreadEnqueuesOnlyChaptersThatAreNotFinished() {
         val library = FakeLibraryRepository()
@@ -44,8 +42,6 @@ class DownloadsFlowTest {
         )
         runBlocking {
             library.setProgress("FlameComics", "manga-1", "c1", page = 3, finished = true)
-            // c3 is opened-but-unfinished: the new semantics' load-bearing case — it has a
-            // progress row (old "read") yet must still count as unread for downloading.
             library.setProgress("FlameComics", "manga-1", "c3", page = 1, finished = false)
         }
         var downloaded: List<Chapter>? = null
@@ -278,8 +274,6 @@ class DownloadsFlowTest {
         val untitled = rule.onNode(hasText("2") and hasClickAction()).fetchSemanticsNode()
         assertEquals(titled.boundsInRoot.height, untitled.boundsInRoot.height)
     }
-    // A dialog is its own scene layer, out of reach of the shell's side-button handler, and
-    // Nucleus reports the side press as a primary click on whatever button it lands on.
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun mouseBackOnTheClearStorageConfirmCancelsInsteadOfClearing() {

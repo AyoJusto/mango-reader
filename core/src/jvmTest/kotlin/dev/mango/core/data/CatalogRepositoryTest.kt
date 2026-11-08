@@ -26,7 +26,6 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 
-/** Integration tests for [PaperbackCatalogRepository], driven only through the [CatalogRepository] contract. */
 class CatalogRepositoryTest {
     private fun newDb(): MangoDatabase {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())
@@ -34,7 +33,6 @@ class CatalogRepositoryTest {
         return MangoDatabase(driver)
     }
 
-    /** A bundleDir with the real FlameComics fixture written as <sourceId>.index.js. */
     private fun bundleDirWithFlameComics(): Path {
         val dir = Files.createTempDirectory("catalog-test")
         Files.write(dir.resolve("FlameComics.index.js"), readFixture(FLAME_COMICS_FIXTURE))
@@ -212,7 +210,6 @@ class CatalogRepositoryTest {
 
     @Test
     fun reinstallPreservesAPinnedUserAgent() = runTest {
-        // the cf_clearance-bound UA earned by the solve flow must outlive an extension update
         val seenUserAgents = mutableListOf<String?>()
         val db = newDb()
         val repo = newRepository(
@@ -228,7 +225,7 @@ class CatalogRepositoryTest {
         repo.setUserAgent("FlameComics", "pinned-ua")
         repo.search("FlameComics", "")
 
-        repo.install(info.copy(version = "2.0.0"), FLAME_COMICS_SHA256) // update
+        repo.install(info.copy(version = "2.0.0"), FLAME_COMICS_SHA256)
         repo.search("FlameComics", "")
 
         assertEquals("pinned-ua", seenUserAgents.last())
@@ -264,11 +261,7 @@ class CatalogRepositoryTest {
 
     @Test
     fun uninstallOneSourceLeavesTheOtherServing() = runTest {
-        // two distinct sourceIds need two distinct bundles: the runtime looks up the extension
-        // by a member named exactly for the sourceId (see ExtensionHandle.extension), so a
-        // second "FlameComics"-content bundle installed under a different sourceId would 404
-        // inside the JS. MangaBat is the other fixture with recorded HTTP replay coverage
-        // (ReadPathMatrixTest), so it doubles as an independent second installed source here.
+        // A second sourceId needs a different bundle: the runtime looks up the extension by sourceId.
         val dir = bundleDirWithFlameComics()
         Files.write(dir.resolve("MangaBat.index.js"), readFixture(MANGABAT_FIXTURE))
         val repo = newRepository(dir)

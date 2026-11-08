@@ -5,11 +5,7 @@ import org.junit.jupiter.api.Tag
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
-/**
- * Hits the real MangaBat site once and records every response the read path
- * (search, details, chapters, pages) makes into the fixtures dir. Excluded by default;
- * run with: gradlew :core:jvmTest -Plive --tests *LiveRecordMangaBat*
- */
+/** Live recording; run with: gradlew :core:jvmTest -Plive --tests *LiveRecordMangaBat* */
 @Tag("live")
 class LiveRecordMangaBatTest {
     @Test
