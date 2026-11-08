@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.v2.runComposeUiTest
+import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.LibraryItem
 import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
@@ -31,6 +32,7 @@ class ScreenTransitionTest {
     private fun catalog() = FakeCatalogRepository(
         sources = listOf(SourceInfo("FlameComics", "FlameComics")),
         details = entries.associate { (it.sourceId to it.mangaId) to MangaDetails(entry = it, status = MangaStatus.ONGOING) },
+        chapters = mapOf(("FlameComics" to "manga-0") to listOf(Chapter(chapterId = "c1", number = 1.0, title = null, publishedAt = null))),
     )
 
     /** Advances the clock frame by frame for [sampleMs], recording [tag]'s left edge each frame. */
@@ -59,6 +61,19 @@ class ScreenTransitionTest {
         val early = openDetailsFromLibrary(MangoMotion(reduced = true), sampleMs = fadeMs)
         assertTrue(onAllNodesWithTag("screen:Library").fetchSemanticsNodes().isEmpty())
         val edges = early + leftEdgesOf("screen:Details", sampleMs = 300 - fadeMs)
+        assertTrue(edges.isNotEmpty(), "$edges")
+        assertEquals(1, edges.distinct().size, "$edges")
+    }
+
+    @Test
+    fun readerEntryFadesWithoutSliding() = runComposeUiTest {
+        mainClock.autoAdvance = false
+        setContent { TestAppShell(library(), catalog(), FakeDownloadManager()) }
+        repeat(SETTLE_FRAMES) { mainClock.advanceTimeByFrame() }
+        onNodeWithText("Series 0").performClick()
+        repeat(SETTLE_FRAMES) { mainClock.advanceTimeByFrame() }
+        onNodeWithText("Start reading").performClick()
+        val edges = leftEdgesOf("screen:Reader")
         assertTrue(edges.isNotEmpty(), "$edges")
         assertEquals(1, edges.distinct().size, "$edges")
     }

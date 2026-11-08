@@ -253,7 +253,10 @@ fun AppShell(
                         targetState = navigator.current,
                         // The id, not the whole entry: replaceCurrent swaps the screen in place and must not animate.
                         contentKey = { it.id },
-                        transitionSpec = { screenTransition(navigator.lastMove, motion, slidePx, risePx) },
+                        transitionSpec = {
+                            val reader = initialState.screen is Screen.Reader || targetState.screen is Screen.Reader
+                            screenTransition(navigator.lastMove, reader, motion, slidePx, risePx)
+                        },
                         label = "screen",
                     ) { entry ->
                         val current = entry.screen
@@ -463,9 +466,20 @@ fun AppShell(
  */
 val LocalAnimatedVisibilityScope = staticCompositionLocalOf<AnimatedVisibilityScope?> { null }
 
-/** Pushes slide in from the right, pops from the left, and top-level switches rise in place. */
-private fun screenTransition(move: Move, motion: MangoMotion, slidePx: Int, risePx: Int): ContentTransform {
-    if (motion.reduced) return fadeIn(tween(motion.screenMs)) togetherWith fadeOut(tween(motion.screenMs))
+/**
+ * Pushes slide in from the right, pops from the left, and top-level switches rise in place.
+ * Entering or leaving the [Screen.Reader] only fades, so the reader keeps its immersive entry.
+ */
+private fun screenTransition(
+    move: Move,
+    involvesReader: Boolean,
+    motion: MangoMotion,
+    slidePx: Int,
+    risePx: Int,
+): ContentTransform {
+    if (motion.reduced || involvesReader) {
+        return fadeIn(tween(motion.screenMs)) togetherWith fadeOut(tween(motion.screenMs))
+    }
     return when (move) {
         Move.Push -> (slideInHorizontally(tween(motion.screenMs, easing = motion.decel)) { +slidePx } +
             fadeIn(tween(motion.screenMs))) togetherWith fadeOut(tween(motion.screenMs))
