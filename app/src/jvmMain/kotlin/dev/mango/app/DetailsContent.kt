@@ -577,15 +577,20 @@ private fun ChapterRow(
             color = theme.textTertiary,
             modifier = Modifier.width(76.dp),
         )
-        Text(
-            text = chapter.title ?: "Chapter ${formatChapterNumber(chapter.number)}",
-            fontSize = 13.5.sp,
-            fontWeight = FontWeight.Medium,
-            color = if (finished) theme.textSecondary else theme.textPrimary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
+        val title = realChapterTitle(chapter.number, chapter.title)
+        if (title != null) {
+            Text(
+                text = title,
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.Medium,
+                color = if (finished) theme.textSecondary else theme.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+        } else {
+            Spacer(Modifier.weight(1f))
+        }
         if (isNew) {
             Box(
                 modifier = Modifier

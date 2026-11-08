@@ -123,12 +123,8 @@ private data class ChapterSegment(
 
 private fun ChapterSegment.toReaderSegment(): ReaderSegment {
     val short = chapter?.let { "Ch. " + formatChapterNumber(it.number) } ?: "Ch. ?"
-    val full = chapter?.let { c ->
-        buildString {
-            append(short)
-            c.title?.let { append(" — "); append(it) }
-        }
-    } ?: short
+    val title = chapter?.let { realChapterTitle(it.number, it.title) }
+    val full = if (title != null) "$short — $title" else short
     return ReaderSegment(chapterId = chapterId, shortLabel = short, label = full, pages = pages, offline = offline)
 }
 

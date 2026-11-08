@@ -41,7 +41,7 @@ class ReaderScreenshotsTest {
     }
 
     private val fakeSegments = listOf(
-        ReaderSegment(chapterId = "ch-12", shortLabel = "Ch. 12", label = "Chapter 12", pages = fakePages),
+        ReaderSegment(chapterId = "ch-12", shortLabel = "Ch. 12", label = "Ch. 12", pages = fakePages),
     )
 
     @Test

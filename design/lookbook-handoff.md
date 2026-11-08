@@ -101,14 +101,14 @@ Mid-transition reference: at t≈120 ms the panel sits at translateX −38%, alp
 
 ### 2. Reader (board 05)
 - Fully immersive: long-strip images centered at user-set strip width (default 880 px), bg0 letterbox either side, **zero chrome while reading**.
-- On mouse-move, overlay fades in (160 ms): top-left back button (34×30, overlay fill + blur, radius 10, chevron-left) and a bottom-centered floating bar (520 dp wide, radius 14, overlay fill + 24 dp blur, shadow `0 16dp 48dp rgba(0,0,0,0.5)`, padding 12/16) containing: chapter title (13 Semibold) + "41 / 68 panels · 60%" (11.5 secondary); right cluster: prev/next chapter buttons (30×28, white @ 6% fill, radius 8) and an **Auto-scroll** toggle pill (accent @ 16% fill, accent text + 6 dp dot when on); below, full-width 3 dp progress bar (white @ 10% track, accent fill).
+- On mouse-move, overlay fades in (160 ms): top-left back button (34×30, overlay fill + blur, radius 10, chevron-left) and a bottom-centered floating bar (520 dp wide, radius 14, overlay fill + 24 dp blur, shadow `0 16dp 48dp rgba(0,0,0,0.5)`, padding 12/16) containing: chapter label (13 Semibold; "Ch. 12", plus " — Title" only when the title says more than the number) + "41 / 68 panels · 60%" (11.5 secondary); right cluster: prev/next chapter buttons (30×28, white @ 6% fill, radius 8) and an **Auto-scroll** toggle pill (accent @ 16% fill, accent text + 6 dp dot when on); below, full-width 3 dp progress bar (white @ 10% track, accent fill).
 - Fades out after 1.5 s idle (320 ms); cursor hides with it. Esc or back button exits.
 - **Loading placeholder (no reflow)**: pre-reserve the panel's known pixel height from source metadata (fallback 3:4 ratio); shimmer bg1→bg2 sweep, 1.8 s linear; loaded image crossfades over it in 200 ms. Scroll position never jumps.
 
 ### 3. Details (board 06)
 Two columns, gap 40, gutters 48.
 - Left (300 dp fixed): 2:3 cover radius 14 + shadow; **Continue — Ch. 142** primary button (38 dp, accent); row of "Mark finished" secondary + download icon-button (34 dp); metadata key/value list (12.5, keys tertiary, values secondary; Progress value in accent).
-- Right: title (Display 28), genre chips (bg2, radius 999, padding 3/11, 12 secondary), description (14/1.6 secondary, max 680 dp), "197 chapters" (16 Semibold) + sort hint, then chapter rows: state dot (8 dp) · chapter number (mono 12, tertiary, 76 dp) · title (13.5 Medium, flexible, ellipsized) · state text · date (12 tertiary, 90 dp right-aligned). Row hover bg1, radius 10, padding 9/12.
+- Right: title (Display 28), genre chips (bg2, radius 999, padding 3/11, 12 secondary), description (14/1.6 secondary, max 680 dp), "197 chapters" (16 Semibold) + sort hint, then chapter rows: state dot (8 dp) · chapter number (mono 12, tertiary, 76 dp) · title (13.5 Medium, flexible, ellipsized; omitted when it only restates the number) · state text · date (12 tertiary, 90 dp right-aligned). Row hover bg1, radius 10, padding 9/12.
 - Chapter states: **in-progress** = accent dot + accent "reading · 60%" · **unread** = primary dot ("downloaded" sub in success when cached) · **read** = dot at 25% white, title drops to text.secondary.
 
 ### 4. Browse (board 07)
