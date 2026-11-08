@@ -28,20 +28,7 @@ import java.util.Base64
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.time.Duration.Companion.milliseconds
 
-/**
- * The Paperback 0.9 `Application` surface, implemented entirely in Kotlin and bound
- * into each GraalJS context as a ProxyObject. Holds what must outlive the short-lived
- * contexts (extension key-value state, serialized as JSON strings). Everything an
- * extension can reach goes through here; unknown members throw named errors.
- *
- * See docs/application-surface.md for the full member-by-member audit.
- *
- * INVARIANT: all policy (rate limits, allowlists, timeouts) is enforced in these
- * Kotlin implementations. There is no JS layer that could be bypassed.
- */
-// Extensions' scrapers are written against what sites serve to Paperback on iOS, so the
-// default UA is a plain mobile Safari one (the official polyfills randomize a mobile UA;
-// nothing advertises Paperback). Injectable because some sources may need a specific UA.
+/** Guest-facing `Application` surface; all policy (rate limits, allowlists, timeouts) is enforced here, never in JS. */
 internal const val DEFAULT_USER_AGENT =
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
 
@@ -51,24 +38,17 @@ class ApplicationHost(
     private val onResponse: ((url: String, status: Int, body: ByteArray) -> Unit)? = null,
     private val minRequestIntervalMillis: Long = 500,
     private val requestTimeoutMillis: Long = 30_000,
-    // pre-scoped to this host's source; persistence itself lives behind the domain port
     private val cookieStore: CookieStore? = null,
-    // injectable so fixture-replay tests don't pay real wall-clock sleeps
     private val sleeper: (Double) -> Unit = { seconds -> Thread.sleep((seconds * 1000).toLong()) },
 ) {
-    // shared across contexts and threads; values stored as JSON strings because
-    // polyglot Values die with their context
+    // JSON strings: polyglot Values die with their context.
     private val state = java.util.Collections.synchronizedMap(mutableMapOf<String, String>())
     private val secureState = java.util.Collections.synchronizedMap(mutableMapOf<String, String>())
 
-    // per-host politeness floor, enforced here (never in JS — see CLAUDE.md's trust
-    // boundary invariant). ponytail: a single lock serializing every host is coarse; if a
-    // future source needs real concurrency across hosts, upgrade to a per-host token
-    // bucket instead of widening this lock.
+    // One lock for every host, so rate-limit waits serialize across sources.
     private val hostDispatchLock = Any()
     private val lastDispatchAtMillis = mutableMapOf<String, Long>()
 
-    // ponytail: JUL because :core has no logging dependency; swap when the app picks one
     private val log = java.util.logging.Logger.getLogger(ApplicationHost::class.java.name)
 
     fun applicationProxyFor(context: Context, callJob: Job? = null): ApplicationProxy =
@@ -83,27 +63,23 @@ class ApplicationHost(
         private val discoverSections = mutableMapOf<String, Value>()
         private var redirectHandlerSelectorId: String? = null
 
-        /** id -> (requestSelectorId, responseSelectorId), invoked by [scheduleRequest] in order. */
+        /** (id, requestSelectorId, responseSelectorId), run in order by [scheduleRequest]. */
         val interceptors = mutableListOf<Triple<String, String, String>>()
 
         private val dateCtor: Value get() = context.eval("js", "Date")
         private val promiseCtor: Value get() = context.eval("js", "Promise")
 
-        // Bundles store Date objects in state (a cookie store's `expires`, saved via
-        // Application.setState) and read them back at module top level on the very next
-        // context, calling e.g. `.getTime()` on them unconditionally. A plain JSON
-        // round-trip turns those into strings, so a fresh context's module evaluation
-        // throws and every subsequent call to the source fails. These wrap Dates in a
-        // sentinel object on the way out and revive them on the way in, otherwise
-        // matching plain JSON.stringify/parse exactly (including dropping undefined).
-        private val stateStringify: Value get() = context.eval(
-            "js",
-            """(v) => JSON.stringify(v, function (k, val) { const o = this[k]; return o instanceof Date ? { "${'$'}mangoDate${'$'}": o.getTime() } : val; })""",
-        )
-        private val stateParse: Value get() = context.eval(
-            "js",
-            """(s) => JSON.parse(s, (k, val) => (val !== null && typeof val === "object" && typeof val["${'$'}mangoDate${'$'}"] === "number") ? new Date(val["${'$'}mangoDate${'$'}"]) : val)""",
-        )
+        // Dates round-trip via a sentinel object; bundles call .getTime() on revived state at module load.
+        private val stateStringify: Value
+            get() = context.eval(
+                "js",
+                """(v) => JSON.stringify(v, function (k, val) { const o = this[k]; return o instanceof Date ? { "${'$'}mangoDate${'$'}": o.getTime() } : val; })""",
+            )
+        private val stateParse: Value
+            get() = context.eval(
+                "js",
+                """(s) => JSON.parse(s, (k, val) => (val !== null && typeof val === "object" && typeof val["${'$'}mangoDate${'$'}"] === "number") ? new Date(val["${'$'}mangoDate${'$'}"]) : val)""",
+            )
 
         private val members: Map<String, Any?> = mapOf(
             "isResourceLimited" to false,
@@ -114,7 +90,6 @@ class ApplicationHost(
                 state[args[0].asString()]?.let { stateParse.execute(it) }
             },
             "setState" to ProxyExecutable { args ->
-                // Paperback signature is setState(value, key)
                 val serialized = stateStringify.execute(args[0])
                 if (serialized.isNull) state.remove(args[1].asString())
                 else state[args[1].asString()] = serialized.asString()
@@ -135,7 +110,7 @@ class ApplicationHost(
                 null
             },
             "sleep" to ProxyExecutable { args ->
-                // ponytail: assuming seconds, matching @paperback/types; revisit if rate limits look 1000x off
+                // @paperback/types gives the interval in seconds.
                 sleeper(args[0].asDouble())
                 null
             },
@@ -205,39 +180,21 @@ class ApplicationHost(
             throw UnsupportedOperationException("Application.$key is read-only")
         }
 
-        // report benign engine probes as absent; claim every other member so that a
-        // shim gap surfaces as a named error from getMember, never a silent undefined
+        // Claim all members except engine probes so a shim gap throws a named error, not undefined.
         override fun hasMember(key: String): Boolean = key != "then" && key != "toJSON"
 
         override fun getMember(key: String): Any? =
             if (members.containsKey(key)) members[key]
             else throw UnsupportedOperationException("Application.$key is not implemented")
 
-        /**
-         * Runs interceptors then dispatches the HTTP request, all composed as a single
-         * native JS promise chain (never synchronously read from Kotlin mid-chain).
-         *
-         * This has to be a real promise chain and not Kotlin code blocking on `.then()`
-         * callbacks: graal only auto-drains the microtask queue on return from the single
-         * outermost host->guest call (see [awaitPromise]). `scheduleRequest` is invoked
-         * from deep inside a bundle's own async call graph (search -> getCandidates ->
-         * ... -> scheduleRequest), so anything Kotlin tried to await synchronously here
-         * would simply never settle. A genuine `.then()` chain has no such problem: JS's
-         * own engine drives it to completion as part of resolving the outermost call,
-         * exactly like it already drives the bundle's own internal awaits.
-         */
+        // Native promise chain: awaiting from Kotlin mid-call never settles (microtasks drain on outermost return).
         private fun scheduleRequest(requestArg: Value): Value {
             val client = http
                 ?: throw UnsupportedOperationException("this ApplicationHost has no HTTP client")
 
-            // dispatch runs as a .then() callback: by the time JS's engine invokes it, the
-            // request-interceptor chain above has already fully settled, so the blocking
-            // HTTP call below can run synchronously (each context owns its thread anyway)
             var bundle = requestInterceptorChain(requestArg)
                 .invokeMember("then", ProxyExecutable { args -> dispatch(client, args[0]) })
 
-            // response interceptors run in registration order, each transforming the
-            // response data the extension ultimately sees
             for ((_, _, responseSelectorId) in interceptors) {
                 val (target, method) = selectors[responseSelectorId]
                     ?: throw IllegalArgumentException("unknown selector $responseSelectorId")
@@ -262,11 +219,6 @@ class ApplicationHost(
             })
         }
 
-        /**
-         * Resolves [request], then threads it through each registered interceptor's request
-         * selector in registration order — the same composition [scheduleRequest] chains
-         * dispatch onto. Returns the settled-request promise without dispatching.
-         */
         private fun requestInterceptorChain(request: Value): Value {
             var chain = promiseCtor.invokeMember("resolve", request)
             for ((_, requestSelectorId, _) in interceptors) {
@@ -277,26 +229,15 @@ class ApplicationHost(
             return chain
         }
 
-        /**
-         * Chain-without-dispatch: runs the registered request interceptors against a host-built
-         * [request] for a caller outside the extension's own `scheduleRequest` call graph (image
-         * fetch interception). No HTTP call happens here — only [scheduleRequest] dispatches.
-         */
+        /** Runs the request interceptors on a host-built [request] without dispatching HTTP. */
         internal fun interceptRequest(request: ProxyObject): Value = requestInterceptorChain(context.asValue(request))
 
-        /** The actual (blocking) HTTP call, plus building the response/cookies JS sees. */
         private fun dispatch(client: HttpClient, request: Value): ProxyObject {
             val requestedUrl = request.getMember("url")?.takeIf { it.isString }?.asString()
                 ?: throw IllegalArgumentException("request has no url")
             val requestedHost = runCatching { Url(requestedUrl).host }.getOrDefault(requestedUrl)
 
-            // blocking is fine: each context owns its thread for the duration of a call.
-            // runBlocking adopts callJob (this call's coroutine Job, threaded in from
-            // ExtensionRuntime.withExtension) as its parent instead of starting a
-            // disconnected one, so cancelling the coroutine that started this extension
-            // call actually interrupts an in-flight HTTP request here, rather than being
-            // invisible to it (see ExtensionNetworkException / CancellationException
-            // taxonomy).
+            // runBlocking adopts callJob so cancelling the extension call interrupts the in-flight request.
             val (response, bytes) = runBlocking(callJob ?: EmptyCoroutineContext) {
                 awaitHostRateLimit(requestedHost)
                 try {
@@ -316,14 +257,10 @@ class ApplicationHost(
                     )
                 }
             }
-            // record/replay is keyed by the URL the extension asked for (post-interceptor,
-            // since that's what actually goes over the wire), not the post-redirect one
             onResponse?.invoke(requestedUrl, response.status.value, bytes)
 
             val cookies = response.headers.getAll(HttpHeaders.SetCookie).orEmpty()
                 .map { parseServerSetCookieHeader(it) }
-            // per-source cookie jar: whatever the site set is on the next request too, even
-            // from a fresh context (this is where a solved challenge's cf_clearance lands too)
             cookieStore?.let { store ->
                 runBlocking(callJob ?: EmptyCoroutineContext) {
                     // a jar write must never sink a response the site already served
@@ -348,12 +285,8 @@ class ApplicationHost(
                 mapOf(
                     "url" to response.call.request.url.toString(),
                     "status" to response.status.value,
-                    // ponytail: multi-value headers comma-joined except Set-Cookie, which
-                    // lives in the dedicated `cookies` field the bundle's cookie
-                    // interceptor actually reads
-                    // keys lowercased: bundles do exact lookups like headers["cf-mitigated"],
-                    // and iOS/HTTP2 give them lowercase names; wire casing (Cf-Mitigated)
-                    // would silently break their challenge detection
+                    // Multi-value headers are comma-joined; Set-Cookie arrives through `cookies`.
+                    // keys lowercased: bundles do exact lookups like headers["cf-mitigated"]
                     "headers" to ProxyObject.fromMap(
                         response.headers.entries()
                             .associate { it.key.lowercase() to it.value.joinToString(", ") }
@@ -382,12 +315,7 @@ class ApplicationHost(
         else -> throw IllegalArgumentException("expected a buffer, got $value")
     }
 
-    /**
-     * Enforced politeness floor: suspends so consecutive dispatches to the same [host] are
-     * at least [minRequestIntervalMillis] apart. The slot is reserved under the lock before
-     * delaying, so two concurrent calls to the same host queue correctly instead of both
-     * reading a stale "last dispatch" time and racing through together.
-     */
+    // Slot is reserved under the lock before delaying so concurrent same-host calls queue.
     private suspend fun awaitHostRateLimit(host: String) {
         val waitMillis = synchronized(hostDispatchLock) {
             val now = System.currentTimeMillis()
@@ -423,7 +351,6 @@ class ApplicationHost(
         request.getMember("cookies")?.takeIf { it.hasArrayElements() && it.arraySize > 0 }?.let { cookies ->
             (0 until cookies.arraySize).forEach { i ->
                 val c = cookies.getArrayElement(i)
-                // the extension's explicit cookie wins over the jar on a name collision
                 cookiePairs[c.getMember("name").asString()] = c.getMember("value").asString()
             }
         }
@@ -435,33 +362,19 @@ class ApplicationHost(
                 data.isString -> setBody(data.asString())
                 data.isHostObject -> setBody(data.asHostObject<ByteArray>())
                 data.hasBufferElements() -> setBody(bytesOf(data))
-                // fail loudly instead of sending an empty body; add JSON-object
-                // bodies when a real source needs them
                 else -> throw IllegalArgumentException("unsupported request data type: $data")
             }
         }
     }
 }
 
-/**
- * Bundles write h2/iOS-style lowercase header names ("user-agent"); sent verbatim over
- * this client's HTTP/1.1 connection, that casing is a non-browser fingerprint — Cloudflare
- * challenges the request even with valid cf_clearance (verified live: byte-identical
- * requests get a 200 title-cased, a 403 lowercased). Normalize to canonical h1 casing at
- * the wire boundary; the JS-facing side keeps lowercase (bundles do exact lowercase lookups).
- *
- * Only all-lowercase names are rewritten: a bundle that wrote "DNT" or "X-API-Key"
- * chose its casing deliberately and passes through verbatim. Chrome emits sec-* client
- * hints lowercase even over h1, so those stay lowercase too — title-casing them would
- * reintroduce the same fingerprint bug on a different header set.
- */
+/** Title-cases all-lowercase header names for the wire; lowercase over HTTP/1.1 trips Cloudflare. */
 internal fun canonicalHeaderName(name: String): String = when {
     name.any { it.isUpperCase() } -> name
     name.startsWith("sec-") -> name
     else -> name.split('-').joinToString("-") { part -> part.replaceFirstChar { it.uppercaseChar() } }
 }
 
-/** Decodes the five XML entities plus numeric `&#NNN;` / `&#xHH;` forms. No dependency. */
 private val numericHexEntity = Regex("&#[xX]([0-9a-fA-F]+);")
 private val numericDecEntity = Regex("&#([0-9]+);")
 
@@ -476,16 +389,14 @@ internal fun decodeHtmlEntities(input: String): String {
     return result.replace("&amp;", "&")
 }
 
-// supports astral code points (emoji in titles); malformed/out-of-range entities are
-// left as literal text rather than throwing at the trust boundary
+// Malformed or out-of-range entities stay literal rather than throwing at the trust boundary.
 private fun codePointOrLiteral(digits: String, radix: Int, literal: String): String {
     val codePoint = digits.toIntOrNull(radix) ?: return literal
     if (!Character.isValidCodePoint(codePoint)) return literal
     return String(Character.toChars(codePoint))
 }
 
-// string<->string base64: extension bundles pass/receive plain strings, not byte buffers, so
-// the string is treated as UTF-8 (matching the native Swift app's Data(str.utf8) convention)
+// Strings are treated as UTF-8, matching the native app.
 internal fun base64Encode(input: String): String =
     Base64.getEncoder().encodeToString(input.toByteArray(Charsets.UTF_8))
 

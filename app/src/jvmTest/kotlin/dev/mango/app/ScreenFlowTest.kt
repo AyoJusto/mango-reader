@@ -1,26 +1,50 @@
 package dev.mango.app
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotFocused
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.pressKey
 import dev.mango.core.domain.Chapter
+import dev.mango.core.domain.LibraryItem
 import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
 import dev.mango.core.domain.MangaStatus
 import dev.mango.core.domain.ReadProgress
 import dev.mango.core.domain.SourceInfo
+import java.nio.file.Files
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.time.Clock
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 
-/**
- * End-to-end navigation and interaction flows through [AppShell] and [DetailsScreen], backed
- * by [FakeLibraryRepository]/[FakeCatalogRepository]. CMP 1.11 uses StandardTestDispatcher —
- * every action that launches a coroutine is followed by [waitForIdle] before the next assert.
- */
 class ScreenFlowTest {
     @get:Rule
     val rule = createComposeRule()
@@ -89,7 +113,6 @@ class ScreenFlowTest {
         assertEquals(1, catalog.searchCallCount)
     }
 
-    // The Continue button's three variants — no progress, in-progress, and finished.
     @Test
     fun startReadingButtonOpensTheFirstChapterWhenThereIsNoProgressYet() {
         val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
@@ -190,5 +213,311 @@ class ScreenFlowTest {
         rule.waitForIdle()
 
         assertEquals("c2", opened?.chapterId)
+    }
+
+    private val soloEntry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+
+    private fun soloCatalog(chapters: List<Chapter> = emptyList()) = FakeCatalogRepository(
+        sources = listOf(SourceInfo("FlameComics", "FlameComics")),
+        results = mapOf("solo" to listOf(soloEntry)),
+        details = mapOf(("FlameComics" to "manga-1") to MangaDetails(entry = soloEntry, status = MangaStatus.ONGOING)),
+        chapters = mapOf(("FlameComics" to "manga-1") to chapters),
+    )
+
+    @Test
+    fun titleBarBackIsDisabledOnLibrary() {
+        rule.setContent { TestAppShell(FakeLibraryRepository(), soloCatalog(), FakeDownloadManager()) }
+
+        rule.onNodeWithContentDescription("Back").assertExists().assertIsNotEnabled()
+    }
+
+    @Test
+    fun titleBarBackReturnsFromDetails() {
+        val library = FakeLibraryRepository(listOf(LibraryItem(soloEntry, Clock.System.now())))
+        rule.setContent { TestAppShell(library, soloCatalog(), FakeDownloadManager()) }
+
+        rule.onNodeWithText("Solo Leveling").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("screen:Details").assertExists()
+        rule.onNodeWithContentDescription("Back").assertIsEnabled().performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithTag("screen:Library").assertExists()
+        rule.onNodeWithTag("screen:Details").assertDoesNotExist()
+    }
+
+    @Test
+    fun detailsHasNoInScreenBackArrow() {
+        val library = FakeLibraryRepository(listOf(LibraryItem(soloEntry, Clock.System.now())))
+        rule.setContent { TestAppShell(library, soloCatalog(), FakeDownloadManager()) }
+
+        rule.onNodeWithText("Solo Leveling").performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithTag("screen:Details").assertExists()
+        rule.onNodeWithText("←").assertDoesNotExist()
+    }
+
+    @Test
+    fun backFromSearchOpenedDetailsReturnsToSearch() {
+        rule.setContent { TestAppShell(FakeLibraryRepository(), soloCatalog(), FakeDownloadManager()) }
+
+        rule.navigateVia("Search")
+        rule.onNodeWithText("Search all sources…").performTextInput("solo")
+        rule.waitForIdle()
+        rule.onNodeWithText("solo").performImeAction()
+        rule.waitForIdle()
+        rule.onNodeWithText("Solo Leveling").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("Add to library").assertExists()
+
+        rule.onNodeWithContentDescription("Back").performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithText("solo").assertExists()
+        rule.onNodeWithText("Add to library").assertDoesNotExist()
+    }
+
+    @Test
+    fun continueThenBackFromReaderStaysOnDetails() {
+        val library = FakeLibraryRepository(listOf(LibraryItem(soloEntry, Clock.System.now())))
+        runBlocking { library.setProgress("FlameComics", "manga-1", "c1", page = 1, finished = false) }
+        val catalog = soloCatalog(
+            chapters = listOf(
+                Chapter(chapterId = "c1", number = 1.0, title = null, publishedAt = null),
+                Chapter(chapterId = "c2", number = 2.0, title = null, publishedAt = null),
+            ),
+        )
+        val dir = Files.createTempDirectory("continue-back-test")
+        val file0 = dir.resolve("0000.jpg").also { Files.write(it, byteArrayOf(1)) }
+        val downloads = FakeDownloadManager(
+            localPagesByKey = mapOf("FlameComics/manga-1/c1" to listOf(file0.toString())),
+        )
+        val navigator = Navigator()
+
+        rule.setContent { TestAppShell(library, catalog, downloads, navigator = navigator) }
+        rule.waitForIdle()
+        rule.onNodeWithTag(SIDEBAR_TOGGLE_TAG).performClick()
+        rule.waitForIdle()
+        rule.onNode(hasText("Solo Leveling") and hasAnyAncestor(hasTestTag(SIDEBAR_TEST_TAG))).performClick()
+        rule.waitForIdle()
+        rule.waitForIdle()
+        rule.onNode(hasText("offline")).assertExists()
+
+        rule.runOnIdle { navigator.back() }
+        rule.waitForIdle()
+        rule.mainClock.advanceTimeBy(2_000)
+        rule.waitForIdle()
+
+        rule.onAllNodesWithText("Solo Leveling").onFirst().assertExists()
+        rule.onNode(hasText("offline")).assertDoesNotExist()
+    }
+
+    @Test
+    fun titleBarBackLeavesTheReader() {
+        val library = FakeLibraryRepository(listOf(LibraryItem(soloEntry, Clock.System.now())))
+        runBlocking { library.setProgress("FlameComics", "manga-1", "c1", page = 1, finished = false) }
+        val catalog = soloCatalog(
+            chapters = listOf(Chapter(chapterId = "c1", number = 1.0, title = null, publishedAt = null)),
+        )
+        val dir = Files.createTempDirectory("title-bar-back-reader-test")
+        val file0 = dir.resolve("0000.jpg").also { Files.write(it, byteArrayOf(1)) }
+        val downloads = FakeDownloadManager(
+            localPagesByKey = mapOf("FlameComics/manga-1/c1" to listOf(file0.toString())),
+        )
+
+        rule.setContent { TestAppShell(library, catalog, downloads) }
+        rule.waitForIdle()
+        rule.onNodeWithTag(SIDEBAR_TOGGLE_TAG).performClick()
+        rule.waitForIdle()
+        rule.onNode(hasText("Solo Leveling") and hasAnyAncestor(hasTestTag(SIDEBAR_TEST_TAG))).performClick()
+        rule.waitForIdle()
+        rule.waitForIdle()
+        rule.onNodeWithTag("screen:Reader").assertExists()
+
+        rule.onNodeWithContentDescription("Back").assertIsEnabled().performClick()
+        rule.waitForIdle()
+        rule.mainClock.advanceTimeBy(2_000)
+        rule.waitForIdle()
+
+        rule.onNodeWithTag("screen:Details").assertExists()
+        rule.onNodeWithTag("screen:Reader").assertDoesNotExist()
+    }
+
+    @Test
+    fun mouseBackButtonGoesBackAndDoesNotClick() {
+        val library = FakeLibraryRepository(listOf(LibraryItem(soloEntry, Clock.System.now())))
+        var side = SideButton.None
+
+        rule.setContent { TestAppShell(library, soloCatalog(), FakeDownloadManager(), sideButton = { side }) }
+        rule.waitForIdle()
+        rule.onNodeWithText("Solo Leveling").performMouseInput { click() }
+        rule.waitForIdle()
+        rule.onNodeWithText("In library ✓").assertExists()
+
+        side = SideButton.Back
+        rule.onNodeWithText("In library ✓").performMouseInput { click() }
+        rule.waitForIdle()
+
+        rule.onNodeWithTag(LIBRARY_GRID_TEST_TAG).assertExists()
+        rule.onNodeWithText("In library ✓").assertDoesNotExist()
+        val stillInLibrary = runBlocking { library.observeLibrary().first() }.map { it.entry.mangaId }
+        assertEquals(listOf("manga-1"), stillInLibrary)
+
+        rule.onNodeWithText("Solo Leveling").performMouseInput { click() }
+        rule.waitForIdle()
+
+        rule.onNodeWithTag(LIBRARY_GRID_TEST_TAG).assertExists()
+        rule.onNodeWithText("In library ✓").assertDoesNotExist()
+    }
+
+    @Test
+    fun mouseBackOverTheSidebarGlyphGoesBackWithoutTogglingTheSidebar() {
+        val library = FakeLibraryRepository(listOf(LibraryItem(soloEntry, Clock.System.now())))
+        var side = SideButton.None
+
+        rule.setContent { TestAppShell(library, soloCatalog(), FakeDownloadManager(), sideButton = { side }) }
+        rule.waitForIdle()
+        rule.onNodeWithText("Solo Leveling").performMouseInput { click() }
+        rule.waitForIdle()
+        rule.onNodeWithTag("screen:Details").assertExists()
+
+        side = SideButton.Back
+        rule.onNodeWithTag(SIDEBAR_TOGGLE_TAG).performMouseInput { click() }
+        rule.waitForIdle()
+
+        rule.onNodeWithTag("screen:Library").assertExists()
+        rule.onNodeWithTag("screen:Details").assertDoesNotExist()
+        rule.onNodeWithTag(SIDEBAR_TEST_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun mouseBackWithThePaletteOpenClosesItInsteadOfGoingBack() {
+        val library = FakeLibraryRepository(listOf(LibraryItem(soloEntry, Clock.System.now())))
+        val palette = PaletteState()
+        var side = SideButton.None
+
+        rule.setContent {
+            TestAppShell(library, soloCatalog(), FakeDownloadManager(), palette = palette, sideButton = { side })
+        }
+        rule.waitForIdle()
+        rule.onNodeWithText("Solo Leveling").performMouseInput { click() }
+        rule.waitForIdle()
+        palette.visible = true
+        rule.waitForIdle()
+
+        side = SideButton.Back
+        rule.onNodeWithTag("screen:Details").performMouseInput { click() }
+        rule.waitForIdle()
+
+        assertFalse(palette.visible)
+        rule.onNodeWithTag("screen:Details").assertExists()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun escAndMouseBackCloseManageCollectionsWithoutLeavingTheScreen() {
+        val library = FakeLibraryRepository(listOf(LibraryItem(soloEntry, Clock.System.now())))
+        val palette = PaletteState()
+        var side = SideButton.None
+
+        rule.setContent {
+            TestAppShell(library, soloCatalog(), FakeDownloadManager(), palette = palette, sideButton = { side })
+        }
+        rule.waitForIdle()
+        rule.onNodeWithText("Solo Leveling").performMouseInput { click() }
+        rule.waitForIdle()
+
+        fun openManageCollections() {
+            palette.visible = true
+            rule.waitForIdle()
+            rule.onNodeWithText("Search everywhere…").performTextInput("Manage collections")
+            rule.waitForIdle()
+            rule.onRoot().performKeyInput { pressKey(Key.Enter) }
+            rule.waitForIdle()
+            rule.onNodeWithText("Manage collections").assertExists()
+        }
+
+        openManageCollections()
+        rule.onNodeWithText("Manage collections").performKeyInput { pressKey(Key.Escape) }
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Manage collections").assertDoesNotExist()
+        rule.onNodeWithTag("screen:Details").assertExists()
+
+        openManageCollections()
+        side = SideButton.Back
+        rule.onNodeWithText("Manage collections").performMouseInput { click() }
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Manage collections").assertDoesNotExist()
+        rule.onNodeWithTag("screen:Details").assertExists()
+    }
+
+    @Test
+    fun mouseForwardButtonIsSwallowed() {
+        val library = FakeLibraryRepository(listOf(LibraryItem(soloEntry, Clock.System.now())))
+
+        rule.setContent {
+            TestAppShell(library, soloCatalog(), FakeDownloadManager(), sideButton = { SideButton.Forward })
+        }
+        rule.waitForIdle()
+        rule.onNodeWithText("Solo Leveling").performMouseInput { click() }
+        rule.waitForIdle()
+
+        rule.onNodeWithTag(LIBRARY_GRID_TEST_TAG).assertExists()
+        rule.onNodeWithText("In library ✓").assertDoesNotExist()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun escInFocusedSearchFieldIsConsumed() {
+        var escReachedParent = false
+        val focus = FocusRequester()
+
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                Box(
+                    Modifier.onKeyEvent {
+                        if (it.key == Key.Escape) escReachedParent = true
+                        false
+                    },
+                ) {
+                    KitSearchField(
+                        value = "",
+                        onValueChange = {},
+                        placeholder = "Filter",
+                        onSearch = {},
+                        focusRequester = focus
+                    )
+                }
+            }
+        }
+        rule.runOnIdle { focus.requestFocus() }
+        rule.onNode(hasSetTextAction()).assertIsFocused()
+
+        rule.onNode(hasSetTextAction()).performKeyInput { pressKey(Key.Escape) }
+        rule.waitForIdle()
+
+        assertFalse(escReachedParent)
+        rule.onNode(hasSetTextAction()).assertIsNotFocused()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun escInAFilterableDropdownClosesTheMenu() {
+        val options = (1..20).map { "Font $it" }
+
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) { KitDropdown(selected = "Font 1", options = options, onSelect = {}) }
+        }
+        rule.onNodeWithText("Font 1").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("Type to filter…").assertExists()
+
+        rule.onNode(hasSetTextAction()).performKeyInput { pressKey(Key.Escape) }
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Type to filter…").assertDoesNotExist()
     }
 }

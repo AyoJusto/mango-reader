@@ -29,7 +29,6 @@ class BundleBootTest {
     fun initialiseCompletesAndRegistersInterceptors() = runBlocking {
         ExtensionRuntime(bundleJs).withExtension { handle ->
             handle.invokeAwait(handle.extension("FlameComics"), "initialise")
-            // FlameComics registers rate-limit, cookie, and API interceptors
             assertEquals(3, handle.registeredInterceptors)
         }
     }

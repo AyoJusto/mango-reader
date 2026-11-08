@@ -12,7 +12,7 @@ import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.contentLength
 import io.ktor.http.isSuccess
-import io.ktor.utils.io.readRemaining
+import io.ktor.utils.io.readBuffer
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
@@ -28,26 +28,9 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 
-/** A registry listing or bundle download from the Inkdex host failed. */
 class InkdexException(message: String) : IOException(message)
 
-/**
- * [ExtensionRepo] backed by the Inkdex static extension registry: a `versioning.json` listing
- * plus one `<id>/index.js` bundle per source, both served flat off [baseUrl].
- *
- * Trust model is TOFU (trust-on-first-install): [install] computes the pinned sha256 from the
- * bytes it just downloaded, so the pin protects a source against tampering or a bundle swap
- * *after* install — a later fetch that lands on different bytes than what's pinned fails
- * [BundleLoader.verify] on the next resolve (see [PaperbackCatalogRepository]). It does not
- * protect against a malicious or compromised registry serving a bad bundle on first install;
- * nothing short of an out-of-band pin (outside the Inkdex registry's contract) can. Updating a
- * source is the same call as installing it: [CatalogRepository.install] evicts the resolved
- * cache, and the bundle file overwrite here is the swap.
- *
- * DTO parsing is manual [JsonObject] navigation, not `@Serializable` classes: :core has no
- * kotlin-serialization compiler plugin applied (only the `kotlinx-serialization-json` runtime,
- * used elsewhere for the same manual style — see PaperbackExtension).
- */
+/** Inkdex registry repo; TOFU: the sha256 pin guards against swaps after install, not a bad first install. */
 class InkdexRepo(
     private val http: HttpClient,
     private val bundleDir: Path,
@@ -91,9 +74,7 @@ class InkdexRepo(
         requireSafeSourceId(source.sourceId)
 
         val url = "$baseUrl/${source.sourceId}/index.js"
-        // prepareGet + execute matters: a plain http.get() eagerly saves the ENTIRE body
-        // into memory (the client's default body-saving) before any caller code runs,
-        // which would defeat the size cap below. Inside execute the body stays a stream.
+        // prepareGet + execute: a plain get() buffers the whole body before the size cap below can apply.
         val bytes = http.prepareGet(url).execute { response ->
             if (!response.status.isSuccess()) {
                 throw InkdexException("GET $url failed with status ${response.status}")
@@ -105,10 +86,8 @@ class InkdexRepo(
                             "max allowed is ${BundleLoader.MAX_BUNDLE_BYTES}"
                 )
             }
-            // the download owns this cap (BundleLoader's in-memory check is defense-in-depth
-            // on top of it): read at most one byte past the limit so a hostile or broken
-            // registry response is never fully buffered before rejection
-            response.bodyAsChannel().readRemaining(BundleLoader.MAX_BUNDLE_BYTES + 1L).readByteArray()
+            // Read at most one byte past the cap so an oversized response is never fully buffered.
+            response.bodyAsChannel().readBuffer(BundleLoader.MAX_BUNDLE_BYTES + 1L).readByteArray()
         }
         if (bytes.size > BundleLoader.MAX_BUNDLE_BYTES) {
             throw InkdexException(
@@ -116,8 +95,7 @@ class InkdexRepo(
             )
         }
         val sha256 = sha256Hex(bytes)
-        // sanity roundtrip against the hash we just computed ourselves: this can only ever
-        // fail on a UTF-8 violation, which is exactly the point (guards decodeToString later)
+        // Round-trip check guards the later decodeToString; it can only fail on a UTF-8 violation.
         BundleLoader.verify(bytes, sha256)
 
         Files.createDirectories(bundleDir)

@@ -4,11 +4,6 @@ import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
-/**
- * Offline boot/surface check across the full bundle matrix (FlameComics, MangaBat,
- * Synthetic): extends BundleBootTest's pattern, which stays FlameComics-only, over every
- * source. Zero network — verify + evaluate + initialise() + method surface only.
- */
 class BundleMatrixTest {
     private fun verifyBootSurface(sourceId: String, bundleJs: String) = runBlocking {
         ExtensionRuntime(bundleJs).withExtension { handle ->

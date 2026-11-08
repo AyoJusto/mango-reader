@@ -7,18 +7,12 @@ import dev.mango.core.domain.SourceImageRequest
 import io.ktor.http.HttpHeaders
 import io.ktor.http.Url
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.withLock
 
-/**
- * [SourceHeaderPolicy] backed by a per-source [CookieStore] lookup and User-Agent resolver.
- * These never go through [ApplicationHost]: it only wraps calls the extension itself schedules,
- * so image bytes fetched directly by the app would otherwise ship with none of a source's
- * cookies or UA.
- */
+/** Applies the cookie jar and UA to image fetches that bypass [ApplicationHost]. */
 class DefaultSourceHeaderPolicy(
     private val cookieStoreFor: (sourceId: String) -> CookieStore,
     private val userAgentFor: suspend (sourceId: String) -> String?,
-    // optional: most sources need no image-request preparation. Wired to
-    // CatalogRepository.prepareImageRequests in production.
     private val interceptRequests: (suspend (sourceId: String, List<SourceImageRequest>) -> List<SourceImageRequest>)? = null,
 ) : SourceHeaderPolicy {
     private val log = java.util.logging.Logger.getLogger(DefaultSourceHeaderPolicy::class.java.name)
@@ -41,8 +35,7 @@ class DefaultSourceHeaderPolicy(
             val existingCookieValue = existingCookieKey?.let { result.remove(it) }
             existingCookieValue?.let { value -> parseCookiePairs(value).forEach { (name, v) -> cookiePairs[name] = v } }
 
-            // Cookie names/values are joined as-is: Ktor rejects illegal header bytes (CR/LF) at
-            // request build, so a poisoned jar value fails the fetch instead of smuggling a request.
+            // Ktor rejects CR/LF in header values, so a poisoned jar value fails the fetch instead of smuggling.
             if (cookiePairs.isNotEmpty()) {
                 result[HttpHeaders.Cookie] = cookiePairs.entries.joinToString("; ") { "${it.key}=${it.value}" }
             }
@@ -55,18 +48,44 @@ class DefaultSourceHeaderPolicy(
         }
     }
 
-    // ponytail: one UA + cookie lookup per page (headersFor); hoist per-source resolution if
-    // chapter load ever drags. Interception itself already batches once per chapter below.
+    private val coverHeaderCache = java.util.concurrent.ConcurrentHashMap<String, Map<String, String>>()
+    private val coverHeaderLock = kotlinx.coroutines.sync.Mutex()
+
+    // The first cover's interceptor headers serve every cover; per-URL signed covers would break.
+    override suspend fun coverHeadersFor(sourceId: String, url: String): Map<String, String> {
+        val added = coverHeaderCache[sourceId] ?: coverHeaderLock.withLock {
+            coverHeaderCache[sourceId] ?: interceptedCoverHeaders(sourceId, url).also {
+                coverHeaderCache[sourceId] = it
+            }
+        }
+        return headersFor(sourceId, url, added)
+    }
+
+    private suspend fun interceptedCoverHeaders(sourceId: String, url: String): Map<String, String> {
+        val intercept = interceptRequests ?: return emptyMap()
+        return try {
+            val result = intercept(sourceId, listOf(SourceImageRequest(url, emptyMap())))
+            if (result.size != 1) {
+                log.warning("cover interception returned ${result.size} items for 1 request (source $sourceId)")
+            }
+            result.singleOrNull()?.headers ?: emptyMap()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.warning("cover interception failed for source $sourceId: $e")
+            emptyMap()
+        }
+    }
+
     override suspend fun withPolicyHeaders(sourceId: String, pages: List<Page>): List<Page> {
         val intercepted = interceptRequests?.let { intercept ->
             try {
                 val result = intercept(sourceId, pages.map { SourceImageRequest(it.url, it.headers) })
-                // pairing below is by index: a mismatched batch cannot be paired back to its
-                // pages, and the wrong headers on the wrong page is worse than no interception
+                // Pairing is by index; wrong headers on the wrong page is worse than no interception.
                 if (result.size == pages.size) result else {
                     log.warning(
                         "image request interception returned ${result.size} items for ${pages.size} pages " +
-                            "(source $sourceId) - degrading batch"
+                                "(source $sourceId) - degrading batch"
                     )
                     null
                 }

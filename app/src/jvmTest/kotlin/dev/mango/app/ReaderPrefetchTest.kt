@@ -4,7 +4,6 @@ import dev.mango.core.domain.Page
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-/** Pure unit tests for [pagesToPrefetch] — no Coil, no composition. */
 class ReaderPrefetchTest {
     private fun page(index: Int) = Page(index = index, url = "https://example.test/$index.jpg")
 
@@ -51,20 +50,16 @@ class ReaderPrefetchTest {
 
     @Test
     fun skipsPagesWhoseSegmentIsOfflineWithoutConsumingTheCount() {
-        // Distinct page indices per segment so the result can be asserted directly, with no
-        // need to trace pages back to a segment.
         val rows = listOf(
-            pageRow(0, segmentIndex = 0), // online
-            pageRow(0, segmentIndex = 1), // offline — must be skipped, not counted
-            pageRow(1, segmentIndex = 1), // offline — must be skipped, not counted
-            pageRow(9, segmentIndex = 2), // online
+            pageRow(0, segmentIndex = 0),
+            pageRow(0, segmentIndex = 1),
+            pageRow(1, segmentIndex = 1),
+            pageRow(9, segmentIndex = 2),
         )
         val segments = listOf(onlineSegment, offlineSegment, onlineSegment2)
 
         val result = pagesToPrefetch(rows, segments, lastVisibleIndex = -1, count = 2)
 
-        // Both online pages come back despite two offline rows sitting between them — the
-        // offline skips must not eat into the requested count.
         assertEquals(listOf(0, 9), result.map { it.index })
     }
 }

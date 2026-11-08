@@ -16,7 +16,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
-/** SQLDelight-backed [LibraryRepository]. The only place in :core allowed to know about the DB. */
 class SqlLibraryRepository(
     private val db: MangoDatabase,
     private val context: CoroutineContext = Dispatchers.Default,
@@ -34,7 +33,7 @@ class SqlLibraryRepository(
                     ),
                     addedAt = Instant.fromEpochMilliseconds(row.added_at),
                     chapterCount = row.chapter_count.toInt(),
-                    unreadCount = (row.unread_count ?: 0L).toInt(),
+                    unreadCount = row.unread_count.toInt(),
                     lastReadAt = row.last_read_at?.let { Instant.fromEpochMilliseconds(it) },
                     newCount = row.new_count.toInt(),
                     lastOpenedAt = row.last_opened_at.takeIf { it != 0L }?.let { Instant.fromEpochMilliseconds(it) },
@@ -48,9 +47,7 @@ class SqlLibraryRepository(
 
     override suspend fun addToLibrary(entry: MangaEntry) = withContext(context) {
         db.transaction {
-            // Filing into the default happens only when the series was absent: this call also
-            // fires on every chapter download, and a series the user deliberately unfiled from
-            // the default shelf must not be re-filed by the next download.
+            // File into the default only when absent: every chapter download calls this, and unfiling must stick.
             val alreadyInLibrary =
                 db.libraryQueries.libraryItemExists(entry.sourceId, entry.mangaId).executeAsOne()
             db.libraryQueries.upsertLibraryItem(
@@ -214,11 +211,7 @@ class SqlLibraryRepository(
             }
         }
 
-    /**
-     * Resolves the default collection's id, healing the invariant when it's broken: promotes the
-     * first-by-position collection when none is flagged, or creates "Reading" on an empty table.
-     * Must run inside a transaction so two concurrent first adds cannot both create the row.
-     */
+    // Heals a missing default collection; must run in a transaction so concurrent first adds can't both create it.
     private fun defaultCollectionId(): Long {
         db.collectionsQueries.selectDefaultId().executeAsOneOrNull()?.let { return it }
         db.collectionsQueries.selectFirstByPosition().executeAsOneOrNull()?.let { first ->

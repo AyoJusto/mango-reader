@@ -17,13 +17,7 @@ import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
-/**
- * Screenshots for the reader: rendered at 1280x800 via the pure [ReaderContent], never
- * asserted byte-exact. Page content is a colored placeholder box (not Coil) so these run
- * offscreen with no network.
- */
 class ReaderScreenshotsTest {
-    // Muted, distinct-enough-to-eyeball colors — not the real dragon palette, just visual markers.
     private val pageColors = listOf(Color(0xFF3A4A5A), Color(0xFF5A4A3A), Color(0xFF4A5A3A))
     private val fakePages = (0 until 5).map { index -> Page(index = index, url = "https://example.test/$index.jpg") }
 
@@ -41,7 +35,7 @@ class ReaderScreenshotsTest {
     }
 
     private val fakeSegments = listOf(
-        ReaderSegment(chapterId = "ch-12", shortLabel = "Ch. 12", label = "Chapter 12", pages = fakePages),
+        ReaderSegment(chapterId = "ch-12", shortLabel = "Ch. 12", label = "Ch. 12", pages = fakePages),
     )
 
     @Test
@@ -52,7 +46,6 @@ class ReaderScreenshotsTest {
                     segments = fakeSegments,
                     listState = rememberLazyListState(),
                     controlsVisible = true,
-                    onBack = {},
                     pageContent = { page, _ -> FakePageContent(page) },
                 )
             }
@@ -68,7 +61,6 @@ class ReaderScreenshotsTest {
                     segments = fakeSegments,
                     listState = rememberLazyListState(),
                     controlsVisible = false,
-                    onBack = {},
                     pageContent = { page, _ -> FakePageContent(page) },
                 )
             }

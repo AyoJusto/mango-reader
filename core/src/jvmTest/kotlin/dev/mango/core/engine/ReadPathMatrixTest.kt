@@ -5,12 +5,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/**
- * Replays the recorded read-path fixtures through [PaperbackExtension], per source.
- * MangaBat only: other Cloudflare-fronted Madara sources' one budgeted recording run hit a
- * non-200 on their first request, so there are no fixtures to replay for them — see
- * docs/compatibility.md.
- */
 class ReadPathMatrixTest {
     private fun mangaBat() =
         PaperbackExtension("MangaBat", mangaBatBundle, RecordedHttp.replayHost())
@@ -31,8 +25,6 @@ class ReadPathMatrixTest {
         val first = ext.search("solo").first()
         val details = ext.getDetails(first.mangaId)
         assertTrue(details.entry.title.isNotBlank(), "expected a non-blank title")
-        // the recorded page lists no author ("Author(s):" is empty on the site), so an
-        // empty list is the correctly parsed value, not a parse failure
         assertEquals(emptyList(), details.authors)
         assertTrue(details.tags.isNotEmpty(), "expected parsed tags: ${details.tags}")
     }

@@ -24,38 +24,15 @@ import okio.FileSystem
 
 private val policyHeadersKey = Extras.Key<Map<String, String>?>(default = null)
 
-/**
- * Marks this request to bypass Coil's default network fetcher for header delivery: the entries
- * in [headers] reach the wire through [PolicyImageFetcher] instead of Coil's own network stack,
- * with names sent exactly as given.
- */
+/** Routes [headers] through PolicyImageFetcher with names sent exactly as given. */
 fun ImageRequest.Builder.policyHeaders(headers: Map<String, String>): ImageRequest.Builder = apply {
     extras[policyHeadersKey] = headers
 }
 
-/** The headers set by [policyHeaders], or null if the request never carried any. */
 val ImageRequest.policyHeaders: Map<String, String>?
     get() = getExtra(policyHeadersKey)
 
-/**
- * A coil3 [Fetcher] for http/https image requests carrying [policyHeaders]. Coil's own network
- * fetcher (coil3-network-ktor3) stores request headers in a `NetworkHeaders`, whose keys are
- * lowercased on write; some sources 403 an otherwise-valid, cookie-bearing request when its
- * header NAMES arrive lowercased over HTTP/1.1 — the casing itself is part of the site's bot
- * fingerprint, the same one [dev.mango.core.engine.canonicalHeaderName] exists to defeat on the
- * extension-call path. This fetcher sends [headers] through [http] with names appended verbatim
- * (ktor preserves the exact casing a caller appends), so a request already built with canonical
- * casing by a header policy reaches the wire unchanged.
- *
- * Claims a request only when [policyHeaders] was set on it and the model is an http/https URL;
- * otherwise [Factory.create] returns null and Coil falls through to its default network fetcher,
- * so requests carrying no policy headers are unaffected.
- *
- * Participates in the [ImageLoader]'s disk cache the same way Coil's own network fetcher does:
- * a custom [Fetcher] replaces Coil's network layer entirely, and with it the disk caching that
- * layer normally provides, so this fetcher reimplements the snapshot-or-fetch-and-write flow
- * itself rather than losing on-disk caching as a side effect of sending headers verbatim.
- */
+/** Sends policy headers with verbatim name casing (Coil lowercases them) and does its own disk caching. */
 class PolicyImageFetcher(
     private val url: String,
     private val diskCacheKey: String,
@@ -78,8 +55,7 @@ class PolicyImageFetcher(
             }
         }
 
-        // named requestHeaders: inside this builder lambda, "headers" would resolve to
-        // HttpRequestBuilder's own property instead of this class's field.
+        // Not named headers: that would resolve to HttpRequestBuilder's property.
         val response = http.get(url) { requestHeaders.forEach { (name, value) -> header(name, value) } }
         check(response.status.isSuccess()) { "policy image fetch failed: $url -> ${response.status}" }
         val mimeType = response.contentType()?.let { "${it.contentType}/${it.contentSubtype}" }
@@ -103,7 +79,7 @@ class PolicyImageFetcher(
         )
     }
 
-    /** Null return (editor unavailable, or the write itself failed) degrades to the caller's buffered-bytes fallback. */
+    /** Null on editor unavailable or write failure; the caller falls back to buffered bytes. */
     private fun writeToDiskCache(cache: DiskCache, bytes: ByteArray): DiskCache.Snapshot? {
         val editor = runCatching { cache.openEditor(diskCacheKey) }.getOrNull() ?: return null
         return try {

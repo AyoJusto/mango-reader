@@ -6,14 +6,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
-/**
- * Offline tests for [PaperbackExtension.getHomeSections], replayed from recorded fixtures
- * plus inline stub bundles for the edge cases that need no network at all.
- *
- * A Cloudflare-challenged source has no recorded fixtures anywhere in the suite (same as
- * search) and is excluded from the replay tests; its challenge coverage lives in
- * [ChallengeDetectionTest].
- */
 class DiscoverTest {
     private fun homeSectionsReplay(sourceId: String, bundleJs: String) = runBlocking {
         val sections = PaperbackExtension(sourceId, bundleJs, RecordedHttp.replayHost()).getHomeSections()
@@ -41,9 +33,6 @@ class DiscoverTest {
 
     @Test
     fun genresSkipDedupeAndEmptyDropArePinned() = runBlocking {
-        // the genres "a" (type 4) is skipped BEFORE dedupe, so the real "a" survives;
-        // "b dup" is deduped (first wins); "c" is dropped because it normalizes to empty;
-        // "m-" + section.id proves the original stub Value was passed back to the bundle
         val js = """
             var source = { Mini: {
                 initialise: async () => {},
@@ -95,7 +84,6 @@ class DiscoverTest {
 
     @Test
     fun nonIntegerTypeIsIgnoredNotFatal() = runBlocking {
-        // Graal's asInt throws on 4.5; the fitsInInt guard must treat it as "no type"
         val js = """
             var source = { Mini: {
                 initialise: async () => {},

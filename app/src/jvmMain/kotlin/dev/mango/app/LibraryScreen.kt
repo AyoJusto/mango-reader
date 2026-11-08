@@ -48,40 +48,24 @@ import dev.mango.core.domain.CollectionInfo
 import dev.mango.core.domain.LibraryItem
 import dev.mango.core.domain.LibraryRepository
 import dev.mango.core.domain.MangaEntry
-import kotlin.math.roundToInt
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-/** Grid vs list mode, persisted by [Settings.libraryView] and mirrored in [SETTINGS_ENTRIES]. */
 internal const val LIBRARY_VIEW_GRID = "grid"
 internal const val LIBRARY_VIEW_LIST = "list"
 
-/** Test hook: the list view's row container, present only while [LIBRARY_VIEW_LIST] is active. */
 internal const val LIBRARY_LIST_TEST_TAG = "library-list"
 
-/** Test hook: the grid view's cell container, present only while [LIBRARY_VIEW_GRID] is active. */
 internal const val LIBRARY_GRID_TEST_TAG = "library-grid"
 
-/** A series' read fraction in [0, 1], or null when its chapter count is unknown (never opened yet). */
+/** Null when the chapter count is unknown. */
 private fun LibraryItem.readFraction(): Float? =
     if (chapterCount > 0) (chapterCount - unreadCount).toFloat() / chapterCount else null
 
-/** "Ch. 142 · 72%" once the chapter count is known; blank otherwise — nothing to report yet. */
-private fun LibraryItem.metaLine(): String {
-    val fraction = readFraction() ?: return ""
-    return "Ch. $chapterCount · ${(fraction * 100).roundToInt()}%"
-}
-
-/**
- * A series counts as finished, for the library grid/list, once every known chapter has been
- * started and there is at least one chapter to read — the same signal [readFraction] reaching
- * 1.0 represents, named for the cover card's finished treatment.
- */
 private fun LibraryItem.isFinished(): Boolean = chapterCount > 0 && unreadCount == 0
 
-/** Pure, data-driven content — the screenshot harness renders this directly. */
 @Composable
 fun LibraryScreenContent(
     items: List<LibraryItem>,
@@ -120,21 +104,14 @@ fun LibraryScreenContent(
                         color = theme.textPrimary,
                         modifier = Modifier.weight(1f),
                     )
-                    Text(
-                        text = if (checkedAt != null) {
-                            "${items.size} series · checked ${
-                                formatRelativeTime(
-                                    Instant.fromEpochMilliseconds(checkedAt),
-                                    now
-                                )
-                            }"
-                        } else {
-                            "${items.size} series"
-                        },
-                        style = MangoType.caption,
-                        color = theme.textTertiary,
-                        modifier = Modifier.padding(end = MangoSpace.sm),
-                    )
+                    if (checkedAt != null) {
+                        Text(
+                            text = "checked ${formatRelativeTime(Instant.fromEpochMilliseconds(checkedAt), now)}",
+                            style = MangoType.caption,
+                            color = theme.textTertiary,
+                            modifier = Modifier.padding(end = MangoSpace.sm),
+                        )
+                    }
                     RefreshGlyphButton(
                         checking = checking,
                         onClick = onCheckForUpdates,
@@ -188,15 +165,12 @@ fun LibraryScreenContent(
                         modifier = Modifier.fillMaxSize().testTag(LIBRARY_GRID_TEST_TAG),
                     ) {
                         items(visibleItems, key = { "${it.entry.sourceId}/${it.entry.mangaId}" }) { item ->
-                            // CoverCard itself checks `finished` before falling back to unreadCount
-                            // for which pill to show, so unreadCount is passed unconditionally here.
                             CoverCard(
                                 title = item.entry.title,
                                 coverUrl = item.entry.cover,
                                 sourceId = item.entry.sourceId,
-                                metaLine = item.metaLine(),
+                                mangaId = item.entry.mangaId,
                                 unreadCount = item.unreadCount,
-                                progress = item.readFraction(),
                                 finished = item.isFinished(),
                                 onClick = { onOpenDetails(item.entry) },
                                 newCount = item.newCount,
@@ -209,10 +183,6 @@ fun LibraryScreenContent(
     }
 }
 
-/**
- * One row of the Library's list view: a small cover thumb, title + meta, a flexible progress
- * track, the read percentage, and when the series was last read.
- */
 @Composable
 private fun LibraryListRow(item: LibraryItem, onClick: () -> Unit) {
     val theme = LocalMangoTheme.current
@@ -221,6 +191,7 @@ private fun LibraryListRow(item: LibraryItem, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.control))
             .clip(RoundedCornerShape(MangoRadius.control))
             .background(hover.fill)
             .hoverable(hover.interaction)
@@ -231,6 +202,8 @@ private fun LibraryListRow(item: LibraryItem, onClick: () -> Unit) {
     ) {
         Box(
             modifier = Modifier
+                .sharedCover(item.entry.sourceId, item.entry.mangaId)
+                .testTag("cover:${item.entry.sourceId}/${item.entry.mangaId}")
                 .size(width = 32.dp, height = 44.dp)
                 .clip(RoundedCornerShape(MangoRadius.keycap))
                 .background(theme.bg2),
@@ -253,22 +226,17 @@ private fun LibraryListRow(item: LibraryItem, onClick: () -> Unit) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                text = if (item.isFinished()) "Completed" else item.metaLine(),
-                style = MangoType.meta,
-                color = theme.textTertiary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            if (item.isFinished()) {
+                Text(
+                    text = "Completed",
+                    style = MangoType.meta,
+                    color = theme.textTertiary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         ProgressTrack(progress = fraction ?: 0f, modifier = Modifier.weight(1f))
-        Text(
-            text = fraction?.let { "${(it * 100).roundToInt()}%" } ?: "—",
-            style = MangoType.caption,
-            color = theme.textSecondary,
-            textAlign = TextAlign.End,
-            modifier = Modifier.width(36.dp),
-        )
         Text(
             text = item.lastReadAt?.let { formatDate(it) } ?: "—",
             style = MangoType.caption,
@@ -279,7 +247,6 @@ private fun LibraryListRow(item: LibraryItem, onClick: () -> Unit) {
     }
 }
 
-/** Stateful loader: wires [LibraryRepository.observeLibrary]/[LibraryRepository.observeCollections] into [LibraryScreenContent]. */
 @Composable
 fun LibraryScreen(
     library: LibraryRepository,
@@ -313,12 +280,7 @@ fun LibraryScreen(
     )
 }
 
-/**
- * The library's shelf tabs: "All · N" first, then one chip per [collections] entry in position
- * order, a "＋" chip that swaps itself for an inline name field to create a shelf, and a "⋯"
- * affordance pushed to the far right for [onManageCollections]. Counts are always computed
- * against the full [items] list, not whatever [selectedCollectionId] currently filters to.
- */
+/** Counts always use the full items list, not the selected filter. */
 @Composable
 private fun CollectionsChipRow(
     allCount: Int,
@@ -330,7 +292,6 @@ private fun CollectionsChipRow(
     onManageCollections: () -> Unit,
 ) {
     var creatingChip by remember { mutableStateOf(false) }
-    // ponytail: plain Row, no overflow scroll — revisit past ~8 shelves
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -360,7 +321,6 @@ private fun CollectionsChipRow(
     }
 }
 
-/** One chip in [CollectionsChipRow]: accent fill + accent-on text while active, else secondary text with a bg2 hover fill. */
 @Composable
 private fun CollectionChip(text: String, active: Boolean, onClick: () -> Unit) {
     val theme = LocalMangoTheme.current
@@ -370,6 +330,7 @@ private fun CollectionChip(text: String, active: Boolean, onClick: () -> Unit) {
     )
     Box(
         modifier = Modifier
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.pill))
             .clip(RoundedCornerShape(MangoRadius.pill))
             .background(hover.fill)
             .hoverable(hover.interaction)
@@ -384,12 +345,6 @@ private fun CollectionChip(text: String, active: Boolean, onClick: () -> Unit) {
     }
 }
 
-/**
- * The "＋" chip's in-place replacement while creating a shelf: a chip-shaped text field (same
- * radius/padding family as [CollectionChip]). Enter calls [onCreate]; a thrown duplicate-name
- * rejection renders as a caption under the field, which stays open so the name can be fixed.
- * Escape or losing focus (a click elsewhere) calls [onClose] without creating anything.
- */
 @Composable
 private fun NewCollectionChip(onCreate: suspend (String) -> Unit, onClose: () -> Unit) {
     val theme = LocalMangoTheme.current

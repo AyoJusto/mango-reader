@@ -34,11 +34,9 @@ object RecordedHttp {
         respond(bytes, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
     })
 
-    /** Replay host for recorded fixtures: no politeness delay, no-op sleep — there is no real server to protect. */
     fun replayHost(): ApplicationHost =
         ApplicationHost(http = replayClient(), minRequestIntervalMillis = 0, sleeper = {})
 
-    /** CIO client + fixture-writing onResponse, shared by the LiveRecord* tests. Any non-200 fails the run. */
     fun recordingHost(): ApplicationHost {
         val fixturesDir = Paths.get("src", "jvmTest", "resources", "fixtures")
         return ApplicationHost(
@@ -65,7 +63,6 @@ internal val mangaBatBundle: String by lazy {
     BundleLoader.verify(readFixture(MANGABAT_FIXTURE), MANGABAT_SHA256)
 }
 
-/** First-party bundle committed to the repo, loaded straight off the test classpath — no download, no sha pin. */
 internal val syntheticBundle: String by lazy {
     Thread.currentThread().contextClassLoader.getResourceAsStream("fixtures/Synthetic.index.js")
         ?.readBytes()
@@ -73,7 +70,6 @@ internal val syntheticBundle: String by lazy {
         ?: error("missing fixtures/Synthetic.index.js on the test classpath")
 }
 
-/** initialise() + getSearchResults through the full runtime, raw result as JsonObject. */
 internal suspend fun runFlameComicsSearch(host: ApplicationHost, title: String): JsonObject =
     ExtensionRuntime(flameComicsBundle, host).withExtension { handle ->
         val extension = handle.extension("FlameComics")

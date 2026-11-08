@@ -16,11 +16,6 @@ import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
-/**
- * One board rendering every [Kit.kt][dev.mango.app] primitive in every static state (hover is
- * excluded — it needs a live pointer) on bg0. This is the kit's visual contract: the screen restyles
- * restyle screens against what this board shows.
- */
 class KitScreenshotsTest {
     @Test
     fun kit() {
@@ -72,9 +67,8 @@ class KitScreenshotsTest {
                             title = "Solo Leveling",
                             coverUrl = null,
                             sourceId = "src",
-                            metaLine = "Ch. 142 · 72%",
+                            mangaId = "m1",
                             unreadCount = 3,
-                            progress = 0.72f,
                             finished = false,
                             onClick = {},
                             modifier = Modifier.width(140.dp),
@@ -83,9 +77,8 @@ class KitScreenshotsTest {
                             title = "Tower of God",
                             coverUrl = null,
                             sourceId = "src",
-                            metaLine = "Ch. 588",
+                            mangaId = "m2",
                             unreadCount = null,
-                            progress = null,
                             finished = true,
                             onClick = {},
                             modifier = Modifier.width(140.dp),

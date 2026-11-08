@@ -20,11 +20,6 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 
-/**
- * Screenshot plus end-to-end flows for the downloads screen and per-chapter enqueue, backed by
- * [FakeDownloadManager]/[FakeLibraryRepository]/[FakeCatalogRepository]. Style mirrors
- * ScreenScreenshotsTest and ScreenFlowTest.
- */
 class DownloadsTest {
     @get:Rule
     val rule = createComposeRule()
@@ -91,9 +86,7 @@ class DownloadsTest {
         assertEquals(DownloadStatus.QUEUED, downloads.downloads.single().status)
         assertEquals("Solo Leveling", downloads.downloads.single().mangaTitle)
         assertEquals(1.0, downloads.downloads.single().chapterNumber)
-        // Downloading a chapter implies the user cares about the series — it lands in the library.
         assertTrue(runBlocking { library.observeLibrary().first() }.any { it.entry.mangaId == "manga-1" })
-        // Clicking the download affordance must not navigate to the reader — still on Details.
         rule.onNodeWithText("chapters", substring = true).assertExists()
     }
 

@@ -23,17 +23,10 @@ import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
-/**
- * Canned [CatalogRepository] that answers [search] differently per sourceId — unlike
- * [FakeCatalogRepository], which only keys results by query. Needed here because the Search tab
- * fans the same query out to every installed source and each source must be able to behave
- * independently (one succeeds, one throws).
- */
 private class PerSourceCatalogRepository(
     private val sources: List<SourceInfo>,
     private val resultsBySource: Map<String, List<MangaEntry>> = emptyMap(),
     private val failuresBySource: Map<String, Throwable> = emptyMap(),
-    // a source listed here suspends until the gate completes — simulates a slow extension
     private val gatesBySource: Map<String, kotlinx.coroutines.CompletableDeferred<Unit>> = emptyMap(),
 ) : CatalogRepository {
     override suspend fun installedSources(): List<SourceInfo> = sources
@@ -63,10 +56,6 @@ private class PerSourceCatalogRepository(
         error("PerSourceCatalogRepository.uninstall is not stubbed")
 }
 
-/**
- * End-to-end flow through [AppShell]'s Search tab, backed by [PerSourceCatalogRepository] so one
- * source can succeed while another fails without either affecting the other's rendering.
- */
 class SearchFlowTest {
     @get:Rule
     val rule = createComposeRule()
@@ -105,8 +94,6 @@ class SearchFlowTest {
 
         rule.navigateVia("Search")
 
-        // Pre-search the screen shows only the idle hint, so each source's name renders
-        // exactly once: as its FilterChip label.
         rule.onAllNodesWithText("FlameComics").assertCountEquals(1)
         rule.onAllNodesWithText("MangaBat").assertCountEquals(1)
         rule.onNodeWithText("Search across all installed sources").assertExists()
@@ -131,7 +118,6 @@ class SearchFlowTest {
         rule.onNodeWithText("solo").performImeAction()
         rule.waitForIdle()
 
-        // the fast source's results render while the gated source is still in flight
         rule.onNodeWithText("Solo Leveling").assertExists()
 
         gate.complete(Unit)
@@ -200,9 +186,6 @@ class SearchFlowTest {
     fun removingAHistoryEntryDoesNotReplayTheSearch() {
         val library = FakeLibraryRepository()
         val catalog = FakeCatalogRepository(sources = listOf(SourceInfo("FlameComics", "FlameComics")))
-        // FakeCatalogRepository.search throws for any query with no canned results, so an
-        // accidental replay of the removed query here would surface an error section instead of
-        // the plain idle hint asserted below.
         val history = listOf(SearchHistoryEntry("solo leveling", 100L))
         var latestHistory: List<SearchHistoryEntry> = history
 

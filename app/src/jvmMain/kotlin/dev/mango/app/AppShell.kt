@@ -1,28 +1,42 @@
 package dev.mango.app
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.SaveableStateHolder
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
@@ -44,62 +58,20 @@ import kotlin.time.Clock
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-/** Used only when a caller doesn't wire a real registry (e.g. tests exercising other tabs). */
 private object NoOpExtensionRepo : ExtensionRepo {
     override suspend fun available(): List<AvailableSource> = emptyList()
     override suspend fun install(source: AvailableSource) = Unit
 }
 
-/** Used only when a caller doesn't wire the real solver (tests exercising non-challenge flows). */
 private object NoOpChallengeSolver : ChallengeSolver {
     override suspend fun solve(sourceId: String, url: String): Boolean = false
 }
 
-/** Used only when a caller doesn't wire the real cache (tests exercising other tabs): every read misses. */
 private object NoOpCatalogCache : CatalogCache {
     override suspend fun get(sourceId: String, mangaId: String): CachedManga? = null
     override suspend fun put(sourceId: String, mangaId: String, details: MangaDetails, chapters: List<Chapter>) = Unit
 }
 
-/**
- * Navigation state for the app shell. Hand-rolled — no nav library: the tree is a handful of
- * flat cases, not worth a dependency.
- */
-sealed interface Screen {
-    data object Library : Screen
-    data object Search : Screen
-    data object Browse : Screen
-    data object Downloads : Screen
-    data object Extensions : Screen
-    data object Settings : Screen
-    data class Details(
-        val sourceId: String,
-        val mangaId: String,
-        val fromBrowse: Boolean,
-        /**
-         * One-shot: fires the Continue action into the Reader once chapters load. Must be
-         * stripped from [AppShell]'s Reader back-target, or backing out of the Reader would
-         * bounce straight back in.
-         */
-        val autoContinue: Boolean = false,
-    ) : Screen
-
-    data class Reader(
-        val sourceId: String,
-        val mangaId: String,
-        val chapterId: String,
-        // sorted ascending by number at construction (the only construction site sorts below) so
-        // the reader can walk it directly for next/prev without re-sorting on every navigation
-        val chapters: List<Chapter>,
-    ) : Screen
-}
-
-/**
- * The whole application UI: a merged title bar on top, the current screen filling the content
- * area, an overlay sidebar for top-level navigation, and the command palette above everything.
- * Screens talk only to the repository ports passed in here — never engine or DB types
- * (CLAUDE.md boundary).
- */
 @Composable
 fun AppShell(
     library: LibraryRepository,
@@ -108,11 +80,7 @@ fun AppShell(
     extensions: ExtensionRepo = NoOpExtensionRepo,
     challengeSolver: ChallengeSolver = NoOpChallengeSolver,
     catalogCache: CatalogCache = NoOpCatalogCache,
-    // Optional hook, same style as the other repository ports above: production wires
-    // AppGraph.headerPolicy, tests leave it null.
     headerPolicy: SourceHeaderPolicy? = null,
-    // Optional hook, same style as ReaderScreen's own pageContent: lets tests intercept pages
-    // delivered to the Reader branch without hitting the network. Production leaves it null.
     readerPageContent: (@Composable (Page) -> Unit)? = null,
     theme: MangoTheme = MangoDark,
     onThemeChange: (MangoTheme) -> Unit = {},
@@ -134,38 +102,30 @@ fun AppShell(
     fontFamilyName: String? = null,
     installedFonts: List<String> = emptyList(),
     onFontFamilyChange: (String?) -> Unit = {},
-    jbrBar: JbrBar? = null,
+    showTitleBar: Boolean = true,
     libraryCheckedAt: Long? = null,
     onLibraryChecked: (Long) -> Unit = {},
     searchHistory: List<SearchHistoryEntry> = emptyList(),
     onSearchHistoryChange: (List<SearchHistoryEntry>) -> Unit = {},
+    navigator: Navigator = remember { Navigator() },
+    // Owned by the caller because production draws the title bar outside this function.
+    manageCollectionsOpen: MutableState<Boolean> = remember { mutableStateOf(false) },
+    lastInputWasKeyboard: MutableState<Boolean> = remember { mutableStateOf(false) },
 ) {
-    var screen by remember { mutableStateOf<Screen>(Screen.Library) }
-    // Reader has no fromBrowse of its own; remember which Details screen led to it so its
-    // back button can return there. autoContinue is stripped: the back-target must land on
-    // Details, not re-fire the Continue action into the Reader.
-    var lastDetails by remember { mutableStateOf<Screen.Details?>(null) }
-    // Session-only, like searchState below: which collection the Library chip row is filtering
-    // to, and whether the manage-collections dialog is open.
     var selectedCollectionId by remember { mutableStateOf<Long?>(null) }
-    var showManageCollections by remember { mutableStateOf(false) }
-    // Hoisted here (not inside BrowseScreen) so it survives tab switches: Library -> Browse ->
-    // Library -> Browse must show the previous query/results instead of resetting.
+    var showManageCollections by manageCollectionsOpen
     val browseState = remember { BrowseState() }
-    // Same rationale as browseState: Search's query/results/enabled-sources must survive
-    // switching to another tab and back.
     val searchState = remember { SearchState() }
     val scope = rememberCoroutineScope()
 
+    val motion = LocalMangoMotion.current
     val updater = remember(catalog, catalogCache, library) { LibraryUpdater(catalog, catalogCache, library) }
     var checking by remember { mutableStateOf(false) }
 
-    // Single flight: a second click while a check is running is a no-op. The checked-at stamp
-    // only advances after a full run completes, so a cancelled run leaves it untouched.
+    // Single flight; the checked-at stamp only advances after a full run completes.
     fun checkForUpdates() {
         if (checking) return
-        // Set before launch: the launched body runs on a later event-loop turn, so flipping the
-        // flag inside it would let a second click pass the guard first.
+        // Set before launch so a second click can't pass the guard first.
         checking = true
         scope.launch {
             try {
@@ -177,13 +137,14 @@ fun AppShell(
         }
     }
 
-    // Continue cards are loaded once per sidebar open — the panel is transient, so a snapshot
-    // is enough; no need to observe progress while it is closed.
+    var sidebarPeeking by remember { mutableStateOf(false) }
+    LaunchedEffect(sidebarOpen) { sidebarPeeking = false }
+    val sidebarVisible = sidebarOpen || sidebarPeeking
+
     var continueItems by remember { mutableStateOf<List<ContinueItem>>(emptyList()) }
-    LaunchedEffect(sidebarOpen) {
-        if (!sidebarOpen) return@LaunchedEffect
+    LaunchedEffect(sidebarVisible) {
+        if (!sidebarVisible) return@LaunchedEffect
         val items = library.observeLibrary().first()
-        // ponytail: per-item latestProgress queries, one bulk query if libraries outgrow double digits
         continueItems = items
             .mapNotNull { item ->
                 library.latestProgress(item.entry.sourceId, item.entry.mangaId)?.let { item to it }
@@ -205,174 +166,191 @@ fun AppShell(
             }
     }
     val downloadRows by downloads.observeDownloads().collectAsState(initial = emptyList())
-    // Collected here (not just inside LibraryScreen) so the palette's collection hits stay
-    // in sync with the same data the chip row shows.
     val collections by library.observeCollections().collectAsState(initial = emptyList())
-    // Collected again here (LibraryScreen already collects its own copy) so the manage-collections
-    // dialog's member counts stay live while it's open.
     val libraryItems by library.observeLibrary().collectAsState(initial = emptyList())
     val collectionMemberCounts = remember(libraryItems) {
         libraryItems.flatMap { it.collectionIds }.groupingBy { it }.eachCount()
     }
-    // Pending = still going to happen on its own; FAILED needs a user retry, not a badge.
     val pendingDownloadCount = downloadRows.count {
         it.status == DownloadStatus.QUEUED || it.status == DownloadStatus.RUNNING
     }
-    // The sidebar's frosted panel blurs whatever screen content is behind it; the screen
-    // branches below register as the blur source, the panel samples it.
     val hazeState = rememberHazeState()
+    val density = LocalDensity.current
+    val slidePx = with(density) { motion.screenSlide.roundToPx() }
+    val risePx = with(density) { motion.viewRise.roundToPx() }
+    val screenStates = rememberSaveableStateHolder()
+    ForgetPoppedState(navigator, screenStates)
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        MangoTitleBar(
-            jbrBar = jbrBar,
-            sidebarOpen = sidebarOpen,
-            onToggleSidebar = { onSidebarChange(!sidebarOpen) },
-        )
-        // Content, sidebar, and palette live in one Box so the overlays can stack above
-        // whichever screen is showing; the title bar stays visible over all of them.
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .trackLastInput(lastInputWasKeyboard),
+    ) {
+        val mouseBack = { backOrCloseOverlay(navigator, palette, manageCollectionsOpen) }
+        if (showTitleBar) {
+            MangoTitleBar(
+                sidebarOpen = sidebarOpen,
+                onToggleSidebar = { onSidebarChange(!sidebarOpen) },
+                canGoBack = navigator.canGoBack,
+                onBack = { navigator.back() },
+                onMouseBack = { mouseBack() },
+            )
+        }
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .sideButtons { mouseBack() }
+                .sidebarPeek(enabled = !sidebarOpen) { sidebarPeeking = it },
+        ) {
             CompositionLocalProvider(LocalSourceHeaderPolicy provides headerPolicy) {
-                // The content behind the palette blurs while it's open — the haze sidebar source
-                // modifier below stays untouched; this composes an ordinary blur onto the same Box.
                 val contentBlurDp by animateDpAsState(
                     targetValue = if (palette.visible) 10.dp else 0.dp,
-                    animationSpec = tween(MangoMotion.PALETTE_BACKDROP_MS),
+                    animationSpec = tween(motion.paletteBackdropMs),
                 )
                 val contentBlur = if (contentBlurDp > 0.dp) Modifier.blur(contentBlurDp) else Modifier
-                when (val current = screen) {
-                    is Screen.Reader -> {
-                        Box(modifier = Modifier.fillMaxSize().hazeSource(hazeState).then(contentBlur)) {
-                            ReaderScreen(
-                                sourceId = current.sourceId,
-                                mangaId = current.mangaId,
-                                chapterId = current.chapterId,
-                                chapters = current.chapters,
-                                catalog = catalog,
-                                downloads = downloads,
-                                library = library,
-                                challengeSolver = challengeSolver,
-                                onBack = { lastDetails?.let { screen = it } ?: run { screen = Screen.Library } },
-                                onToggleFullscreen = onToggleFullscreen,
-                                autoScrollSpeedDpPerSec = autoScrollSpeed,
-                                stripWidthDp = stripWidthDp,
-                                paletteVisible = palette.visible,
-                                hideCursorInReader = hideCursorInReader,
-                                headerPolicy = headerPolicy,
-                                pageContent = readerPageContent,
-                            )
-                        }
-                    }
-
-                    else -> {
-                        Surface(
-                            modifier = Modifier.fillMaxSize().hazeSource(hazeState).then(contentBlur),
-                            color = theme.bg0,
+                SharedTransitionLayout(modifier = Modifier.fillMaxSize().hazeSource(hazeState).then(contentBlur)) {
+                    val sharedTransitionScope = this
+                    AnimatedContent(
+                        targetState = navigator.current,
+                        // The id, not the whole entry: replaceCurrent swaps in place and must not animate.
+                        contentKey = { it.id },
+                        transitionSpec = {
+                            val reader = initialState.screen is Screen.Reader || targetState.screen is Screen.Reader
+                            screenTransition(navigator.lastMove, reader, motion, slidePx, risePx)
+                        },
+                        label = "screen",
+                    ) { entry ->
+                        val current = entry.screen
+                        val rootModifier = Modifier.fillMaxSize().testTag("screen:${current::class.simpleName}")
+                        CompositionLocalProvider(
+                            LocalAnimatedVisibilityScope provides this,
+                            LocalSharedTransitionScope provides sharedTransitionScope,
                         ) {
-                            when (current) {
-                                Screen.Library -> LibraryScreen(
-                                    library = library,
-                                    libraryView = libraryView,
-                                    onLibraryViewChange = onLibraryViewChange,
-                                    onBrowse = { screen = Screen.Browse },
-                                    onOpenDetails = { entry ->
-                                        screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = false)
-                                    },
-                                    checkedAt = libraryCheckedAt,
-                                    checking = checking,
-                                    onCheckForUpdates = { checkForUpdates() },
-                                    selectedCollectionId = selectedCollectionId,
-                                    onSelectCollection = { selectedCollectionId = it },
-                                    onManageCollections = { showManageCollections = true },
-                                )
-
-                                Screen.Search -> SearchScreen(
-                                    catalog = catalog,
-                                    challengeSolver = challengeSolver,
-                                    state = searchState,
-                                    onOpenDetails = { entry ->
-                                        // Details has no fromSearch case yet: back from a Search-opened
-                                        // Details returns to Library, same as fromBrowse = false
-                                        // everywhere else that isn't Browse itself.
-                                        screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = false)
-                                    },
-                                    searchHistory = searchHistory,
-                                    onSearchHistoryChange = onSearchHistoryChange,
-                                )
-
-                                Screen.Browse -> BrowseScreen(catalog, challengeSolver, browseState) { entry ->
-                                    screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = true)
-                                }
-
-                                Screen.Downloads -> DownloadsScreen(downloads)
-                                Screen.Extensions -> ExtensionsScreen(extensions, catalog)
-                                Screen.Settings -> SettingsScreenContent(
-                                    theme = theme,
-                                    onThemeChange = onThemeChange,
-                                    themeLibrary = themeLibrary,
-                                    onThemeImport = onThemeImport,
-                                    onThemeDelete = onThemeDelete,
-                                    autoScrollSpeed = autoScrollSpeed,
-                                    onAutoScrollSpeedChange = onAutoScrollSpeedChange,
-                                    stripWidth = stripWidthDp,
-                                    onStripWidthChange = onStripWidthDpChange,
-                                    hideCursorInReader = hideCursorInReader,
-                                    onHideCursorInReaderChange = onHideCursorInReaderChange,
-                                    libraryView = libraryView,
-                                    onLibraryViewChange = onLibraryViewChange,
-                                    fontFamilyName = fontFamilyName,
-                                    installedFonts = installedFonts,
-                                    onFontFamilyChange = onFontFamilyChange,
-                                )
-
-                                is Screen.Details -> {
-                                    LaunchedEffect(current) { lastDetails = current.copy(autoContinue = false) }
-                                    Box(modifier = Modifier.fillMaxSize()) {
-                                        DetailsScreen(
+                            screenStates.SaveableStateProvider(entry.id) {
+                                if (current is Screen.Reader) {
+                                    Box(modifier = rootModifier) {
+                                        ReaderScreen(
                                             sourceId = current.sourceId,
                                             mangaId = current.mangaId,
+                                            chapterId = current.chapterId,
+                                            chapters = current.chapters,
                                             catalog = catalog,
-                                            library = library,
                                             downloads = downloads,
+                                            library = library,
                                             challengeSolver = challengeSolver,
-                                            catalogCache = catalogCache,
-                                            autoContinue = current.autoContinue,
-                                            onOpenChapter = { chapter, chapters ->
-                                                screen = Screen.Reader(
-                                                    sourceId = current.sourceId,
-                                                    mangaId = current.mangaId,
-                                                    chapterId = chapter.chapterId,
-                                                    chapters = chapters.sortedBy { it.number },
-                                                )
-                                            },
-                                            // Downloading a chapter (or the whole series) implies the user
-                                            // cares about it: it lands in the library too, same as a manual
-                                            // "Add to library" tap.
-                                            onDownloadChapter = { entry, chapter ->
-                                                scope.launch {
-                                                    library.addToLibrary(entry)
-                                                    downloads.enqueue(entry, chapter)
-                                                    downloads.processQueue()
-                                                }
-                                            },
-                                            onDownloadAll = { entry, chapters ->
-                                                // empty selection ("unread" with everything read) must
-                                                // not side-effect the library or spin the queue
-                                                if (chapters.isNotEmpty()) {
-                                                    scope.launch {
-                                                        library.addToLibrary(entry)
-                                                        chapters.forEach { downloads.enqueue(entry, it) }
-                                                        downloads.processQueue()
-                                                    }
-                                                }
-                                            },
+                                            onBack = { navigator.back() },
+                                            onToggleFullscreen = onToggleFullscreen,
+                                            autoScrollSpeedDpPerSec = autoScrollSpeed,
+                                            stripWidthDp = stripWidthDp,
+                                            paletteVisible = palette.visible,
+                                            hideCursorInReader = hideCursorInReader,
+                                            headerPolicy = headerPolicy,
+                                            pageContent = readerPageContent,
                                         )
-                                        IconButton(
-                                            onClick = {
-                                                screen = if (current.fromBrowse) Screen.Browse else Screen.Library
-                                            },
-                                            modifier = Modifier.padding(8.dp),
-                                        ) {
-                                            Text("←", color = theme.textSecondary)
+                                    }
+                                } else {
+                                    Surface(modifier = rootModifier, color = theme.bg0) {
+                                        when (current) {
+                                            Screen.Library -> LibraryScreen(
+                                                library = library,
+                                                libraryView = libraryView,
+                                                onLibraryViewChange = onLibraryViewChange,
+                                                onBrowse = { navigator.go(Screen.Browse) },
+                                                onOpenDetails = { entry ->
+                                                    navigator.go(Screen.Details(entry.sourceId, entry.mangaId))
+                                                },
+                                                checkedAt = libraryCheckedAt,
+                                                checking = checking,
+                                                onCheckForUpdates = { checkForUpdates() },
+                                                selectedCollectionId = selectedCollectionId,
+                                                onSelectCollection = { selectedCollectionId = it },
+                                                onManageCollections = { showManageCollections = true },
+                                            )
+
+                                            Screen.Search -> SearchScreen(
+                                                catalog = catalog,
+                                                challengeSolver = challengeSolver,
+                                                state = searchState,
+                                                onOpenDetails = { entry ->
+                                                    navigator.go(Screen.Details(entry.sourceId, entry.mangaId))
+                                                },
+                                                searchHistory = searchHistory,
+                                                onSearchHistoryChange = onSearchHistoryChange,
+                                            )
+
+                                            Screen.Browse -> BrowseScreen(
+                                                catalog,
+                                                challengeSolver,
+                                                browseState
+                                            ) { entry ->
+                                                navigator.go(Screen.Details(entry.sourceId, entry.mangaId))
+                                            }
+
+                                            Screen.Downloads -> DownloadsScreen(downloads)
+                                            Screen.Extensions -> ExtensionsScreen(extensions, catalog)
+                                            Screen.Settings -> SettingsScreenContent(
+                                                theme = theme,
+                                                onThemeChange = onThemeChange,
+                                                themeLibrary = themeLibrary,
+                                                onThemeImport = onThemeImport,
+                                                onThemeDelete = onThemeDelete,
+                                                autoScrollSpeed = autoScrollSpeed,
+                                                onAutoScrollSpeedChange = onAutoScrollSpeedChange,
+                                                stripWidth = stripWidthDp,
+                                                onStripWidthChange = onStripWidthDpChange,
+                                                hideCursorInReader = hideCursorInReader,
+                                                onHideCursorInReaderChange = onHideCursorInReaderChange,
+                                                libraryView = libraryView,
+                                                onLibraryViewChange = onLibraryViewChange,
+                                                fontFamilyName = fontFamilyName,
+                                                installedFonts = installedFonts,
+                                                onFontFamilyChange = onFontFamilyChange,
+                                            )
+
+                                            is Screen.Details -> {
+                                                Box(modifier = Modifier.fillMaxSize()) {
+                                                    DetailsScreen(
+                                                        sourceId = current.sourceId,
+                                                        mangaId = current.mangaId,
+                                                        catalog = catalog,
+                                                        library = library,
+                                                        downloads = downloads,
+                                                        challengeSolver = challengeSolver,
+                                                        catalogCache = catalogCache,
+                                                        autoContinue = current.autoContinue,
+                                                        onOpenChapter = { chapter, chapters ->
+                                                            // Clear the one-shot flag first so backing out of the Reader lands on plain Details.
+                                                            navigator.replaceCurrent(current.copy(autoContinue = false))
+                                                            navigator.go(
+                                                                Screen.Reader(
+                                                                    sourceId = current.sourceId,
+                                                                    mangaId = current.mangaId,
+                                                                    chapterId = chapter.chapterId,
+                                                                    chapters = chapters.sortedBy { it.number },
+                                                                ),
+                                                            )
+                                                        },
+                                                        onDownloadChapter = { entry, chapter ->
+                                                            scope.launch {
+                                                                library.addToLibrary(entry)
+                                                                downloads.enqueue(entry, chapter)
+                                                                downloads.processQueue()
+                                                            }
+                                                        },
+                                                        onDownloadAll = { entry, chapters ->
+                                                            // An empty selection must not touch the library or spin the queue.
+                                                            if (chapters.isNotEmpty()) {
+                                                                scope.launch {
+                                                                    library.addToLibrary(entry)
+                                                                    chapters.forEach { downloads.enqueue(entry, it) }
+                                                                    downloads.processQueue()
+                                                                }
+                                                            }
+                                                        },
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -381,33 +359,25 @@ fun AppShell(
                     }
                 }
                 Sidebar(
-                    visible = sidebarOpen,
+                    visible = sidebarVisible,
                     continueItems = continueItems,
-                    activeScreen = screen,
+                    activeScreen = navigator.current.screen,
                     pendingDownloadCount = pendingDownloadCount,
-                    onNavigate = { target ->
-                        screen = target
-                        onSidebarChange(false)
-                    },
+                    onNavigate = { target -> navigator.go(target) },
                     onContinue = { item ->
-                        screen = Screen.Details(item.sourceId, item.mangaId, fromBrowse = false, autoContinue = true)
-                        onSidebarChange(false)
+                        navigator.go(Screen.Details(item.sourceId, item.mangaId, autoContinue = true))
                     },
                     modifier = Modifier.align(Alignment.CenterStart),
                     hazeState = hazeState,
                 )
-                // The palette's toggle-sidebar/toggle-library-view hits read the CURRENT state at run
-                // time, not the value captured when the tab list was remembered below.
+                // Read current state at run time, not the value captured when the tab list was remembered.
                 val currentSidebarOpen by rememberUpdatedState(sidebarOpen)
                 val currentLibraryView by rememberUpdatedState(libraryView)
-                // keyed on theme and themeLibrary (not plain remember{}): the accent and theme
-                // providers close over the current theme and library by value, so either changing
-                // must rebuild the tab list or its hits would apply a stale theme, or one already
-                // deleted from the library
+                // Keyed on theme and themeLibrary: providers close over them by value and would apply stale ones.
                 val tabs = remember(theme, themeLibrary, collections) {
                     paletteTabs(
                         library = library,
-                        navigate = { target -> screen = target },
+                        navigate = { target -> navigator.go(target) },
                         theme = theme,
                         onThemeChange = onThemeChange,
                         themes = themeLibrary,
@@ -418,7 +388,7 @@ fun AppShell(
                         onCheckForUpdates = { checkForUpdates() },
                         onClearSearchHistory = { onSearchHistoryChange(emptyList()) },
                         collections = collections,
-                        onSelectCollection = { id -> selectedCollectionId = id; screen = Screen.Library },
+                        onSelectCollection = { id -> selectedCollectionId = id; navigator.go(Screen.Library) },
                         onManageCollections = { showManageCollections = true },
                     )
                 }
@@ -439,3 +409,56 @@ fun AppShell(
         }
     }
 }
+
+/** False when there was nothing to close and nowhere to go back to. */
+fun backOrCloseOverlay(
+    navigator: Navigator,
+    palette: PaletteState,
+    manageCollectionsOpen: MutableState<Boolean>,
+): Boolean {
+    when {
+        manageCollectionsOpen.value -> manageCollectionsOpen.value = false
+        palette.visible -> palette.visible = false
+        else -> return navigator.back()
+    }
+    return true
+}
+
+val LocalAnimatedVisibilityScope = staticCompositionLocalOf<AnimatedVisibilityScope?> { null }
+
+val LocalSharedTransitionScope = staticCompositionLocalOf<SharedTransitionScope?> { null }
+
+private fun screenTransition(
+    move: Move,
+    involvesReader: Boolean,
+    motion: MangoMotion,
+    slidePx: Int,
+    risePx: Int,
+): ContentTransform {
+    if (motion.reduced || involvesReader) {
+        return fadeIn(tween(motion.screenMs)) togetherWith fadeOut(tween(motion.screenMs))
+    }
+    return when (move) {
+        Move.Push -> (slideInHorizontally(tween(motion.screenMs, easing = motion.decel)) { +slidePx } +
+                fadeIn(tween(motion.screenMs))) togetherWith fadeOut(tween(motion.screenMs))
+
+        Move.Pop -> (slideInHorizontally(tween(motion.screenMs, easing = motion.decel)) { -slidePx } +
+                fadeIn(tween(motion.screenMs))) togetherWith fadeOut(tween(motion.screenMs))
+
+        Move.Switch -> (fadeIn(tween(motion.viewChangeMs, easing = motion.decel)) +
+                slideInVertically(tween(motion.viewChangeMs, easing = motion.decel)) { +risePx }) togetherWith
+                fadeOut(tween(motion.viewChangeMs))
+    }
+}
+
+@Composable
+private fun ForgetPoppedState(navigator: Navigator, stateHolder: SaveableStateHolder) {
+    val liveIds = navigator.liveIds
+    val known = remember { mutableSetOf<Long>() }
+    SideEffect {
+        (known - liveIds.toSet()).forEach(stateHolder::removeState)
+        known.clear()
+        known.addAll(liveIds)
+    }
+}
+

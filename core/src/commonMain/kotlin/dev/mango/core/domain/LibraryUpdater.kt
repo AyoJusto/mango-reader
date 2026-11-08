@@ -6,16 +6,9 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 
-/** Aggregate result of one [LibraryUpdater.checkAll] pass across the whole library. */
 data class UpdateCheckSummary(val seriesChecked: Int, val seriesFailed: Int, val newChapters: Int)
 
-/**
- * Refreshes every library series against its source: pulls the live chapter list, writes it
- * through the catalog cache, updates the library's chapter count, and tallies chapters that
- * weren't in the cache before. Series belonging to different sources are checked in parallel;
- * series within the same source run strictly sequentially, so one source never sees concurrent
- * requests for different manga.
- */
+/** Refreshes every library series from its live chapter list; sources run in parallel, a source's series sequentially. */
 class LibraryUpdater(
     private val catalog: CatalogRepository,
     private val cache: CatalogCache,

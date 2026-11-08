@@ -6,16 +6,10 @@ import java.util.Properties
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-/**
- * Verifies the v1 -> v2 download-table migration (adds manga_title, chapter_number) and the
- * v2 -> v3 installed_source migration (adds version, user_agent) each apply cleanly to a
- * database frozen at the prior shape and preserve existing rows.
- */
 class MigrationTest {
     @Test
     fun v1ToV2MigrationPreservesExistingRowsAndAddsTheNewColumns() {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())
-        // frozen v1 DDL: the download table's shape before manga_title/chapter_number existed
         driver.execute(
             null,
             """
@@ -39,10 +33,7 @@ class MigrationTest {
             0,
         )
 
-        // Schema.version is the schema's overall current version, not "whatever this specific
-        // migrate(1, 2) call reached" (that would only ever be true while v2 was the latest
-        // schema) — so the proof this migration applied is the column data asserted below,
-        // not a version-number check.
+        // Schema.version is the overall current version, so assert the migrated column data instead.
         MangoDatabase.Schema.migrate(driver, 1, 2)
         val db = MangoDatabase(driver)
 
@@ -73,8 +64,6 @@ class MigrationTest {
     @Test
     fun v2ToV3MigrationPreservesExistingRowsAndAddsTheNewColumns() {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())
-        // frozen v2 DDL: installed_source's shape before version/user_agent existed (unchanged
-        // between v1 and v2 — only download changed in the v1 -> v2 migration)
         driver.execute(
             null,
             """
@@ -117,7 +106,6 @@ class MigrationTest {
     @Test
     fun v6ToV7MigrationPreservesExistingRowsAndAddsTheNewColumns() {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())
-        // frozen v6 DDL: chapter_cache and library_item's shape before first_seen_at/last_opened_at existed
         driver.execute(
             null,
             """
@@ -149,8 +137,7 @@ class MigrationTest {
             """.trimIndent(),
             0,
         )
-        // read_progress is untouched by this migration, but selectAllLibraryItems joins it, so it
-        // must exist for that query to run at all
+        // read_progress is untouched but selectAllLibraryItems joins it, so it must exist.
         driver.execute(
             null,
             """
@@ -167,8 +154,7 @@ class MigrationTest {
             """.trimIndent(),
             0,
         )
-        // collection_member is likewise untouched (it arrives in a later migration), but
-        // selectAllLibraryItems reads it via a scalar subquery, so an empty stand-in must exist
+        // collection_member is untouched but selectAllLibraryItems subqueries it, so an empty stand-in must exist.
         driver.execute(
             null,
             """
@@ -227,8 +213,6 @@ class MigrationTest {
     @Test
     fun v7ToV8MigrationCreatesTheCollectionTablesWithTheSeededDefault() {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())
-        // frozen v7 shape: no collection tables existed, and the migration touches nothing
-        // else, so no prior DDL is needed for it to apply
 
         MangoDatabase.Schema.migrate(driver, 7, 8)
         val db = MangoDatabase(driver)
@@ -242,7 +226,6 @@ class MigrationTest {
         assertEquals(listOf(seeded.id), db.collectionsQueries.selectMembership("src", "m1").executeAsList())
     }
 
-    /** A migrated v1 db and a fresh v3 create must land on the same schema, or drift hides. */
     @Test
     fun migratedSchemaMatchesFreshCreateSchema() {
         val migrated = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())
@@ -265,7 +248,6 @@ class MigrationTest {
         val fresh = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())
         MangoDatabase.Schema.create(fresh)
 
-        // name -> (type, notnull, default), order-independent: sqldelight maps by name
         fun columns(driver: JdbcSqliteDriver, table: String): Map<String, Triple<String, Long, String?>> =
             driver.executeQuery(
                 null,

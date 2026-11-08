@@ -38,7 +38,6 @@ private const val VERSIONING_JSON = """
 
 private const val TINY_BUNDLE = "// tiny fixture bundle\nfunction main() {}\n"
 
-/** Integration tests for [InkdexRepo], driven only through the [dev.mango.core.domain.ExtensionRepo] contract. */
 class InkdexRepoTest {
     private fun newDb(): MangoDatabase {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())
@@ -57,7 +56,6 @@ class InkdexRepoTest {
         override suspend fun getPages(mangaId: String, chapterId: String): List<Page> = emptyList()
     }
 
-    /** Routes GETs by path suffix: .../versioning.json vs .../<id>/index.js. */
     private fun engineFor(
         registryStatus: HttpStatusCode = HttpStatusCode.OK,
         bundleBytes: ByteArray = TINY_BUNDLE.encodeToByteArray(),
@@ -82,7 +80,6 @@ class InkdexRepoTest {
 
         val sources = repo.available()
 
-        // registry order is MangaBat then FlameComics; available() sorts by display name
         assertEquals(listOf("Flame Comics", "MangaBat"), sources.map { it.name })
         val flame = sources.first { it.sourceId == "FlameComics" }
         assertEquals("1.0.0", flame.version)
@@ -103,7 +100,6 @@ class InkdexRepoTest {
             listOf(SourceInfo(sourceId = "FlameComics", name = "Flame Comics", version = "1.0.0")),
             catalog.installedSources(),
         )
-        // resolves cleanly through the real repository: the pinned sha matches what was written
         assertTrue(catalog.search("FlameComics", "").isEmpty())
     }
 
@@ -169,8 +165,6 @@ class InkdexRepoTest {
 
     @Test
     fun postInstallTamperIsRejectedOnColdResolve() = runTest {
-        // TOFU's actual promise: the pin protects the bundle AFTER install. Swap the file on
-        // disk, resolve through a fresh repository (cold cache), and verification must fail.
         val bundleDir = Files.createTempDirectory("inkdex-test")
         val db = newDb()
         val repo = InkdexRepo(HttpClient(engineFor()), bundleDir, newCatalog(bundleDir, db))
@@ -206,7 +200,6 @@ class InkdexRepoTest {
         val source = AvailableSource(sourceId = "FlameComics", name = "Flame Comics", version = "1.0.0")
         repo.install(source)
         catalog.search("FlameComics", "")
-        // a UA pinned by the challenge flow must survive a reinstall/update
         db.sourcesQueries.updateUserAgent(user_agent = "pinned-ua", source_id = "FlameComics")
 
         bundle = "// v2 bundle\n"

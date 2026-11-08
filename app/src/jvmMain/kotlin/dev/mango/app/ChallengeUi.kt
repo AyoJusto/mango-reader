@@ -18,7 +18,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
-/** The inline "solving this source's challenge" hint shown while a challenge solve is running. */
 @Composable
 internal fun SolveProgressHint() {
     val theme = LocalMangoTheme.current
@@ -40,15 +39,7 @@ internal fun SolveProgressHint() {
     }
 }
 
-/**
- * Warning-toned card plus an optional Solve button for a Cloudflare challenge: the user did
- * nothing wrong, so this reads as warning, never danger (see board 11 in the design handoff).
- *
- * [solveEnabled] and [solving] are distinct: a solve running anywhere disables the button
- * ([solveEnabled]), but only the screen whose own solve is running shows the progress hint
- * ([solving]). [onRetry] is null when the caller has no separate retry action; passing it renders
- * a secondary Retry button alongside Solve.
- */
+/** Warning-toned, never danger; solveEnabled gates the button, solving shows the progress hint. */
 @Composable
 internal fun ChallengeErrorContent(
     error: String,

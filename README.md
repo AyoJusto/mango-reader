@@ -59,15 +59,13 @@ I did a lot of guiding, but that I believe was also because my requirements were
 
 ## Building and running
 
-Requirements: JDK 17+ on Windows. Everything else is pulled by Gradle.
+Requirements: Windows and a JDK 17+ to run Gradle; Gradle downloads the JDK 25 the app builds and runs on. Everything else is pulled by Gradle.
 
 ```
 .\gradlew.bat :app:run        # run the app
 .\gradlew.bat :core:jvmTest   # engine and data layer tests
 .\gradlew.bat :app:jvmTest    # UI tests
 ```
-
-WIP but for now - The merged custom title bar needs the app to run on a JetBrains Runtime; set `mango.jbrHome` in `~/.gradle/gradle.properties` to point at one. On a stock JDK the app falls back to the normal OS title bar.
 
 Test fixtures (the extension bundles used by the engine tests) are not committed, the first test run downloads them from a pinned registry commit and verifies checksums.
 

@@ -32,20 +32,16 @@ class SingleFlightChallengeSolverTest {
             }
 
             launch {
-                // Give the first solve time to start
                 kotlinx.coroutines.delay(100)
                 secondResult = gate.solve("source2", "url2")
             }
 
-            // Let second solve run and return
             kotlinx.coroutines.delay(200)
             assertEquals(1, invocationCount[0], "delegate should only be invoked once while first solve is in flight")
             assertFalse(secondResult!!, "second solve should return false immediately")
 
-            // Complete the deferred so first solve can finish
             deferred.complete(true)
 
-            // Give first solve time to complete
             kotlinx.coroutines.delay(100)
             assertTrue(firstResult!!, "first solve should return true after deferred completes")
         }

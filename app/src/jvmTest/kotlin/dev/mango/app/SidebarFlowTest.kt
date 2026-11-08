@@ -1,5 +1,6 @@
 package dev.mango.app
 
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -7,6 +8,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performMouseInput
 import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.Download
 import dev.mango.core.domain.DownloadStatus
@@ -15,19 +17,12 @@ import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
 import dev.mango.core.domain.MangaStatus
 import dev.mango.core.domain.SourceInfo
-import java.awt.Frame
 import java.nio.file.Files
-import kotlin.test.assertNull
 import kotlin.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 
-/**
- * End-to-end sidebar flows through [AppShell] (via [TestAppShell]'s hoisted-state wiring),
- * backed by the shared fakes. Lookups for text that also renders on the screen behind the
- * overlay are scoped to [SIDEBAR_TEST_TAG]'s subtree, same idiom as [PaletteFlowTest].
- */
 class SidebarFlowTest {
     @get:Rule
     val rule = createComposeRule()
@@ -51,7 +46,7 @@ class SidebarFlowTest {
     }
 
     @Test
-    fun navClickNavigatesToTheScreenAndClosesTheSidebar() {
+    fun navClickNavigatesAndThePinnedSidebarStaysOpen() {
         rule.setContent { TestAppShell(FakeLibraryRepository(), FakeCatalogRepository(), FakeDownloadManager()) }
         rule.waitForIdle()
 
@@ -61,12 +56,23 @@ class SidebarFlowTest {
         rule.waitForIdle()
 
         rule.onNodeWithText("No sources installed — add one from the Extensions tab").assertExists()
+        rule.onNodeWithTag(SIDEBAR_TEST_TAG).assertExists()
+    }
+
+    @Test
+    fun hoveringTheLeftEdgePeeksTheSidebarUntilThePointerMovesPastIt() {
+        rule.setContent { TestAppShell(FakeLibraryRepository(), FakeCatalogRepository(), FakeDownloadManager()) }
+        rule.waitForIdle()
+
+        rule.onNodeWithTag("screen:Library").performMouseInput { moveTo(Offset(2f, centerY)) }
+        rule.waitForIdle()
+        rule.onNodeWithTag(SIDEBAR_TEST_TAG).assertExists()
+
+        rule.onNodeWithTag("screen:Library").performMouseInput { moveTo(Offset(width - 2f, centerY)) }
+        rule.waitForIdle()
         rule.onNodeWithTag(SIDEBAR_TEST_TAG).assertDoesNotExist()
     }
 
-    // The sidebar's Continue card opens Details with the one-shot auto-continue, which fires
-    // the existing Continue action into the Reader. Pages come from local downloads so the
-    // reader renders offline with no network.
     @Test
     fun continueCardResumesStraightIntoTheReader() {
         val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
@@ -99,10 +105,8 @@ class SidebarFlowTest {
         rule.waitForIdle()
         rule.waitForIdle()
 
-        // The "offline" page counter is Reader-only text: its presence proves the Continue
-        // card ended in the Reader, serving the downloaded pages.
-        rule.onNode(hasText("· offline", substring = true)).assertExists()
-        rule.onNodeWithTag(SIDEBAR_TEST_TAG).assertDoesNotExist()
+        rule.onNode(hasText("offline")).assertExists()
+        rule.onNodeWithTag(SIDEBAR_TEST_TAG).assertExists()
     }
 
     @Test
@@ -128,13 +132,9 @@ class SidebarFlowTest {
         rule.onNodeWithTag(SIDEBAR_TOGGLE_TAG).performClick()
         rule.waitForIdle()
 
-        // Only the QUEUED row counts; the DONE row must not inflate the pill.
         rule.onNode(hasText("1") and inSidebar).assertExists()
     }
 
-    // Continue cards show the chapter number once it's known (set alongside the page on every
-    // Reader write), falling back to the saved page only for progress written before that
-    // column existed (chapterNumber defaults to 0).
     @Test
     fun continueCardShowsTheChapterNumberWhenKnownAndFallsBackToTheSavedPageOtherwise() {
         val withChapter = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
@@ -158,17 +158,5 @@ class SidebarFlowTest {
 
         rule.onNode(hasText("Ch. 12") and inSidebar).assertExists()
         rule.onNode(hasText("p. 7") and inSidebar).assertExists()
-    }
-
-    // Tests run on a stock JDK: the JBR reflection path must degrade to null (OS-decorated
-    // fallback), never throw.
-    @Test
-    fun applyJbrTitleBarOnAStockJdkReturnsNullAndDoesNotThrow() {
-        val frame = Frame()
-        try {
-            assertNull(applyJbrTitleBar(frame, 44f))
-        } finally {
-            frame.dispose()
-        }
     }
 }

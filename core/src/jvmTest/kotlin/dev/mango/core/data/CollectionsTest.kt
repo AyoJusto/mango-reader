@@ -14,9 +14,8 @@ import kotlin.time.Instant
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 
-/** Integration tests for the collections half of [SqlLibraryRepository], driven only through [LibraryRepository]. */
 class CollectionsTest {
-    /** Tick-per-call clock: keeps added_at/updated_at writes distinct within a fast test. */
+    /** Tick-per-call clock: keeps added_at/updated_at distinct. */
     private class TickingClock : Clock {
         private var millis = 0L
         override fun now(): Instant = Instant.fromEpochMilliseconds(++millis)
@@ -92,7 +91,6 @@ class CollectionsTest {
         val shelf = repo.createCollection("Shelf")
         repo.setMembership("MangaBat", "m1", setOf(shelf))
 
-        // the download path: addToLibrary fires again for a series already in the library
         repo.addToLibrary(entry)
 
         val ids = repo.observeLibrary().first().single().collectionIds

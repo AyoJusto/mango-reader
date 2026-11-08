@@ -15,9 +15,7 @@ import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlinx.coroutines.test.runTest
 
-/** Integration tests for [SqlCatalogCache], driven only through the [CatalogCache] contract. */
 class SqlCatalogCacheTest {
-    /** A programmable [Clock] stand-in: tests advance [instant] between puts to control first_seen_at stamps. */
     private class FixedClock(var instant: Instant) : Clock {
         override fun now(): Instant = instant
     }

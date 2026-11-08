@@ -1,6 +1,5 @@
 package dev.mango.core.domain
 
-/** Full detail view of one series, normalized at the engine boundary. No infrastructure here. */
 data class MangaDetails(
     val entry: MangaEntry,
     val authors: List<String> = emptyList(),

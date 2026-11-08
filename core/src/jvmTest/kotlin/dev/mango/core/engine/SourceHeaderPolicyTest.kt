@@ -12,16 +12,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.runBlocking
 
-/** A [CookieStore] whose [cookiesFor] always throws — proves a jar fault degrades, never sinks the caller. */
 private class ThrowingCookieStore : CookieStore {
     override suspend fun cookiesFor(host: String): List<StoredCookie> = error("jar read boom")
     override suspend fun put(cookie: StoredCookie) = error("not used")
 }
 
-/**
- * [DefaultSourceHeaderPolicy] mirrors [ApplicationHost]'s wire-boundary precedence for image
- * fetches, which never go through ApplicationHost itself.
- */
 class SourceHeaderPolicyTest {
     private fun newStore(): CookieStore {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())
@@ -33,7 +28,11 @@ class SourceHeaderPolicyTest {
         store: CookieStore = newStore(),
         userAgent: suspend (String) -> String? = { null },
         interceptRequests: (suspend (String, List<SourceImageRequest>) -> List<SourceImageRequest>)? = null,
-    ) = DefaultSourceHeaderPolicy(cookieStoreFor = { store }, userAgentFor = userAgent, interceptRequests = interceptRequests)
+    ) = DefaultSourceHeaderPolicy(
+        cookieStoreFor = { store },
+        userAgentFor = userAgent,
+        interceptRequests = interceptRequests
+    )
 
     @Test
     fun pinnedUserAgentFillsInWhenHeadersLackOne() = runBlocking {
@@ -83,7 +82,6 @@ class SourceHeaderPolicyTest {
             mapOf("Cookie" to "session=fresh"),
         )
 
-        // Set, not string equality: the jar's own cookie order isn't part of its contract.
         val pairs = result.getValue("Cookie").split("; ").map { it.substringBefore('=') to it.substringAfter('=') }
         assertEquals(setOf("session" to "fresh", "lang" to "en"), pairs.toSet())
     }
@@ -167,6 +165,54 @@ class SourceHeaderPolicyTest {
     }
 
     @Test
+    fun coverHeadersIncludeWhatTheInterceptorAdds() = runBlocking {
+        val result = policy(
+            userAgent = { "Pinned/1.0" },
+            interceptRequests = { _, requests -> requests.map { it.copy(headers = it.headers + ("Referer" to "https://example.com/")) } },
+        ).coverHeadersFor("src", "https://example.com/c.webp")
+
+        assertEquals("https://example.com/", result["Referer"])
+        assertEquals("Pinned/1.0", result["User-Agent"])
+    }
+
+    @Test
+    fun theInterceptorRunsOncePerSourceForCovers() = runBlocking {
+        var calls = 0
+        val policy = policy(
+            interceptRequests = { _, requests ->
+                calls++
+                requests.map { it.copy(headers = it.headers + ("Referer" to "https://example.com/")) }
+            },
+        )
+
+        policy.coverHeadersFor("a", "https://example.com/1.webp")
+        policy.coverHeadersFor("a", "https://example.com/2.webp")
+        val third = policy.coverHeadersFor("a", "https://example.com/3.webp")
+        policy.coverHeadersFor("b", "https://example.com/4.webp")
+
+        assertEquals(2, calls)
+        assertEquals("https://example.com/", third["Referer"])
+    }
+
+    @Test
+    fun aThrowingInterceptorDegradesCoverHeadersToThePlainPolicy() = runBlocking {
+        val result = policy(
+            userAgent = { "Pinned/1.0" },
+            interceptRequests = { _, _ -> error("cover boom") },
+        ).coverHeadersFor("src", "https://example.com/c.webp")
+
+        assertEquals(mapOf("User-Agent" to "Pinned/1.0"), result)
+    }
+
+    @Test
+    fun withoutAnInterceptorCoverHeadersEqualPlainHeaders() = runBlocking {
+        val policy = policy(userAgent = { "Pinned/1.0" })
+        val url = "https://example.com/c.webp"
+
+        assertEquals(policy.headersFor("src", url, emptyMap()), policy.coverHeadersFor("src", url))
+    }
+
+    @Test
     fun aThrowingInterceptBatchDegradesToJarAndUserAgentOnlyPages() = runBlocking {
         val store = newStore()
         store.put(StoredCookie(name = "cf_clearance", value = "token", domain = "example.com"))
@@ -176,7 +222,13 @@ class SourceHeaderPolicyTest {
             interceptRequests = { _, _ -> error("batch boom") },
         ).withPolicyHeaders(
             "src",
-            listOf(Page(index = 0, url = "https://example.com/a.jpg", headers = mapOf("Referer" to "https://example.com"))),
+            listOf(
+                Page(
+                    index = 0,
+                    url = "https://example.com/a.jpg",
+                    headers = mapOf("Referer" to "https://example.com")
+                )
+            ),
         )
 
         val page = result.single()

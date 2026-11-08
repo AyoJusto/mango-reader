@@ -34,15 +34,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-/**
- * SQLDelight- and filesystem-backed [DownloadManager]. Fetches chapter pages straight to disk
- * under `<root>/<sourceId>/<mangaId>/<chapterId>/NNNN.ext`.
- *
- * [processQueue] drains QUEUED rows sequentially, oldest first: one chapter is fully fetched
- * (or fails) before the next is picked up. A failure marks that row FAILED and moves on — it
- * never aborts the rest of the queue — so calling processQueue again after a failure is always
- * safe and simply resumes from whatever is still QUEUED.
- */
+/** Downloads chapter pages to `<root>/<sourceId>/<mangaId>/<chapterId>/NNNN.ext`; a failed chapter is marked FAILED and the queue continues. */
 class FileDownloadManager(
     private val db: MangoDatabase,
     private val catalog: CatalogRepository,
@@ -53,7 +45,6 @@ class FileDownloadManager(
     private val clock: Clock = Clock.System,
     private val headerPolicy: SourceHeaderPolicy? = null,
 ) : DownloadManager {
-    // ponytail: JUL because :core has no logging dependency; swap when the app picks one
     private val log = java.util.logging.Logger.getLogger(FileDownloadManager::class.java.name)
 
     // serializes concurrent processQueue callers: the second drains an empty queue
@@ -76,8 +67,6 @@ class FileDownloadManager(
         }
 
     override suspend fun enqueue(entry: MangaEntry, chapter: Chapter) = withContext(context) {
-        // re-enqueueing an existing (e.g. FAILED) row resets it to a fresh QUEUED/0/0 —
-        // resuming from the last completed page instead is a known upgrade path, not this one
         db.downloadsQueries.upsertDownload(
             source_id = entry.sourceId,
             manga_id = entry.mangaId,
@@ -95,8 +84,6 @@ class FileDownloadManager(
     override suspend fun processQueue(): Unit = withContext(context) {
         queueLock.withLock {
             while (true) {
-                // re-queried every iteration: the oldest QUEUED row after the previous one's
-                // outcome (DONE or FAILED) has already been written
                 val row = db.downloadsQueries.selectQueuedDownloads().executeAsList().firstOrNull() ?: break
                 downloadChapter(row.source_id, row.manga_id, row.chapter_id)
             }
@@ -116,12 +103,7 @@ class FileDownloadManager(
                 .resolve(safeSegment(sourceId))
                 .resolve(safeSegment(mangaId))
                 .resolve(safeSegment(chapterId))
-            // Prepared once for the whole chapter (interceptor chain + jar/UA/casing), not
-            // per page: a source whose signed URLs expire mid-chapter would break late pages —
-            // accepted, not mitigated (Paperback's own pipeline has the same shape).
             val preparedPages = headerPolicy?.withPolicyHeaders(sourceId, pages) ?: pages
-            // ponytail: pages within a chapter are fetched one at a time; parallel page
-            // fetches are the upgrade if downloads feel slow.
             preparedPages.forEachIndexed { i, page ->
                 val response = http.get(page.url) {
                     page.headers.forEach { (name, value) -> header(name, value) }
@@ -148,9 +130,6 @@ class FileDownloadManager(
         }
     }
 
-    // No dedicated "select one row by key" query exists (only selectAllDownloads and
-    // selectQueuedDownloads), so this filters the small in-memory row list instead of
-    // adding SQL.
     override suspend fun localPages(sourceId: String, mangaId: String, chapterId: String): List<String>? =
         withContext(context) {
             val row = db.downloadsQueries.selectAllDownloads().executeAsList().firstOrNull {
@@ -164,8 +143,7 @@ class FileDownloadManager(
                 .resolve(safeSegment(chapterId))
             if (!Files.isDirectory(chapterDir)) return@withContext null
 
-            // the "%04d." prefix on every filename makes lexicographic filename order the same
-            // as page order
+            // The "%04d." prefix makes filename order match page order.
             val files = Files.list(chapterDir).use { stream ->
                 stream.filter(Files::isRegularFile).sorted(compareBy { it.fileName.toString() }).toList()
             }
@@ -174,15 +152,11 @@ class FileDownloadManager(
             files.map { it.toAbsolutePath().toString() }
         }
 
-    // ponytail: no queueLock — clearing while a chapter is actively downloading may leave
-    // orphaned files for that one in-flight chapter (its progress updates hit no row, and a
-    // later clear removes the files); blocking the UI on a full queue drain isn't worth it.
+    // No queue lock: a chapter mid-download can leave files that a later clear removes.
     override suspend fun clearDownloads(sourceId: String, mangaId: String): Unit = withContext(context) {
         db.downloadsQueries.deleteDownloadsForManga(source_id = sourceId, manga_id = mangaId)
 
-        // Best-effort file sweep: the rows are already gone (no phantom "downloaded" state), so
-        // a locked file (Windows, mid-download) must not crash the caller's fire-and-forget
-        // scope — leftovers are orphans the next clear removes.
+        // Best-effort sweep: rows are already gone, so a locked file (Windows) must not crash the caller.
         val mangaDir = root.resolve(safeSegment(sourceId)).resolve(safeSegment(mangaId))
         try {
             if (Files.isDirectory(mangaDir)) {
@@ -216,21 +190,14 @@ class FileDownloadManager(
         )
     }
 
-    // the URL's own path, not its query string, so a signed "?sig=..." URL for a .png
-    // still resolves to "png" instead of leaking query params into a filename
+    // Use the URL path, not the query, so a signed "?sig=..." .png URL still yields "png".
     private fun extensionFor(url: String): String {
         val lastSegment = Url(url).encodedPath.substringAfterLast('/')
         val ext = lastSegment.substringAfterLast('.', "").lowercase()
         return if (ext.matches(SAFE_EXTENSION)) ext else "img"
     }
 
-    /**
-     * Extension-supplied ids (mangaId, chapterId — and sourceId, since this class can't rely
-     * on its CatalogRepository having guarded it) must never name a path outside [root]:
-     * Path.resolve escapes via `..` and DISCARDS the base entirely for absolute arguments.
-     * Well-behaved ids pass through readable; anything else becomes slug + content hash
-     * (deterministic, so re-enqueue lands in the same directory).
-     */
+    // Ids are extension-supplied: Path.resolve escapes via ".." and drops the base for absolute paths.
     private fun safeSegment(id: String): String {
         if (id.matches(SAFE_SEGMENT) && id != "." && id != "..") return id
         val hash = MessageDigest.getInstance("SHA-256").digest(id.encodeToByteArray()).toHexString().take(12)

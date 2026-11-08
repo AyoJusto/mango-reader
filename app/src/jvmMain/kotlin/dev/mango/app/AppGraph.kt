@@ -34,18 +34,12 @@ import kotlinx.coroutines.withContext
 
 private const val HTTP_CONNECT_TIMEOUT_MILLIS = 10_000L
 
-// sized for full image downloads, not just extension API calls; scheduleRequest applies
-// its own tighter timeout inside ApplicationHost for individual bundle-issued requests
+// Sized for image downloads; scheduleRequest applies its own tighter timeout.
 private const val HTTP_REQUEST_TIMEOUT_MILLIS = 120_000L
 private const val HTTP_SOCKET_TIMEOUT_MILLIS = 30_000L
 
-/**
- * The composition root: manual constructor DI, no framework. Wires the production :core
- * implementations together over a single on-disk data directory.
- */
 class AppGraph(dataDir: Path = defaultDataDir()) {
-    // db and http stay private: screens talk to the repository ports only (CLAUDE.md
-    // boundary); publishing either would hand the UI raw network and DB access
+    // db and http stay private so screens only reach repository ports.
     private val db: MangoDatabase
     private val http: HttpClient = HttpClient(CIO) {
         engine { requestTimeout = 0 }
@@ -74,12 +68,7 @@ class AppGraph(dataDir: Path = defaultDataDir()) {
 
         val dbFile = dataDir.resolve("mango.db")
         val url = "jdbc:sqlite:$dbFile"
-        // Fresh-DB detection by PRAGMA user_version, not file presence: the file appears as
-        // soon as the driver opens, so a crash mid-create would otherwise leave a schemaless
-        // file that bricks every later launch. user_version 0 means setup never completed,
-        // which means no user data can exist yet — safe to start over from an empty file.
-        // Any other version behind the current schema holds real user data (library,
-        // downloads) and gets migrated in place instead.
+        // Detect a fresh DB by user_version, not file presence: a crash mid-create leaves a schemaless file.
         var driver = JdbcSqliteDriver(url, Properties())
         val v = userVersion(driver)
         when {
@@ -92,8 +81,7 @@ class AppGraph(dataDir: Path = defaultDataDir()) {
             }
 
             v < MangoDatabase.Schema.version -> {
-                // migrate + stamp atomically: a crash between them would re-run the ALTERs
-                // on the next launch ("duplicate column") and brick the DB permanently
+                // Migrate and stamp atomically: a crash between them re-runs the ALTERs and bricks the DB.
                 MangoDatabase(driver).transaction {
                     MangoDatabase.Schema.migrate(driver, v, MangoDatabase.Schema.version)
                     stamp(driver, MangoDatabase.Schema.version)
@@ -141,8 +129,6 @@ class AppGraph(dataDir: Path = defaultDataDir()) {
         )
         extensions = InkdexRepo(http = http, bundleDir = bundleDir, catalog = catalog)
 
-        // embedded browser for the Cloudflare solve; CEF downloads into <dataDir>/jcef on
-        // first use. A fresh SqlCookieStore per source is cheap (DB-backed, stateless).
         jcef = JcefManager(dataDir.resolve("jcef"))
         challengeSolver = SingleFlightChallengeSolver(
             JcefChallengeSolver(
@@ -153,7 +139,6 @@ class AppGraph(dataDir: Path = defaultDataDir()) {
         )
     }
 
-    /** Release the embedded browser on app exit. */
     fun dispose() {
         jcef.dispose()
     }

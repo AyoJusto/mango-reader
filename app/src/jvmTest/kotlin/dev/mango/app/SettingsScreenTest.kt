@@ -1,8 +1,10 @@
 package dev.mango.app
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -11,10 +13,6 @@ import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
-/**
- * Flow test for the Settings screen: the current theme's name and controls are shown, and
- * picking an accent swatch fires the callback. Style mirrors ExtensionsScreenTest.
- */
 class SettingsScreenTest {
     @get:Rule
     val rule = createComposeRule()
@@ -27,9 +25,8 @@ class SettingsScreenTest {
             }
         }
 
-        // Board 09's Theme row sub-copy is "<name> · yours to edit", not the bare theme name —
-        // this replaces the old bare-name assertion (display-copy change, not a behavior change).
-        rule.onNodeWithText("${MangoDark.name} · yours to edit").assertExists()
+        rule.onAllNodesWithText(MangoDark.name).assertCountEquals(1)
+        rule.onNodeWithText("yours to edit", substring = true).assertDoesNotExist()
         rule.onNodeWithText("Export .json").assertExists()
         rule.onNodeWithText("Import…").assertExists()
         ACCENT_PRESETS.forEach { (label, _) ->
@@ -37,7 +34,25 @@ class SettingsScreenTest {
         }
     }
 
-    // Structure smoke test for board 09: the three micro-label group headers must render.
+    @Test
+    fun rowsCarryNoSubtitlesAndSliderValuesCarryTheirUnit() {
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                SettingsScreenContent(theme = MangoDark, onThemeChange = {})
+            }
+        }
+
+        listOf(
+            "Recolors every accent token instantly",
+            "Applies to the interface, not the pages",
+            "Width of the centered reading column",
+            "dp/s while auto-scroll (A) is running",
+            "Blank the mouse cursor with the reader overlay",
+        ).forEach { rule.onNodeWithText(it).assertDoesNotExist() }
+        rule.onNodeWithText("120 dp/s").assertExists()
+        rule.onNodeWithText("880 dp").assertExists()
+    }
+
     @Test
     fun showsAllThreeGroupHeaders() {
         rule.setContent {
@@ -69,10 +84,6 @@ class SettingsScreenTest {
         assertEquals(MangoDark.bg0, applied?.bg0)
     }
 
-    // Completeness test for the settings registry: every SETTINGS_ENTRIES title must back a
-    // real control on the rendered screen via its settingsEntryTag (not the visible label —
-    // button wording is free to change), so a future registry entry with no matching control
-    // fails loudly here.
     @Test
     fun everyRegisteredSettingsEntryHasARenderedControl() {
         rule.setContent {
@@ -88,7 +99,8 @@ class SettingsScreenTest {
 
     @Test
     fun selectingAThemeFromTheDropdownAppliesThePristineLibraryEntry() {
-        val custom = MangoDark.copy(name = "Custom Theme", accent = ACCENT_PRESETS.first { it.first == "Violet" }.second)
+        val custom =
+            MangoDark.copy(name = "Custom Theme", accent = ACCENT_PRESETS.first { it.first == "Violet" }.second)
         var applied: MangoTheme? = null
 
         rule.setContent {

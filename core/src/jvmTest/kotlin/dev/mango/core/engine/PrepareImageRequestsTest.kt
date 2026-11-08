@@ -5,12 +5,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.runBlocking
 
-/**
- * [PaperbackExtension.prepareImageRequests] through the synthetic bundle's interceptor: a batch
- * runs through one fresh context (initialise + the interceptor chain paid once, not per item),
- * in order, with a per-item degrade on interceptor failure. No HTTP client is needed — the chain
- * never dispatches.
- */
 class PrepareImageRequestsTest {
     @Test
     fun batchRunsThroughTheInterceptorInOrderAndDegradesAThrowingItem() = runBlocking {

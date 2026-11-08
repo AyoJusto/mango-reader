@@ -11,19 +11,11 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
-/** One past search: the query text and when it ran, epoch millis. */
 @Serializable
 data class SearchHistoryEntry(val query: String, val at: Long)
 
 private val searchHistorySerializer = ListSerializer(SearchHistoryEntry.serializer())
 
-/**
- * Tiny persisted key-value settings over [Properties] at `<dataDir>/settings.properties`.
- * Loaded once into memory at construction; each setter persists immediately.
- *
- * Missing or malformed files fall back to defaults rather than crashing startup: a settings
- * file is a convenience, not a trust boundary worth failing the app over.
- */
 class Settings(dataDir: Path) {
     private val log = Logger.getLogger(Settings::class.java.name)
     private val file: Path = dataDir.resolve("settings.properties")
@@ -38,8 +30,6 @@ class Settings(dataDir: Path) {
         }
     }
 
-    // dp/sec for the reader's A-key auto-scroll. A malformed value falls back to the default,
-    // same stance as the file-load fallback above.
     var autoScrollSpeed: Float
         get() = props.getProperty("autoScrollSpeed")?.toFloatOrNull() ?: 120f
         set(value) {
@@ -47,8 +37,6 @@ class Settings(dataDir: Path) {
             save()
         }
 
-    // "grid" or "list". Any other stored value (a future format, hand-edited file) falls back
-    // to the default rather than propagating an unrecognized mode into the UI.
     var libraryView: String
         get() = props.getProperty("libraryView")?.takeIf { it == "grid" || it == "list" } ?: "grid"
         set(value) {
@@ -56,8 +44,6 @@ class Settings(dataDir: Path) {
             save()
         }
 
-    // dp width of the reader's centered reading column. Same malformed-falls-back-to-default
-    // stance as autoScrollSpeed above.
     var stripWidth: Float
         get() = props.getProperty("stripWidth")?.toFloatOrNull() ?: 880f
         set(value) {
@@ -65,8 +51,6 @@ class Settings(dataDir: Path) {
             save()
         }
 
-    // Whether the reader blanks the mouse cursor together with the controls overlay. Same
-    // malformed-falls-back-to-default stance as the other settings above.
     var hideCursorInReader: Boolean
         get() = props.getProperty("hideCursorInReader")?.toBooleanStrictOrNull() ?: true
         set(value) {
@@ -74,9 +58,7 @@ class Settings(dataDir: Path) {
             save()
         }
 
-    // The interface font family, by system name; null/absent means the platform default. A
-    // name for a font that's no longer installed is preserved rather than cleared — see
-    // resolveAppFontFamily's KDoc for the fallback behavior.
+    // A name for an uninstalled font is preserved, not cleared, so reinstalling applies it.
     var fontFamilyName: String?
         get() = props.getProperty("fontFamily")?.takeIf { it.isNotBlank() }
         set(value) {
@@ -88,8 +70,6 @@ class Settings(dataDir: Path) {
             save()
         }
 
-    // Epoch millis of the last completed library-wide update check; null means never checked.
-    // Same nullable-property pattern as fontFamilyName above.
     var libraryCheckedAt: Long?
         get() = props.getProperty("libraryCheckedAt")?.toLongOrNull()
         set(value) {
@@ -101,9 +81,6 @@ class Settings(dataDir: Path) {
             save()
         }
 
-    // Recent search queries, newest first. Same fallback stance as every property above: absent
-    // or malformed JSON reads as no history rather than failing. Setting an empty list removes
-    // the key, matching the nullable properties' clear-on-empty behavior.
     var searchHistory: List<SearchHistoryEntry>
         get() {
             val json = props.getProperty("searchHistory") ?: return emptyList()

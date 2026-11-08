@@ -1,6 +1,5 @@
 package dev.mango.core.domain
 
-/** One search/browse result, normalized at the engine boundary. No infrastructure here. */
 data class MangaEntry(
     val sourceId: String,
     val mangaId: String,

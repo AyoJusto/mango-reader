@@ -1,6 +1,8 @@
 package dev.mango.app
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
@@ -18,11 +20,6 @@ import kotlin.test.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
-/**
- * Canned [CatalogRepository] whose [homeSections] throws a scripted failure on the FIRST call
- * for a source, then answers from [sectionsBySource] — [FakeCatalogRepository] can express
- * neither the throw (challenge rendering) nor the throw-then-succeed solve flow.
- */
 private class ScriptedHomeSectionsCatalogRepository(
     private val sources: List<SourceInfo>,
     private val sectionsBySource: Map<String, List<HomeSection>> = emptyMap(),
@@ -56,10 +53,6 @@ private class ScriptedHomeSectionsCatalogRepository(
         error("ScriptedHomeSectionsCatalogRepository.uninstall is not stubbed")
 }
 
-/**
- * Wraps any [CatalogRepository] to count [homeSections] calls per sourceId — mirror of
- * [ScreenFlowTest]'s CountingCatalogRepository pattern, kept local for the same reason.
- */
 private class SectionCountingCatalogRepository(private val delegate: CatalogRepository) : CatalogRepository {
     val homeSectionsCalls = mutableMapOf<String, Int>()
 
@@ -90,11 +83,6 @@ private class SectionCountingCatalogRepository(private val delegate: CatalogRepo
     override suspend fun uninstall(sourceId: String) = delegate.uninstall(sourceId)
 }
 
-/**
- * End-to-end flow through [AppShell]'s Browse tab, exercising the discover/home sections
- * rendering, its precedence over stale search results when switching source chips, the session
- * cache, and the Cloudflare-challenge/solve path for a source's sections fetch.
- */
 class BrowseFlowTest {
     @get:Rule
     val rule = createComposeRule()
@@ -118,6 +106,7 @@ class BrowseFlowTest {
 
         rule.onNodeWithText("Popular").assertExists()
         rule.onNodeWithText("Solo Leveling").assertExists()
+        rule.onAllNodesWithText("FlameComics").assertCountEquals(1)
     }
 
     @Test
@@ -151,20 +140,17 @@ class BrowseFlowTest {
 
         rule.navigateVia("Browse")
 
-        // search source A (FlameComics, selected by default)
         rule.onNodeWithText("Search…").performTextInput("solo")
         rule.waitForIdle()
         rule.onNodeWithText("solo").performImeAction()
         rule.waitForIdle()
         rule.onNodeWithText("Solo Leveling").assertExists()
 
-        // switching to B shows B's sections, not A's stale results grid
         rule.onNodeWithText("MangaBat").performClick()
         rule.waitForIdle()
         rule.onNodeWithText("Tower of God").assertExists()
         rule.onNodeWithText("Solo Leveling").assertDoesNotExist()
 
-        // switching back to A shows A's results again (searchedSourceId was never cleared)
         rule.onNodeWithText("FlameComics").performClick()
         rule.waitForIdle()
         rule.onNodeWithText("Solo Leveling").assertExists()
@@ -277,8 +263,6 @@ class BrowseFlowTest {
 
         rule.onNodeWithText("Popular").assertExists()
         rule.onNodeWithText("Solo Leveling").assertExists()
-        // refetch hit only the solved source: initial challenge + post-solve retry, and the
-        // never-selected source was never fetched at all (polite-scraper rule)
         assertEquals(2, catalog.homeSectionsCalls["FlameComics"])
         assertEquals(0, catalog.homeSectionsCalls["MangaBat"] ?: 0)
         assertEquals(1, solver.solved.size)

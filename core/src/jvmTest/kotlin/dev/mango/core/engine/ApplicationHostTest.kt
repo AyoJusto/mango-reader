@@ -13,11 +13,6 @@ import org.graalvm.polyglot.proxy.ProxyObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-/**
- * Drives [ApplicationHost] straight through its ProxyObject/Value surface (no authored JS
- * text — every call goes through the polyglot API directly, same as CLAUDE.md requires of
- * the production bindings themselves).
- */
 class ApplicationHostTest {
     private fun newContext(): Context =
         Context.newBuilder("js").option("engine.WarnInterpreterOnly", "false").build()
@@ -30,8 +25,6 @@ class ApplicationHostTest {
                 HttpStatusCode.OK,
                 headers {
                     append(HttpHeaders.ContentType, "application/json")
-                    // an Expires value containing a comma is exactly what breaks naive
-                    // comma-joining of multi-value headers
                     append(HttpHeaders.SetCookie, "session=abc123; Path=/; Expires=Wed, 09 Jun 2027 10:18:14 GMT")
                     append(HttpHeaders.SetCookie, "theme=dark; Path=/")
                 },
@@ -60,8 +53,6 @@ class ApplicationHostTest {
 
     @Test
     fun bundleHeaderNamesAreCanonicalizedOnTheWire() = runBlocking {
-        // bundles send h2-style lowercase names; over HTTP/1.1 that casing is a bot
-        // fingerprint — Cloudflare challenges the request (found live against a Madara source)
         var wireNames: List<String>? = null
         val engine = MockEngine { request ->
             wireNames = request.headers.entries().map { it.key }
@@ -79,8 +70,6 @@ class ApplicationHostTest {
                         mapOf(
                             "user-agent" to "test-ua",
                             "referer" to "https://example.com/",
-                            // deliberate casing passes through; sec-* stays lowercase (Chrome
-                            // emits client hints lowercase even over h1)
                             "DNT" to "1",
                             "sec-ch-ua" to "\"Chromium\";v=\"143\"",
                         ),
@@ -110,8 +99,6 @@ class ApplicationHostTest {
             val app = host.applicationProxyFor(context)
             var responseStatusSeenByInterceptor: Int? = null
 
-            // an interceptor "target" implemented purely in Kotlin, exactly like a bundle's
-            // `_`-derived interceptor class would look from the host's point of view
             val interceptorTarget = ProxyObject.fromMap(
                 mapOf(
                     "interceptRequest" to ProxyExecutable { args ->
@@ -158,9 +145,6 @@ class ApplicationHostTest {
     fun stateRoundTripPreservesDatesAcrossFreshContexts() {
         val host = ApplicationHost()
 
-        // module top level in a fresh context is exactly where a bundle's cookie store
-        // reads state back and calls Date methods on it directly, so context1's save and
-        // context2's load must be two genuinely separate contexts, like real calls are.
         newExtensionContext().use { context1 ->
             val app1 = host.applicationProxyFor(context1)
             val setState = app1.getMember("setState") as ProxyExecutable
@@ -176,8 +160,6 @@ class ApplicationHostTest {
             val getState = app2.getMember("getState") as ProxyExecutable
             val restored = getState.execute(context2.asValue("cookies"))
 
-            // asserted guest-side (not via the host's own polyglot introspection) because
-            // that's how a bundle actually consumes restored state
             val checkExpiresIsADate = context2.eval(
                 "js",
                 "(o) => o.expires instanceof Date && o.expires.getTime() === 1784222753000",
@@ -221,10 +203,8 @@ class ApplicationHostTest {
         assertEquals("<b>&\"'</b>", decodeHtmlEntities("&lt;b&gt;&amp;&quot;&apos;&lt;/b&gt;"))
         assertEquals("AB", decodeHtmlEntities("&#65;&#66;"))
         assertEquals("AB", decodeHtmlEntities("&#x41;&#x42;"))
-        // astral code points must not be truncated to 16 bits
         assertEquals("📖", decodeHtmlEntities("&#x1F4D6;"))
         assertEquals("📖", decodeHtmlEntities("&#128214;"))
-        // malformed/out-of-range entities stay literal instead of throwing
         assertEquals("&#99999999999;", decodeHtmlEntities("&#99999999999;"))
         assertEquals("&#x110000;", decodeHtmlEntities("&#x110000;"))
     }

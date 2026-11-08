@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -28,12 +29,6 @@ import kotlin.time.Clock
 import org.junit.Rule
 import org.junit.Test
 
-/**
- * End-to-end palette flows through [AppShell], backed by [FakeLibraryRepository]. The
- * underlying screen (Library, by default) stays composed behind the scrim, so every lookup here
- * is scoped to [PALETTE_TEST_TAG]'s subtree — otherwise a hit title that's also a library grid
- * caption (e.g. "Solo Leveling") would match twice and fail with an ambiguous-node error.
- */
 class PaletteFlowTest {
     @get:Rule
     val rule = createComposeRule()
@@ -75,17 +70,11 @@ class PaletteFlowTest {
         palette.visible = true
         rule.waitForIdle()
 
-        // Narrow to a query only the "Library" screen hit matches (no accent, manhwa, or
-        // setting title shares that subsequence): the unfiltered "All" list sorts Appearance
-        // and Manhwa hits ahead of Screens alphabetically, so an unnarrowed Screens hit can sit
-        // outside the LazyColumn's composed viewport despite being a real candidate.
         rule.onNodeWithText("Search everywhere…").performTextInput("Library")
         rule.waitForIdle()
 
-        // "Screens" is the category label the Screens provider stamps on every hit; nothing
-        // else in the app renders that word, so its presence alone proves the screen hit is showing.
-        val screenHits = rule.onAllNodes(hasText("Screens") and inPalette).fetchSemanticsNodes()
-        assertTrue(screenHits.isNotEmpty(), "expected the Screens-category hit to be showing")
+        val screenHits = rule.onAllNodes(hasText("Library") and hasClickAction() and inPalette).fetchSemanticsNodes()
+        assertTrue(screenHits.isNotEmpty(), "expected the Library screen hit to be showing")
     }
 
     @Test
@@ -122,8 +111,6 @@ class PaletteFlowTest {
         val library = FakeLibraryRepository(
             listOf(LibraryItem(first, Clock.System.now()), LibraryItem(second, Clock.System.now())),
         )
-        // both manga get canned details so a broken Down handler fails the title assertions
-        // below (the wrong Details renders) instead of blowing up on a missing canned entry
         val catalog = FakeCatalogRepository(
             details = mapOf(
                 ("FlameComics" to "manga-1") to MangaDetails(entry = first, status = MangaStatus.ONGOING),
@@ -150,9 +137,6 @@ class PaletteFlowTest {
         palette.visible = true
         rule.waitForIdle()
 
-        // "Solo" fuzzy-matches exactly these two library titles (no screen, accent, or setting
-        // name has that subsequence); equal scores tie-break by title, so hits are
-        // [Solo Leveling, Solo Prime] and Down must move the selection to the SECOND one.
         rule.onNodeWithText("Search everywhere…").performTextInput("Solo")
         rule.waitForIdle()
 
@@ -162,8 +146,6 @@ class PaletteFlowTest {
         }
         rule.waitForIdle()
 
-        // Details of the second hit: "In library ✓" is Details-only text, and the two
-        // title assertions distinguish Solo Prime's Details from Solo Leveling's.
         rule.onNodeWithText("In library ✓").assertExists()
         rule.onNodeWithText("Solo Prime").assertExists()
         rule.onNodeWithText("Solo Leveling").assertDoesNotExist()
@@ -195,6 +177,50 @@ class PaletteFlowTest {
     }
 
     @Test
+    fun footerHasNoKeyHints() {
+        val palette = PaletteState()
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                AppShell(
+                    FakeLibraryRepository(libraryItems()),
+                    FakeCatalogRepository(),
+                    FakeDownloadManager(),
+                    palette = palette
+                )
+            }
+        }
+        rule.waitForIdle()
+        palette.visible = true
+        rule.waitForIdle()
+
+        rule.onNodeWithText("navigate", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun rowsWithoutSubtitleShowNoCategoryLine() {
+        val palette = PaletteState()
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                AppShell(
+                    FakeLibraryRepository(libraryItems()),
+                    FakeCatalogRepository(),
+                    FakeDownloadManager(),
+                    palette = palette
+                )
+            }
+        }
+        rule.waitForIdle()
+        palette.visible = true
+        rule.waitForIdle()
+
+        rule.onRoot().performKeyInput { pressKey(Key.Tab) }
+        rule.onRoot().performKeyInput { pressKey(Key.Tab) }
+        rule.waitForIdle()
+
+        rule.onAllNodes(hasText("Actions") and inPalette).assertCountEquals(1)
+    }
+
+    @Test
     fun tabKeySwitchesToTheManhwaTabAndScreenHitsDisappear() {
         val library = FakeLibraryRepository(libraryItems())
         val palette = PaletteState()
@@ -213,18 +239,13 @@ class PaletteFlowTest {
         palette.visible = true
         rule.waitForIdle()
 
-        // tabs are ["All", "Manhwa", "Actions"]; one Tab from "All" lands on "Manhwa".
         rule.onRoot().performKeyInput { pressKey(Key.Tab) }
         rule.waitForIdle()
 
-        rule.onAllNodes(hasText("Screens") and inPalette).assertCountEquals(0)
+        rule.onAllNodes(hasText("Library") and hasClickAction() and inPalette).assertCountEquals(0)
         rule.onNode(hasText("Solo Leveling") and inPalette).assertExists()
     }
 
-    // Completeness test for the settings registry: every SETTINGS_ENTRIES title must surface a
-    // hit in the palette, so a future registry entry with no matching provider output fails
-    // loudly here. Also covers the end-to-end behavior: selecting the "Setting: Auto-scroll
-    // speed" hit navigates to the Settings screen.
     @Test
     fun everyRegisteredSettingsEntrySurfacesAPaletteHitAndSelectingOneNavigatesToSettings() {
         val library = FakeLibraryRepository(libraryItems())
@@ -245,12 +266,6 @@ class PaletteFlowTest {
         palette.visible = true
         rule.waitForIdle()
 
-        // Narrow to the "Setting:" prefix first (colon included): with the unfiltered "All"
-        // list, the LazyColumn only composes what's within the viewport, and library/screen
-        // hits sort ahead of "Settings" alphabetically, so an unnarrowed entry can be off-screen
-        // and absent from the semantics tree despite being a real candidate. The colon also
-        // excludes the Screens-category "Settings" hit itself (its title has no colon), which
-        // would otherwise occupy a viewport slot ahead of the alphabetically-last entries.
         rule.onNodeWithText("Search everywhere…").performTextInput("Setting:")
         rule.waitForIdle()
 
@@ -258,7 +273,6 @@ class PaletteFlowTest {
             rule.onNode(hasText("Setting: $title") and inPalette).assertExists()
         }
 
-        // Narrow further to the single "Setting: Auto-scroll speed" hit and run it.
         rule.onNodeWithText("Setting:").performTextClearance()
         rule.waitForIdle()
         rule.onNodeWithText("Search everywhere…").performTextInput("Setting: Auto-scroll speed")
@@ -267,15 +281,10 @@ class PaletteFlowTest {
         rule.onRoot().performKeyInput { pressKey(Key.Enter) }
         rule.waitForIdle()
 
-        // Palette closes on run, and "Theme" is the Settings screen's own heading text — no
-        // other screen or palette hit renders that exact string — so its presence alone proves
-        // the hit navigated to Settings.
         assertFalse(palette.visible)
         rule.onNodeWithText("Theme").assertExists()
     }
 
-    // New-settings coverage (board 09): both new reader settings must be reachable exactly like
-    // any other registered setting — a hit exists and running it navigates to Settings.
     @Test
     fun stripWidthAndHideCursorSettingsHitsNavigateToSettings() {
         val library = FakeLibraryRepository(libraryItems())
@@ -297,10 +306,6 @@ class PaletteFlowTest {
             palette.visible = true
             rule.waitForIdle()
 
-            // Narrows to the single matching hit; no separate existence assertion first (the
-            // query text now equals the hit's own title, so the input field's own EditableText
-            // would double-match a hasText lookup) — running it and observing the navigation
-            // below is proof enough it existed, same idiom as the Auto-scroll-speed run above.
             rule.onNodeWithText("Search everywhere…").performTextInput("Setting: $title")
             rule.waitForIdle()
 
@@ -308,16 +313,10 @@ class PaletteFlowTest {
             rule.waitForIdle()
 
             assertFalse(palette.visible)
-            // "Theme" is the Settings screen's own row title, same uniqueness rationale as the
-            // completeness test above — it proves the hit navigated to Settings.
             rule.onNodeWithText("Theme").assertExists()
         }
     }
 
-    // Completeness test for the accent registry: every ACCENT_PRESETS label must surface an
-    // "Accent: <label>" hit under the "Appearance" category, so a future preset with no
-    // matching provider output fails loudly here. Also covers the end-to-end behavior: picking
-    // one recolors the current theme's accent and leaves every other token untouched.
     @Test
     fun everyAccentPresetSurfacesAPaletteHitAndSelectingOneRecolorsTheAccent() {
         val library = FakeLibraryRepository(libraryItems())
@@ -342,8 +341,6 @@ class PaletteFlowTest {
         palette.visible = true
         rule.waitForIdle()
 
-        // Narrow to the "Accent:" prefix first — same rationale as the settings completeness
-        // test above: the unfiltered "All" list only composes what's within the viewport.
         rule.onNodeWithText("Search everywhere…").performTextInput("Accent:")
         rule.waitForIdle()
 
@@ -365,14 +362,12 @@ class PaletteFlowTest {
         assertEquals(MangoDark.bg0, appliedTheme.bg0)
     }
 
-    // Dynamic completeness: one "Theme: <name>" hit per library entry, so a future import with
-    // no matching provider output fails loudly here. Also covers the end-to-end behavior:
-    // selecting one applies that exact library entry (the accent-reset path).
     @Test
     fun everyThemeInTheLibrarySurfacesADynamicPaletteHitAndSelectingOneAppliesIt() {
         val library = FakeLibraryRepository(libraryItems())
         val palette = PaletteState()
-        val custom = MangoDark.copy(name = "Custom Theme", accent = ACCENT_PRESETS.first { it.first == "Violet" }.second)
+        val custom =
+            MangoDark.copy(name = "Custom Theme", accent = ACCENT_PRESETS.first { it.first == "Violet" }.second)
         var appliedTheme: MangoTheme = MangoDark
 
         rule.setContent {
@@ -394,8 +389,6 @@ class PaletteFlowTest {
         palette.visible = true
         rule.waitForIdle()
 
-        // Narrow to the "Theme:" prefix first — same rationale as the accent completeness test
-        // above: the unfiltered "All" list only composes what's within the viewport.
         rule.onNodeWithText("Search everywhere…").performTextInput("Theme:")
         rule.waitForIdle()
 
@@ -414,8 +407,6 @@ class PaletteFlowTest {
         assertEquals(custom, appliedTheme)
     }
 
-    // Completeness test for the one-off actions registry: the sidebar toggle must surface a
-    // palette hit, and running it must actually open the sidebar (search-everywhere rule).
     @Test
     fun toggleSidebarActionSurfacesAPaletteHitAndRunningItOpensTheSidebar() {
         val library = FakeLibraryRepository(libraryItems())
@@ -427,9 +418,6 @@ class PaletteFlowTest {
         palette.visible = true
         rule.waitForIdle()
 
-        // "sidebar" is a subsequence of no other hit title, so the action is both proven
-        // present and left as the single (selected) hit for Enter below. The query text itself
-        // never equals the full hit title, so the exact-text lookup can't collide with it.
         rule.onNodeWithText("Search everywhere…").performTextInput("sidebar")
         rule.waitForIdle()
 
@@ -442,9 +430,6 @@ class PaletteFlowTest {
         rule.onNodeWithTag(SIDEBAR_TEST_TAG).assertExists()
     }
 
-    // Completeness test for the actions registry: the library-wide update check must surface a
-    // palette hit (search-everywhere rule); running it is covered end to end by
-    // LibraryFlowTest.clickingLibraryRefreshRunsALibraryWideUpdateCheckThroughAppShell.
     @Test
     fun checkForUpdatesActionSurfacesAPaletteHit() {
         val library = FakeLibraryRepository(libraryItems())
@@ -456,16 +441,12 @@ class PaletteFlowTest {
         palette.visible = true
         rule.waitForIdle()
 
-        // A subsequence, not the full title: the query text must never equal the hit's own
-        // title, or the input field's own EditableText would double-match the lookup below.
         rule.onNodeWithText("Search everywhere…").performTextInput("for updates")
         rule.waitForIdle()
 
         rule.onNode(hasText("Check for updates") and inPalette).assertExists()
     }
 
-    // Completeness test for the actions registry: clearing the search history must surface a
-    // palette hit (search-everywhere rule).
     @Test
     fun clearSearchHistoryActionSurfacesAPaletteHit() {
         val library = FakeLibraryRepository(libraryItems())
@@ -477,16 +458,12 @@ class PaletteFlowTest {
         palette.visible = true
         rule.waitForIdle()
 
-        // A subsequence, not the full title: the query text must never equal the hit's own
-        // title, or the input field's own EditableText would double-match the lookup below.
         rule.onNodeWithText("Search everywhere…").performTextInput("search history")
         rule.waitForIdle()
 
         rule.onNode(hasText("Clear search history") and inPalette).assertExists()
     }
 
-    // Completeness test for the actions registry: "Manage collections…" must surface a palette
-    // hit, and running it must actually open the manage-collections dialog.
     @Test
     fun manageCollectionsActionSurfacesAPaletteHitAndRunningItOpensTheDialog() {
         val library = FakeLibraryRepository(libraryItems())
@@ -507,13 +484,9 @@ class PaletteFlowTest {
         rule.waitForIdle()
 
         assertFalse(palette.visible)
-        // The dialog's own heading — no ellipsis, unlike the palette hit's title — proves it opened.
         rule.onNodeWithText("Manage collections").assertExists()
     }
 
-    // Dynamic completeness: one "Collection: <name>" hit per shelf plus "Collection: All", so a
-    // future collection with no matching provider output fails loudly here. Also covers the
-    // end-to-end behavior: picking one filters the Library screen underneath.
     @Test
     fun everyCollectionSurfacesADynamicPaletteHitAndSelectingOneFiltersTheLibrary() {
         val filed = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")

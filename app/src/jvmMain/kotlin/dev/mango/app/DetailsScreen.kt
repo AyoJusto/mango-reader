@@ -31,12 +31,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
-/**
- * Stateful loader: paints the persisted [catalogCache] entry immediately when present, then
- * always revalidates live and tracks library membership. With [autoContinue] set, fires the
- * Continue action exactly once when the chapter list has loaded and the latest-progress chapter
- * is available in it.
- */
+/** Paints the cached entry first, then always revalidates live. */
 @Composable
 fun DetailsScreen(
     sourceId: String,
@@ -64,8 +59,6 @@ fun DetailsScreen(
     var firstSeenAt by remember(sourceId, mangaId) { mutableStateOf<Map<String, Instant>>(emptyMap()) }
     var openedSnapshot by remember(sourceId, mangaId) { mutableStateOf<Instant?>(null) }
     var revalidating by remember(sourceId, mangaId) { mutableStateOf(false) }
-    // Guards the openedSnapshot capture + markOpened call to run exactly once per series visit,
-    // not on every reloadKey-triggered re-run of the load effect below.
     var openedCaptured by remember(sourceId, mangaId) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val libraryItems by library.observeLibrary().collectAsState(initial = emptyList())
@@ -79,16 +72,11 @@ fun DetailsScreen(
     val currentLibraryItem = libraryItems.find { it.entry.sourceId == sourceId && it.entry.mangaId == mangaId }
     val inLibrary = currentLibraryItem != null
 
-    // True once a usable chapter list + progress pair is in state: immediately after a cache
-    // hit, or after the live fetch resolves (either way) on a cold open. The auto-continue
-    // fallback below must not conclude "nothing to continue into" before this point.
     var chaptersSettled by remember(sourceId, mangaId) { mutableStateOf(false) }
     LaunchedEffect(sourceId, mangaId, reloadKey) {
         error = null
         challengeUrl = null
-        // Snapshot the series' previous open time BEFORE stamping a new one, then stamp — once
-        // per series visit, not on every reloadKey-triggered re-run of this effect. A manga not
-        // in the library has no matching item, so the snapshot stays null and markOpened no-ops.
+        // Snapshot the previous open time before stamping a new one.
         if (!openedCaptured) {
             openedSnapshot = library.observeLibrary().first()
                 .find { it.entry.sourceId == sourceId && it.entry.mangaId == mangaId }
@@ -102,17 +90,12 @@ fun DetailsScreen(
             chapters = cached.chapters
             checkedAt = cached.checkedAt
             firstSeenAt = cached.firstSeenAt
-            // Unconditional: a manga not in the library has no library_item row, so the UPDATE
-            // simply no-ops rather than needing a membership check here.
             library.setChapterCount(sourceId, mangaId, chapters.size)
             finishedChapterIds = library.finishedChapterIds(sourceId, mangaId)
             latestProgress = library.latestProgress(sourceId, mangaId)
             chaptersSettled = true
         }
-        // Always revalidate live. A cached copy already on screen makes failure here silent —
-        // the stale render stays instead of being replaced by an error or challenge card. Once
-        // a manga is cached, no Details open surfaces a challenge for it; the Reader's Solve
-        // button (live page fetches still throw there) is the path that refreshes clearance.
+        // A cached copy on screen makes live failure silent; the Reader's Solve button refreshes clearance.
         revalidating = true
         try {
             val loadedDetails = catalog.details(sourceId, mangaId)
@@ -120,13 +103,10 @@ fun DetailsScreen(
             catalogCache.put(sourceId, mangaId, loadedDetails, loadedChapters)
             details = loadedDetails
             chapters = loadedChapters
-            // The cache is the only stamper of checkedAt/firstSeenAt; re-read what put() just
-            // wrote rather than computing stamps here.
             catalogCache.get(sourceId, mangaId)?.let { refreshed ->
                 checkedAt = refreshed.checkedAt
                 firstSeenAt = refreshed.firstSeenAt
             }
-            // Unconditional: revalidation may have changed the chapter count.
             library.setChapterCount(sourceId, mangaId, chapters.size)
             if (cached == null) {
                 finishedChapterIds = library.finishedChapterIds(sourceId, mangaId)
@@ -148,14 +128,9 @@ fun DetailsScreen(
         chaptersSettled = true
     }
 
-    // While an auto-continue is pending, Details acts as a headless loader: a neutral veil
-    // renders instead of the screen, so the pass-through reads sidebar -> reader with no
-    // intermediate content flash. The veil drops only when continuing turns out impossible
-    // (no progress row, its chapter gone from the list, or nothing after the latest chapter),
-    // decided strictly after [chaptersSettled] so a slow load isn't mistaken for a dead end.
+    // The veil hides Details during a pending auto-continue; it drops only after chaptersSettled.
     val passThrough = remember(sourceId, mangaId) { mutableStateOf(autoContinue) }
-    // Exactly-once guard: recompositions and progress refreshes after the jump must not
-    // re-fire the auto-continue, or backing out of the Reader would bounce straight back in.
+    // Exactly-once so backing out of the Reader doesn't bounce straight back in.
     val autoContinueFired = remember { mutableStateOf(false) }
     LaunchedEffect(autoContinue, chapters, latestProgress, chaptersSettled) {
         if (!autoContinue || autoContinueFired.value) return@LaunchedEffect
@@ -234,18 +209,13 @@ fun DetailsScreen(
             onAddToLibrary = {
                 scope.launch {
                     library.addToLibrary(currentDetails.entry)
-                    // The freshly inserted row starts at chapter_count 0; the loaded
-                    // chapter list is at hand, so the unread badge is right immediately
-                    // instead of after the next Details visit.
                     library.setChapterCount(sourceId, mangaId, chapters.size)
                 }
             },
             onRemoveFromLibrary = { scope.launch { library.removeFromLibrary(sourceId, mangaId) } },
             onSetMembership = { newIds ->
                 scope.launch {
-                    // A checkbox toggled from outside the library must add the series first —
-                    // setMembership alone would write a membership row with no library row behind
-                    // it, invisible to the user.
+                    // Add the series first: setMembership alone leaves a membership row with no library row.
                     if (!inLibrary) {
                         library.addToLibrary(currentDetails.entry)
                         library.setChapterCount(sourceId, mangaId, chapters.size)
@@ -260,9 +230,6 @@ fun DetailsScreen(
             onClearStorage = { scope.launch { downloads.clearDownloads(sourceId, mangaId) } },
             onMarkAllFinished = {
                 scope.launch {
-                    // ponytail: one progress upsert per chapter — fine at chapter-list scale
-                    // (hundreds of rows); a repository-level bulk mark-finished is the upgrade
-                    // path if it ever drags.
                     chapters.forEach { chapter ->
                         library.setProgress(
                             sourceId,
@@ -273,8 +240,6 @@ fun DetailsScreen(
                             chapterNumber = chapter.number,
                         )
                     }
-                    // Re-read the same state the load effect populates, so the rows and the
-                    // Continue button reflect the new progress without renavigation.
                     finishedChapterIds = library.finishedChapterIds(sourceId, mangaId)
                     latestProgress = library.latestProgress(sourceId, mangaId)
                 }

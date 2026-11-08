@@ -1,4 +1,3 @@
-/** Pure details-page presentation: header, metadata, and the chapter list. */
 package dev.mango.app
 
 import androidx.compose.foundation.background
@@ -39,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,13 +56,10 @@ import dev.mango.core.domain.ReadProgress
 import kotlin.time.Clock
 import kotlin.time.Instant
 
-/** Left column width shared by the loaded layout and its skeleton, so they can't drift apart. */
 private val DETAILS_COVER_COLUMN_WIDTH = 300.dp
 
-/** Screen edge padding shared by the loaded layout and its skeleton, so they can't drift apart. */
 private val DETAILS_PAGE_PADDING = 48.dp
 
-/** Pure, data-driven content — the screenshot harness renders this directly. */
 @Composable
 fun DetailsScreenContent(
     details: MangaDetails,
@@ -90,16 +87,13 @@ fun DetailsScreenContent(
     onRefresh: () -> Unit = {},
 ) {
     val theme = LocalMangoTheme.current
-    // Local UI state for the range dialog — presentation-only, never leaves this composable.
     var showRangeDialog by remember { mutableStateOf(false) }
     var fromText by remember { mutableStateOf("") }
     var toText by remember { mutableStateOf("") }
     var showClearStorageDialog by remember { mutableStateOf(false) }
-    // Same rationale: the picker's open state and the toast it can show are presentation-only.
     var showPicker by remember { mutableStateOf(false) }
     val toastState = remember { ToastState() }
     val descendingChapters = remember(chapters) { chapters.sortedByDescending { it.number } }
-    // Chapters already moving through the queue must not be re-enqueued by the bulk actions.
     val activeDownloadIds = remember(downloadsByChapterId) {
         downloadsByChapterId.filterValues {
             it.status == DownloadStatus.QUEUED || it.status == DownloadStatus.RUNNING
@@ -168,6 +162,7 @@ fun DetailsScreenContent(
         val to = toText.toDoubleOrNull()
         AlertDialog(
             onDismissRequest = { showRangeDialog = false },
+            modifier = Modifier.sideButtons { showRangeDialog = false },
             title = { Text("Download range") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -189,8 +184,7 @@ fun DetailsScreenContent(
                 TextButton(
                     onClick = {
                         if (from != null && to != null) {
-                            // normalize: From=10 To=5 means 5..10, not an empty range that
-                            // silently downloads nothing
+                            // Normalize From > To into a range instead of silently downloading nothing.
                             val range = minOf(from, to)..maxOf(from, to)
                             onDownloadAll(
                                 details.entry,
@@ -214,6 +208,7 @@ fun DetailsScreenContent(
     if (showClearStorageDialog) {
         AlertDialog(
             onDismissRequest = { showClearStorageDialog = false },
+            modifier = Modifier.sideButtons { showClearStorageDialog = false },
             title = { Text("Clear storage") },
             text = { Text("Delete all downloaded chapters of this series from disk?") },
             confirmButton = {
@@ -229,9 +224,6 @@ fun DetailsScreenContent(
     }
 }
 
-/**
- * The left column: cover art, the continue/library/download actions, and the metadata list.
- */
 @Composable
 private fun DetailsSidebarColumn(
     modifier: Modifier,
@@ -265,6 +257,8 @@ private fun DetailsSidebarColumn(
     ) {
         Box(
             modifier = Modifier
+                .sharedCover(details.entry.sourceId, details.entry.mangaId)
+                .testTag("detailsCover")
                 .fillMaxWidth()
                 .aspectRatio(2f / 3f)
                 .shadow(elevation = 16.dp, shape = RoundedCornerShape(MangoRadius.panel))
@@ -316,10 +310,7 @@ private fun DetailsSidebarColumn(
                 onArrowClick = { onShowPickerChange(true) },
                 modifier = Modifier.fillMaxWidth(),
             )
-            // Reseeded from the observed membership each time the popup opens, then
-            // owns the checked set for the rest of that opening: a toggle updates it
-            // immediately so a second rapid toggle starts from the first's result
-            // rather than from a flow snapshot that hasn't re-emitted yet.
+            // Local set so a rapid second toggle doesn't start from a stale flow snapshot.
             var checkedIds by remember(showPicker) { mutableStateOf(memberCollectionIds) }
             AddToCollectionsPicker(
                 expanded = showPicker,
@@ -406,9 +397,6 @@ private fun DetailsSidebarColumn(
     }
 }
 
-/**
- * The right column: title, tags, description, and the scrollable chapter list.
- */
 @Composable
 private fun DetailsChapterListColumn(
     modifier: Modifier,
@@ -463,15 +451,13 @@ private fun DetailsChapterListColumn(
                 color = theme.textPrimary,
                 modifier = Modifier.weight(1f),
             )
-            Text(
-                text = if (checkedAt != null) {
-                    "sorted newest first · checked ${formatRelativeTime(checkedAt, Clock.System.now())}"
-                } else {
-                    "sorted newest first"
-                },
-                fontSize = 12.5.sp,
-                color = theme.textTertiary,
-            )
+            if (checkedAt != null) {
+                Text(
+                    text = "checked ${formatRelativeTime(checkedAt, Clock.System.now())}",
+                    fontSize = 12.5.sp,
+                    color = theme.textTertiary,
+                )
+            }
             RefreshGlyphButton(
                 checking = revalidating,
                 onClick = onRefresh,
@@ -502,7 +488,6 @@ private fun DetailsChapterListColumn(
     }
 }
 
-/** One key/value line of the left column's metadata list; [accentValue] renders the value in accent. */
 @Composable
 private fun MetadataRow(key: String, value: String, accentValue: Boolean = false) {
     val theme = LocalMangoTheme.current
@@ -517,12 +502,7 @@ private fun MetadataRow(key: String, value: String, accentValue: Boolean = false
     }
 }
 
-/**
- * A genre tag chip — display only, not a filter control. Kit's [Pill] hardcodes 8/3dp padding
- * and an 11sp label, which don't match this chip's 11/3dp padding and 12sp label, so this stays
- * its own composable rather than a [Pill] call; it still shares [MangoRadius.pill] for the
- * corner radius.
- */
+/** Not a Pill call: Pill's hardcoded padding and 11sp label don't match this chip. */
 @Composable
 private fun GenreChip(text: String) {
     val theme = LocalMangoTheme.current
@@ -536,11 +516,6 @@ private fun GenreChip(text: String) {
     }
 }
 
-/**
- * One chapter row: state dot, mono chapter number, title, state text, date, and the
- * per-chapter download action. [inProgress] is non-null only for the chapter the reader
- * last left unfinished — the one row that reads in accent.
- */
 @Composable
 private fun ChapterRow(
     chapter: Chapter,
@@ -562,6 +537,7 @@ private fun ChapterRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.control))
             .clip(RoundedCornerShape(MangoRadius.control))
             .background(hover.fill)
             .hoverable(hover.interaction)
@@ -578,7 +554,7 @@ private fun ChapterRow(
             modifier = Modifier.width(76.dp),
         )
         Text(
-            text = chapter.title ?: "Chapter ${formatChapterNumber(chapter.number)}",
+            text = realChapterTitle(chapter.number, chapter.title) ?: "",
             fontSize = 13.5.sp,
             fontWeight = FontWeight.Medium,
             color = if (finished) theme.textSecondary else theme.textPrimary,
@@ -602,8 +578,6 @@ private fun ChapterRow(
             }
         }
         when {
-            // Chapter page counts aren't loaded on this screen, so the in-progress state
-            // shows the saved page (the Continue button's grammar), not a percentage.
             inProgress != null -> Text(
                 text = "reading · p. ${inProgress.page + 1}",
                 style = MangoType.caption,
@@ -644,21 +618,21 @@ private fun ChapterRow(
                 strokeWidth = 1.5.dp,
                 color = theme.accent,
             )
-            // A queued chapter has no action: it is already on its way, and re-enqueueing is
-            // the only thing the glyph could do.
+
             download?.status == DownloadStatus.QUEUED -> Spacer(modifier = Modifier.size(12.dp))
             else -> ChapterDownloadGlyph(onClick = onDownload)
         }
     }
 }
 
-/** The per-chapter download affordance — a nested click target that must not trigger the row's open. */
+/** Nested click target; must not trigger the row's open. */
 @Composable
 private fun ChapterDownloadGlyph(onClick: () -> Unit) {
     val theme = LocalMangoTheme.current
     val hover = rememberHoverFill(rest = theme.surface.copy(alpha = 0f), hover = theme.surface)
     Box(
         modifier = Modifier
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.keycap))
             .clip(RoundedCornerShape(MangoRadius.keycap))
             .background(hover.fill)
             .hoverable(hover.interaction)
@@ -669,7 +643,6 @@ private fun ChapterDownloadGlyph(onClick: () -> Unit) {
     }
 }
 
-/** Loading placeholder whose skeleton shapes mirror the loaded two-column layout, so content replaces it without a jump. */
 @Composable
 internal fun DetailsSkeleton() {
     val theme = LocalMangoTheme.current
@@ -727,12 +700,7 @@ internal fun DetailsSkeleton() {
     }
 }
 
-/**
- * The chapter the Continue action resumes into, plus its button label — computed in one place
- * so the header button and its click handler can't drift. Walks chapters in ascending order
- * (unlike the chapters list, which shows newest-first) so "next after latest" walks forward.
- * Null when there is nothing to open (no chapters, or the latest chapter is finished and last).
- */
+/** Null when there is nothing to open. */
 internal fun continueTarget(chapters: List<Chapter>, latestProgress: ReadProgress?): Pair<Chapter, String>? {
     val ascending = chapters.sortedBy { it.number }
     val latestChapter = latestProgress?.let { progress -> ascending.find { it.chapterId == progress.chapterId } }

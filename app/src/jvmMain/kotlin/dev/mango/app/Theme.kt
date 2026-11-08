@@ -7,22 +7,19 @@ import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 
-/**
- * The app's full semantic color set. Every screen reads colors through [LocalMangoTheme] —
- * never a hardcoded [Color] — so switching themes or importing a JSON file recolors the whole
- * app without touching a screen. Exported/imported as JSON by [ThemeJson]; [focus] is the one
- * token deliberately excluded from that file because it is always derived from [accent].
- */
+/** All semantic colors; screens read them via LocalMangoTheme, never a hardcoded Color. */
 data class MangoTheme(
     val name: String,
     val bg0: Color,
@@ -40,11 +37,11 @@ data class MangoTheme(
     val warning: Color,
     val danger: Color,
 ) {
-    /** Keyboard focus ring color: the current accent at reduced opacity — never stored or exported. */
+    /** Derived from accent; never stored or exported. */
     val focus: Color get() = accent.copy(alpha = 0.45f)
 }
 
-/** The built-in default theme; also the fallback when no theme file exists or it fails to load. */
+/** Also the fallback when no theme file exists or it fails to load. */
 val MangoDark = MangoTheme(
     name = "Mango Dark",
     bg0 = Color(0xFF0D0D0F),
@@ -63,11 +60,6 @@ val MangoDark = MangoTheme(
     danger = Color(0xFFF26055),
 )
 
-/**
- * Built-in accent swatches offered on the Settings screen and in the palette. Picking one keeps
- * every other token (including [MangoTheme.accentOn]) fixed — full independent control over
- * every token belongs to JSON import.
- */
 val ACCENT_PRESETS: List<Pair<String, Color>> = listOf(
     "Amber" to Color(0xFFFFAD33),
     "Violet" to Color(0xFFA78BFA),
@@ -77,11 +69,7 @@ val ACCENT_PRESETS: List<Pair<String, Color>> = listOf(
     "Red" to Color(0xFFF26055),
 )
 
-/**
- * The type ramp: sizes, weights, and tracking, independent of any theme's colors. [fontFamily]
- * applies to every style except [monoKeycap] and [monoChapter], which stay monospace regardless
- * of the chosen interface font (they render literal key names and chapter numbers, not prose).
- */
+/** fontFamily applies to every style except the monospace ones. */
 class MangoTypeRamp(fontFamily: FontFamily?) {
     val display = TextStyle(
         fontSize = 28.sp,
@@ -111,13 +99,8 @@ class MangoTypeRamp(fontFamily: FontFamily?) {
     val monoChapter = TextStyle(fontSize = 12.5.sp, fontFamily = FontFamily.Monospace)
 }
 
-/** The active [MangoTypeRamp] for the current composition; defaults to the platform font outside [ProvideMangoTheme]. */
 val LocalMangoType = staticCompositionLocalOf { MangoTypeRamp(null) }
 
-/**
- * Facade over [LocalMangoType] so every existing `MangoType.foo` call site keeps compiling and
- * reading the app's current font choice without threading it through every screen by hand.
- */
 object MangoType {
     val display: TextStyle @Composable get() = LocalMangoType.current.display
     val title: TextStyle @Composable get() = LocalMangoType.current.title
@@ -132,7 +115,6 @@ object MangoType {
     val monoChapter: TextStyle @Composable get() = LocalMangoType.current.monoChapter
 }
 
-/** Padding/gap steps on the 4-dp base grid. */
 object MangoSpace {
     val base = 4.dp
     val xs = 8.dp
@@ -142,14 +124,11 @@ object MangoSpace {
     val xl = 28.dp
     val screenGutter = 28.dp
 
-    /** Width ceiling for reading/form screens (settings, lists, details) — content centers beyond it. */
     val contentMaxWidth = 840.dp
 
-    /** Width ceiling for cover-grid screens; grids stop adding columns past this and center. */
     val gridMaxWidth = 1320.dp
 }
 
-/** Corner radii, smallest to largest. */
 object MangoRadius {
     val keycap = 6.dp
     val control = 10.dp
@@ -157,46 +136,52 @@ object MangoRadius {
     val panel = 14.dp
     val large = 18.dp
 
-    /** Large enough to round any control height into a full stadium/circle shape. */
     val pill = 999.dp
 }
 
-/** Easings and named durations shared by every transition in the app; nothing bounces, nothing exceeds 320 ms. */
-object MangoMotion {
+/** With reduced set, movement is gone and every animation is a short fade. */
+@Immutable
+class MangoMotion(val reduced: Boolean = false) {
     val decel = CubicBezierEasing(0.2f, 0f, 0f, 1f)
     val standard = CubicBezierEasing(0.4f, 0f, 0.2f, 1f)
 
-    const val HOVER_MS = 120
-    const val PRESS_MS = 100
-    const val PRESS_SCALE = 0.97f
-    const val SIDEBAR_OPEN_MS = 240
-    const val SIDEBAR_CLOSE_MS = 200
-    const val SIDEBAR_STAGGER_MS = 20
-    const val SIDEBAR_STAGGER_CAP_MS = 60
-    const val PALETTE_OPEN_MS = 180
-    const val PALETTE_BACKDROP_MS = 240
-    const val READER_OVERLAY_IN_MS = 160
-    const val READER_OVERLAY_OUT_MS = 320
-    const val READER_IDLE_MS = 1500
-    const val READER_PAGE_CROSSFADE_MS = 200
-    const val COVER_HOVER_MS = 160
-    const val COVER_HOVER_SCALE = 1.03f
-    const val PROGRESS_BAR_MS = 300
-    const val BANNER_IN_MS = 200
-    const val SHIMMER_MS = 1800
+    val slides: Boolean get() = !reduced
+
+    private fun fade(ms: Int) = if (reduced) REDUCED_FADE_MS else ms
+
+    val hoverMs = fade(120)
+    val pressMs = fade(100)
+    val pressScale = if (reduced) 1f else 0.97f
+    val sidebarOpenMs = fade(240)
+    val sidebarCloseMs = fade(200)
+    val sidebarStaggerMs = if (reduced) 0 else 20
+    val sidebarStaggerCapMs = if (reduced) 0 else 60
+    val paletteOpenMs = fade(180)
+    val paletteBackdropMs = fade(240)
+    val readerOverlayInMs = fade(160)
+    val readerOverlayOutMs = fade(320)
+    val readerIdleMs = 1500
+    val readerPageCrossfadeMs = fade(200)
+    val coverHoverMs = fade(160)
+    val coverHoverScale = if (reduced) 1f else 1.03f
+    val progressBarMs = fade(300)
+    val bannerInMs = fade(200)
+    val shimmerMs = 1800
+    val screenMs = fade(240)
+    val screenSlide: Dp = if (reduced) 0.dp else 48.dp
+    val viewChangeMs = fade(200)
+    val viewRise: Dp = if (reduced) 0.dp else 8.dp
+    val pillPulseMs = fade(320)
+
+    private companion object {
+        const val REDUCED_FADE_MS = 120
+    }
 }
 
-/** The active [MangoTheme] for the current composition; defaults to [MangoDark] outside [ProvideMangoTheme]. */
+val LocalMangoMotion = staticCompositionLocalOf { MangoMotion() }
+
 val LocalMangoTheme = staticCompositionLocalOf { MangoDark }
 
-/**
- * Provides [theme] to [LocalMangoTheme] for [content] and maps it onto a Material
- * [androidx.compose.material3.ColorScheme] so Material components keep rendering correctly.
- * Screens should prefer [LocalMangoTheme] directly; the Material mapping exists only because
- * Material3 components need one. [fontFamily] becomes the interface font (via [LocalMangoType])
- * and the ambient text style, so both [MangoType]-styled and raw-`fontSize` `Text` calls inherit
- * it; null keeps the platform default.
- */
 @Composable
 fun ProvideMangoTheme(theme: MangoTheme, fontFamily: FontFamily? = null, content: @Composable () -> Unit) {
     val typeRamp = remember(fontFamily) { MangoTypeRamp(fontFamily) }
@@ -215,8 +200,7 @@ fun ProvideMangoTheme(theme: MangoTheme, fontFamily: FontFamily? = null, content
                 onSurfaceVariant = theme.textSecondary,
                 outline = theme.divider,
                 scrim = theme.bg0,
-                // Pinned to the surface color so Material tonal elevation is a no-op: depth
-                // comes from stepping the bg tokens, never from tinting toward the accent.
+                // Pinned to surface so tonal elevation is a no-op; depth comes from the bg tokens.
                 surfaceTint = theme.bg1,
             ),
         ) {

@@ -4,12 +4,7 @@ import dev.mango.core.domain.CatalogRepository
 import dev.mango.core.domain.ChallengeSolver
 import dev.mango.core.domain.CookieStore
 
-/**
- * [ChallengeSolver] backed by the embedded browser ([JcefManager]). On a passed challenge it
- * writes the harvested clearance cookies into the source's cookie jar and pins the browser's
- * user-agent to the source (via [CatalogRepository.setUserAgent], which also evicts the cached
- * engine instance so the next request rebuilds with the pinned UA + cookies).
- */
+/** On a passed challenge, stores the clearance cookies and pins the UA to the source. */
 class JcefChallengeSolver(
     private val jcef: JcefManager,
     private val catalog: CatalogRepository,
@@ -24,8 +19,7 @@ class JcefChallengeSolver(
 
         val store = cookieStoreFor(sourceId)
         cookies.forEach { store.put(it) }
-        // pin the exact UA the clearance is bound to; this also evicts the source's cached
-        // engine so its next request goes out with the new UA + freshly stored cookies
+        // Pinning the UA also evicts the cached engine so the next request uses the new UA and cookies.
         catalog.setUserAgent(sourceId, WebViewUserAgent)
         return true
     }

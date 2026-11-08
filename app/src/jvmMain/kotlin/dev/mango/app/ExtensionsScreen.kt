@@ -37,7 +37,6 @@ import dev.mango.core.domain.ExtensionRepo
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-/** Pure, data-driven content — the screenshot harness renders this directly. */
 @Composable
 fun ExtensionsScreenContent(
     available: List<AvailableSource>,
@@ -56,9 +55,7 @@ fun ExtensionsScreenContent(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 when {
                     isLoading -> ExtensionsLoadingSkeleton(modifier = Modifier.fillMaxSize())
-                    // The initial load has no list to show yet, so its failure takes over the whole
-                    // screen; an install/remove failure must not reuse this state or it would blank
-                    // an already-loaded list.
+                    // Initial-load failure takes over the screen; install/remove failures must not reuse it.
                     error != null -> Text(
                         text = error,
                         style = MangoType.body,
@@ -97,7 +94,6 @@ fun ExtensionsScreenContent(
     }
 }
 
-/** One extension row: icon tile, name + version/language meta, and the install/update/remove action. */
 @Composable
 private fun ExtensionRow(
     source: AvailableSource,
@@ -122,8 +118,6 @@ private fun ExtensionRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                // Version is always present; language is skipped silently when absent, and
-                // there is no "series in library" count on this data to show here.
                 val metaSegments = listOfNotNull("v${source.version}", source.language?.uppercase())
                 if (metaSegments.isNotEmpty()) {
                     Text(
@@ -167,7 +161,6 @@ private fun ExtensionRow(
     }
 }
 
-/** 36dp icon tile: an initial-letter placeholder, since [AvailableSource] carries no icon data. */
 @Composable
 private fun ExtensionIconTile(name: String) {
     val theme = LocalMangoTheme.current
@@ -186,7 +179,6 @@ private fun ExtensionIconTile(name: String) {
     }
 }
 
-/** Loading placeholder mirroring the row layout: icon tile + two text lines, shimmering. */
 @Composable
 private fun ExtensionsLoadingSkeleton(modifier: Modifier = Modifier) {
     Column(modifier = modifier.padding(horizontal = 16.dp)) {
@@ -210,10 +202,6 @@ private fun ExtensionsLoadingSkeleton(modifier: Modifier = Modifier) {
     }
 }
 
-/**
- * Stateful loader: [ExtensionRepo.available] plus [CatalogRepository.installedSources] on
- * first composition, refreshing the installed map after each install/update completes.
- */
 @Composable
 fun ExtensionsScreen(repo: ExtensionRepo, catalog: CatalogRepository) {
     val scope = rememberCoroutineScope()
@@ -252,8 +240,7 @@ fun ExtensionsScreen(repo: ExtensionRepo, catalog: CatalogRepository) {
         actionError = actionError,
         onDismissActionError = { actionError = null },
         onInstall = { source ->
-            // busy is set synchronously, before the coroutine body runs: a second click on
-            // the same row bails here instead of launching a duplicate install
+            // Set synchronously so a second click bails instead of launching a duplicate install.
             if (source.sourceId !in busy) {
                 busy = busy + source.sourceId
                 actionError = null
@@ -272,8 +259,7 @@ fun ExtensionsScreen(repo: ExtensionRepo, catalog: CatalogRepository) {
             }
         },
         onRemove = { source ->
-            // same busy-guard shape as onInstall: set synchronously so a second click on the
-            // same row bails here instead of launching a duplicate uninstall
+            // Set synchronously so a second click bails instead of launching a duplicate uninstall.
             if (source.sourceId !in busy) {
                 busy = busy + source.sourceId
                 actionError = null

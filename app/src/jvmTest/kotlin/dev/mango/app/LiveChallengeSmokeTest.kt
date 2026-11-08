@@ -14,22 +14,10 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Tag
 
-/**
- * Live verification. Drives the PRODUCTION solve path — real JcefManager +
- * JcefChallengeSolver + real SqlCookieStore — against a real Cloudflare site, and asserts
- * cf_clearance was harvested and persisted into the source's cookie jar where the host reads it.
- *
- * Tagged "live": excluded from normal runs (opens a real browser window). Run on demand:
- *   .\gradlew.bat :app:jvmTest -Plive --tests *LiveChallengeSmokeTest*
- * CEF installs into a persistent cache dir, so only the first ever run downloads it. MangaBat's
- * managed challenge auto-passes in a real browser, so it runs unattended; if a source ever
- * shows an interactive checkbox, click it and the harvest completes.
- */
 @Tag("live")
 class LiveChallengeSmokeTest {
     @Test
     fun productionSolverHarvestsAndPersistsCfClearance() {
-        // persistent CEF cache under the user home — download happens at most once, ever
         val cefDir = Paths.get(System.getProperty("user.home"), ".mango-jcef")
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())
         MangoDatabase.Schema.create(driver)
@@ -48,10 +36,6 @@ class LiveChallengeSmokeTest {
             assertTrue(cookies.any { it.name == "cf_clearance" }, "expected cf_clearance in the jar")
             assertTrue(catalog.userAgentsBySourceId["MangaBat"] != null, "expected the UA to be pinned")
 
-            // the end-to-end proof harvesting alone doesn't give: the clearance must also
-            // satisfy Cloudflare when replayed by the JVM HTTP stack (same UA + IP; the
-            // TLS/CF-environment axis). The engine's header-casing axis is covered by the
-            // unit regression test bundleHeaderNamesAreCanonicalizedOnTheWire, not here.
             runBlocking {
                 io.ktor.client.HttpClient(io.ktor.client.engine.cio.CIO).use { http ->
                     val response = http.get("https://www.mangabats.com/") {

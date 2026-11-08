@@ -2,14 +2,23 @@ package dev.mango.app
 
 import kotlin.time.Instant
 
-/** "8.0" reads as a float; chapters are "8" or "8.5". Shared by DetailsScreen and DownloadsScreen. */
+/** "8.0" reads as a float; chapters are "8" or "8.5". */
 internal fun formatChapterNumber(number: Double): String =
     if (number == number.toLong().toDouble()) number.toLong().toString() else number.toString()
 
-/** Raw Instant.toString() is machine format; readers get the date only. */
+/** Null when the title just repeats the number, as in "Chapter 8". */
+internal fun realChapterTitle(number: Double, title: String?): String? {
+    val trimmed = title?.trim()
+    if (trimmed.isNullOrEmpty()) return null
+    val restatement = Regex(
+        "^(ch(apter)?|ep(isode)?)?\\.?\\s*0*${Regex.escape(formatChapterNumber(number))}$",
+        RegexOption.IGNORE_CASE,
+    )
+    return if (restatement.matches(trimmed)) null else trimmed
+}
+
 internal fun formatDate(instant: Instant): String = instant.toString().substringBefore('T')
 
-/** "just now" under a minute, then "N min ago" / "N h ago" / "N d ago". */
 internal fun formatRelativeTime(then: Instant, now: Instant): String {
     val seconds = (now - then).inWholeSeconds.coerceAtLeast(0)
     return when {

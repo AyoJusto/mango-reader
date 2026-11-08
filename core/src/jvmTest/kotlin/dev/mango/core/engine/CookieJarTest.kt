@@ -20,10 +20,6 @@ import org.graalvm.polyglot.proxy.ProxyArray
 import org.graalvm.polyglot.proxy.ProxyExecutable
 import org.graalvm.polyglot.proxy.ProxyObject
 
-/**
- * The per-source cookie jar at the host boundary: stored cookies ride outgoing
- * requests, Set-Cookie responses land in the store, and the extension's own cookies win.
- */
 class CookieJarTest {
     private fun newStore(): CookieStore {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY, Properties())
@@ -88,9 +84,9 @@ class CookieJarTest {
         val host = ApplicationHost(http = HttpClient(engine), cookieStore = store)
         val request = ProxyObject.fromMap(mapOf("url" to "https://example.com/api", "method" to "GET"))
 
-        scheduleRequest(host, request) // fresh context: nothing to send, Set-Cookie lands
+        scheduleRequest(host, request)
         assertEquals(null, sentCookieHeader)
-        scheduleRequest(host, request) // second fresh context: the jar carries it over
+        scheduleRequest(host, request)
 
         assertEquals("session=abc", sentCookieHeader)
     }

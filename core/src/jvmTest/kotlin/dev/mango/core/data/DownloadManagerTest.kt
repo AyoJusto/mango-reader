@@ -32,9 +32,7 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 
-/** Integration tests for [FileDownloadManager], driven only through the [DownloadManager] contract. */
 class DownloadManagerTest {
-    /** Canned pages per "sourceId/mangaId/chapterId", the only member these tests exercise. */
     private class FakeCatalogRepository(private val pages: Map<String, List<Page>>) : CatalogRepository {
         override suspend fun installedSources(): List<SourceInfo> = throw UnsupportedOperationException()
         override suspend fun install(info: SourceInfo, bundleSha256: String): Unit =
@@ -129,7 +127,6 @@ class DownloadManagerTest {
         assertEquals(DownloadStatus.DONE, row.status)
         assertEquals(2, row.pagesTotal)
         assertEquals(2, row.pagesDone)
-        // title/number round-trip through the DB row, not just the in-memory Download passed in
         assertEquals("Solo Leveling", row.mangaTitle)
         assertEquals(3.5, row.chapterNumber)
 
@@ -212,7 +209,6 @@ class DownloadManagerTest {
     @Test
     fun hostileIdsCannotEscapeTheDownloadRoot() = runTest {
         val root = Files.createTempDirectory("downloads-test")
-        // Path.resolve walks up on ".." and discards the base entirely for absolute args
         val relativeEscape = "..\\..\\evil"
         val absoluteEscape = root.parent.resolve("abs-escape").toString()
         val page = Page(index = 0, url = "https://cdn.example/c1/0.jpg")

@@ -20,20 +20,12 @@ import kotlin.time.Clock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** A catalog call named a sourceId with no matching installed_source row. */
 class UnknownSourceException(sourceId: String) : Exception("unknown source: $sourceId")
 
-/**
- * A source row exists but its bundle file is not in bundleDir — the state between writing
- * the row and placing the file.
- */
 class MissingBundleException(sourceId: String, cause: Throwable) :
     Exception("no bundle file for installed source: $sourceId", cause)
 
-// sourceId is extension-influenced (installs read it from bundle metadata); it must never
-// be able to name a path outside bundleDir (no separators, no drive letters). File-scoped so
-// InkdexRepo's installer can enforce the exact same rule before it ever touches the network,
-// not just before this repository writes/reads the bundle file.
+// sourceId is extension-influenced: it must never name a path outside bundleDir; InkdexRepo enforces it too.
 internal val SAFE_SOURCE_ID = Regex("[A-Za-z0-9_.-]+")
 
 internal fun requireSafeSourceId(sourceId: String) {
@@ -43,13 +35,7 @@ internal fun requireSafeSourceId(sourceId: String) {
     }
 }
 
-/**
- * SQLDelight- and filesystem-backed [CatalogRepository]. Resolving a sourceId means: look up
- * its DB row, read `<bundleDir>/<sourceId>.index.js`, run it through [BundleLoader.verify]
- * against the pinned checksum, then hand the verified source to [sourceFactory]. That whole
- * chain happens once per source per repository instance — the resolved [MangaSource] is
- * cached, so a hot source never gets re-verified.
- */
+/** Resolves sources by verifying the bundle against its pinned checksum once per source, then caching. */
 class PaperbackCatalogRepository(
     private val db: MangoDatabase,
     private val bundleDir: Path,
@@ -74,8 +60,7 @@ class PaperbackCatalogRepository(
             installed_at = clock.now().toEpochMilliseconds(),
             version = info.version,
         )
-        // user_agent survives reinstall: the upsert is ON CONFLICT DO UPDATE with user_agent
-        // deliberately absent from the SET list (see sources.sq).
+        // user_agent survives reinstall: the upsert leaves it out of the SET list (see sources.sq).
         // re-pinning a hash must not keep serving a source built from the old bundle
         resolved.remove(info.sourceId)
         Unit
@@ -104,9 +89,7 @@ class PaperbackCatalogRepository(
     override suspend fun setUserAgent(sourceId: String, userAgent: String) = withContext(context) {
         requireSafeSourceId(sourceId)
         db.sourcesQueries.updateUserAgent(user_agent = userAgent, source_id = sourceId)
-        // cf_clearance is bound to the UA that earned it; a stale cached engine would keep
-        // sending requests under the old UA, silently invalidating the cookie the solve flow
-        // just won
+        // cf_clearance is bound to its UA; a stale cached source would send the old UA and void the cookie.
         resolved.remove(sourceId)
         Unit
     }
@@ -114,12 +97,7 @@ class PaperbackCatalogRepository(
     override suspend fun uninstall(sourceId: String) = withContext(context) {
         requireSafeSourceId(sourceId)
         db.sourcesQueries.deleteInstalledSource(source_id = sourceId)
-        // Evict directly after the row delete — resolveSource's compute bin-lock means an
-        // in-flight resolve either finishes before this remove (and gets removed) or reads the
-        // now-deleted row and throws UnknownSourceException; nothing can repopulate the cache.
-        // The file delete comes LAST because it can throw (Windows lock from a racing bundle
-        // read): a removed source must stop executing even when the file sweep fails — the
-        // orphaned bundle is inert without its row, and a retry click deletes it.
+        // Evict before the file delete: the delete can throw (Windows lock) and a removed source must stop executing.
         resolved.remove(sourceId)
         Files.deleteIfExists(bundleDir.resolve("$sourceId.index.js"))
         Unit
@@ -128,13 +106,9 @@ class PaperbackCatalogRepository(
     private suspend fun resolveSource(sourceId: String): MangaSource {
         requireSafeSourceId(sourceId)
         resolved[sourceId]?.let { return it }
-        // the whole chain is dispatched: blocking file read and bundle evaluation
-        // (sourceFactory boots the JS engine) must never run on a UI thread
+        // Blocking file read and bundle evaluation must never run on a UI thread.
         return withContext(context) {
-            // compute holds the per-key bin lock across row-read + build + insert, so
-            // setUserAgent's remove (also bin-locked) can't interleave and let a source
-            // built from a stale UA win the cache after the evict — that would keep sending
-            // the old UA and invalidate the cf_clearance the solve flow just won
+            // compute's bin lock keeps setUserAgent's evict from interleaving and a stale-UA source winning the cache.
             resolved.compute(sourceId) { _, existing ->
                 existing ?: run {
                     val row = db.sourcesQueries.selectInstalledSource(sourceId).executeAsOneOrNull()

@@ -16,9 +16,11 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
@@ -55,11 +57,6 @@ private const val MANGA_ID = "manga-1"
 private const val CHAPTER_ID = "ch-1"
 private const val CHAPTER_2_ID = "ch-2"
 
-/**
- * Wraps a [CatalogRepository] so a specific chapter's [pages] call always throws — used only by
- * [ReaderFlowTest.retryAppearsAndTheLoadedChapterSurvivesWhenTheNextChapterFailsToLoad], same
- * scripted-delegate style as [BrowseFlowTest]'s SectionCountingCatalogRepository.
- */
 private class FailingPagesCatalogRepository(
     private val delegate: CatalogRepository,
     private val failingChapterId: String,
@@ -83,11 +80,6 @@ private class FailingPagesCatalogRepository(
     override suspend fun uninstall(sourceId: String) = delegate.uninstall(sourceId)
 }
 
-/**
- * Rewrites every page's url with a fixed suffix, headers untouched — proves [ReaderScreen]'s
- * pageContent hook observes a header policy's URL rewrite, not just its header merge (which
- * [headerPolicyPinsUserAgentOntoPagesDeliveredToPageContent] already covers).
- */
 private class UrlRewritingHeaderPolicy(private val suffix: String) : SourceHeaderPolicy {
     override suspend fun headersFor(sourceId: String, url: String, headers: Map<String, String>): Map<String, String> =
         headers
@@ -96,13 +88,6 @@ private class UrlRewritingHeaderPolicy(private val suffix: String) : SourceHeade
         pages.map { it.copy(url = it.url + suffix) }
 }
 
-/**
- * End-to-end input, chapter-navigation, and progress-persistence flows through [ReaderScreen],
- * backed by [FakeLibraryRepository]/[FakeCatalogRepository]. Page content is a colored
- * placeholder box (not Coil) so these run offscreen with no network. CMP 1.11 uses
- * StandardTestDispatcher — every action that launches a coroutine is followed by [waitForIdle]
- * before the next assert.
- */
 class ReaderFlowTest {
     @get:Rule
     val rule = createComposeRule()
@@ -135,8 +120,6 @@ class ReaderFlowTest {
         catalog: CatalogRepository,
         downloads: FakeDownloadManager = FakeDownloadManager(),
         progressDebounceMillis: Long = 500,
-        // Matches ReaderScreen's own production default (CONTROLS_AUTO_HIDE_MS) — tests that
-        // exercise the threshold/hide behavior override it explicitly.
         controlsAutoHideMillis: Long = 2000,
         autoScrollSpeedDpPerSec: Float = 120f,
         chapterId: String = CHAPTER_ID,
@@ -164,10 +147,8 @@ class ReaderFlowTest {
         }
     }
 
-    /** The currently visible "N / 5" page counter (chapter 1's page count), or null if none is. */
-    private fun currentPageCounter(): String? = (1..5).map { "$it / 5" }.firstOrNull { textVisible(it) }
+    private fun currentPageCounter(): String? = (1..5).map { "Page $it of 5" }.firstOrNull { descriptionVisible(it) }
 
-    /** Repeated PageDown+waitForIdle until [predicate] is true, or gives up after a generous cap. */
     private fun scrollUntil(predicate: () -> Boolean) {
         repeat(40) {
             if (predicate()) return
@@ -175,6 +156,9 @@ class ReaderFlowTest {
             rule.waitForIdle()
         }
     }
+
+    private fun descriptionVisible(description: String): Boolean =
+        rule.onAllNodesWithContentDescription(description, substring = true).fetchSemanticsNodes().isNotEmpty()
 
     private fun textVisible(text: String): Boolean =
         rule.onAllNodesWithText(text, substring = true).fetchSemanticsNodes().isNotEmpty()
@@ -185,22 +169,27 @@ class ReaderFlowTest {
         setReaderContent(library, catalogWithPages())
         rule.waitForIdle()
 
-        rule.onNodeWithText("1 / 5").assertExists()
+        rule.onNodeWithContentDescription("Page 1 of 5").assertExists()
 
         rule.onRoot().performKeyInput { pressKey(Key.PageDown) }
         rule.waitForIdle()
 
-        rule.onNodeWithText("1 / 5").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Page 1 of 5").assertDoesNotExist()
+    }
+
+    @Test
+    fun barShowsNoPanelCount() {
+        setReaderContent(FakeLibraryRepository(), catalogWithPages())
+        rule.waitForIdle()
+
+        rule.onNodeWithContentDescription("Page 1 of 5").assertExists()
+        rule.onNodeWithText("panels", substring = true).assertDoesNotExist()
+        rule.onNodeWithText("offline").assertDoesNotExist()
     }
 
     @Test
     fun scrollingRecordsProgressAfterDebounce() {
-        // debounce(500)'s delay runs on kotlinx.coroutines virtual time (a TestCoroutineScheduler),
-        // which is a different clock from rule.mainClock (Compose's frame clock, used to advance
-        // animateScrollBy/withFrameNanos). advanceTimeBy on the latter doesn't resolve the former,
-        // so neither waitForIdle() nor manual mainClock advancement reliably lands inside the
-        // debounce window here. The fallback: the debounce is made injectable, and this test
-        // passes 0 for a deterministic write instead of racing clocks.
+        // debounce runs on coroutine virtual time, not mainClock; pass 0 to avoid racing clocks.
         val library = FakeLibraryRepository()
         setReaderContent(library, catalogWithPages(), progressDebounceMillis = 0)
         rule.waitForIdle()
@@ -219,7 +208,7 @@ class ReaderFlowTest {
         setReaderContent(library, catalogWithPages())
         rule.waitForIdle()
 
-        rule.onNodeWithText("4 / 5").assertExists()
+        rule.onNodeWithContentDescription("Page 4 of 5").assertExists()
     }
 
     @Test
@@ -236,7 +225,8 @@ class ReaderFlowTest {
         setReaderContent(library, catalog, downloads = downloads)
         rule.waitForIdle()
 
-        rule.onNodeWithText("1 / 2 · offline").assertExists()
+        rule.onNodeWithContentDescription("Page 1 of 2").assertExists()
+        rule.onNodeWithText("offline").assertExists()
         assertEquals(0, catalog.pagesCallCount)
     }
 
@@ -245,12 +235,10 @@ class ReaderFlowTest {
         val library = FakeLibraryRepository()
         val catalog = catalogWithPages()
 
-        // Default FakeDownloadManager has no localPagesByKey entries, so localPages() returns
-        // null and the reader must fall back to the live catalog.
         setReaderContent(library, catalog)
         rule.waitForIdle()
 
-        rule.onNodeWithText("1 / 5").assertExists()
+        rule.onNodeWithContentDescription("Page 1 of 5").assertExists()
         assertEquals(1, catalog.pagesCallCount)
     }
 
@@ -279,18 +267,13 @@ class ReaderFlowTest {
         )
         rule.waitForIdle()
 
-        // "Ch. 2" alone isn't enough: it also appears in the divider ("Ch. 1 — end · Ch. 2"),
-        // which still attributes to ch-1. The " / 3" counter denominator is unique to ch-2's
-        // pages, so it only appears once the strip has actually scrolled past the divider.
-        scrollUntil { textVisible("/ 3") }
+        scrollUntil { descriptionVisible("of 3") }
         rule.waitForIdle()
 
         val progress = runBlocking { library.progress(SOURCE_ID, MANGA_ID, CHAPTER_2_ID) }
         assertNotNull(progress, "expected ch-2 progress once the strip has scrolled into it")
     }
 
-    // Finished tracks "read to the last page", not merely "opened" — the divider becoming
-    // visible means ch-1's last PageRow has scrolled into (or past) view.
     @Test
     fun scrollingToTheEndOfAChapterMarksItFinished() {
         val library = FakeLibraryRepository()
@@ -384,62 +367,39 @@ class ReaderFlowTest {
         scrollUntil { textVisible("Retry") }
 
         assertTrue(textVisible("Retry"), "expected a Retry row once the next chapter's load fails")
-        // "/ 5" is ch-1's counter denominator (ch-2's is "/ 3") — proves ch-1 is still current.
-        assertTrue(textVisible("/ 5"), "expected ch-1 to still be the current chapter after the failed append")
+        assertTrue(descriptionVisible("of 5"), "expected ch-1 to still be the current chapter after the failed append")
     }
 
-    // The controls overlay reveals on genuine pointer movement anywhere in the reader (not just
-    // a top-edge band — the old band-based reveal is gone) or a click, and ignores Compose
-    // desktop's synthetic hover-move events fired at (near) the same position during a
-    // stationary-cursor wheel scroll (filtered by ReaderOverlayState's 2px move-delta gate).
-    // Updated from the old top-edge-band assertions to the new move-delta semantics (locked
-    // decision: reveal on pointer movement anywhere, not a Y-position band).
     @Test
     fun controlsRevealOnGenuineMovementNotSubPixelJitterOrClick() {
-        // HARNESS TRAP, same family as the auto-scroll one below: with autoAdvance=true, a
-        // cursor parked at a fixed spot makes waitForIdle diverge — every completed hide
-        // changes the hit-tree under the stationary cursor, Compose synthesizes a hover Move,
-        // and (were it not for the move-delta gate) the show/hide cycle could spin forever. So:
-        // autoAdvance=false, explicit advanceTimeBy only. The hide window is deliberately huge
-        // (10s) so reveal-asserts can advance generously (event delivery + recomposition)
-        // without racing the hide.
+        // autoAdvance stays false: a parked cursor makes waitForIdle diverge via hover-Move show/hide cycles.
         val library = FakeLibraryRepository()
         setReaderContent(library, catalogWithPages(), controlsAutoHideMillis = 10_000)
         rule.waitForIdle()
 
-        // Initial controls start visible; let the auto-hide fire before any pointer exists.
         rule.mainClock.autoAdvance = false
         rule.mainClock.advanceTimeBy(11_000)
         rule.onNodeWithText("Ch. 1").assertDoesNotExist()
 
-        // Establish a known pointer baseline (this move may or may not itself reveal, depending
-        // on wherever the test harness's cursor implicitly started), then let any resulting
-        // reveal expire so the assertions below start from a clean, hidden state.
         rule.onRoot().performMouseInput { moveTo(Offset(400f, 400f)) }
         rule.mainClock.advanceTimeBy(11_000)
         rule.onNodeWithText("Ch. 1").assertDoesNotExist()
 
-        // A sub-2px move from that baseline must NOT reveal.
         rule.onRoot().performMouseInput { moveTo(Offset(401f, 400f)) }
         rule.mainClock.advanceTimeBy(500)
         rule.onNodeWithText("Ch. 1").assertDoesNotExist()
 
-        // A move past the threshold reveals — anywhere in the reader, not just near the top.
         rule.onRoot().performMouseInput { moveTo(Offset(401f, 450f)) }
         rule.mainClock.advanceTimeBy(500)
         rule.onNodeWithText("Ch. 1").assertExists()
 
-        // Park the cursor, then let the pending hide fire.
         rule.mainClock.advanceTimeBy(11_000)
         rule.onNodeWithText("Ch. 1").assertDoesNotExist()
 
-        // A click anywhere reveals.
         rule.onRoot().performMouseInput { click(Offset(400f, 400f)) }
         rule.mainClock.advanceTimeBy(500)
         rule.onNodeWithText("Ch. 1").assertExists()
 
-        // A second click on the page area (not an overlay control) dismisses without waiting
-        // out the idle timer.
         rule.onRoot().performMouseInput { click(Offset(400f, 400f)) }
         rule.mainClock.advanceTimeBy(500)
         rule.onNodeWithText("Ch. 1").assertDoesNotExist()
@@ -447,22 +407,20 @@ class ReaderFlowTest {
         rule.mainClock.autoAdvance = true
     }
 
-    // The A key toggles auto-scroll on and off.
     @Test
     fun aKeyTogglesAutoScroll() {
         val library = FakeLibraryRepository()
         setReaderContent(library, catalogWithPages(), autoScrollSpeedDpPerSec = 2000f)
         rule.waitForIdle()
-        rule.onNodeWithText("1 / 5").assertExists()
+        rule.onNodeWithContentDescription("Page 1 of 5").assertExists()
 
-        // CRITICAL: while autoScrolling's withFrameNanos loop runs, waitForIdle() never goes
-        // idle — the loop is always pending a frame. Drive time only through the main clock.
+        // waitForIdle never idles while auto-scroll runs; drive time through mainClock only.
         rule.mainClock.autoAdvance = false
         rule.onRoot().performKeyInput { pressKey(Key.A) }
         rule.mainClock.advanceTimeBy(500)
-        rule.onNodeWithText("1 / 5").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Page 1 of 5").assertDoesNotExist()
 
-        rule.onRoot().performKeyInput { pressKey(Key.A) } // stop
+        rule.onRoot().performKeyInput { pressKey(Key.A) }
         rule.mainClock.autoAdvance = true
         rule.waitForIdle()
 
@@ -473,7 +431,6 @@ class ReaderFlowTest {
         assertEquals(stopped, currentPageCounter(), "expected the position to stay put once auto-scroll stopped")
     }
 
-    // A paging key interrupts auto-scroll.
     @Test
     fun pageDownStopsAutoScroll() {
         val library = FakeLibraryRepository()
@@ -488,8 +445,6 @@ class ReaderFlowTest {
         rule.mainClock.autoAdvance = true
         rule.waitForIdle()
 
-        // PageDown's animateScrollBy has settled and auto-scroll is stopped: the position must
-        // not keep drifting.
         val settled = currentPageCounter()
         assertNotNull(settled, "expected a page counter to be showing after PageDown settled")
         rule.waitForIdle()
@@ -500,13 +455,10 @@ class ReaderFlowTest {
             "expected no further scroll after auto-scroll was stopped by PageDown"
         )
 
-        // and the reader must still respond normally to further input, with no hang.
         rule.onRoot().performKeyInput { pressKey(Key.PageUp) }
         rule.waitForIdle()
     }
 
-    // A fresh LazyListState per anchor means P's re-anchor never renders one frame of the OLD
-    // chapter's scroll offset before the restore effect repositions it.
     @Test
     fun pReanchorsAtTheTopOfThePreviousChapter() {
         val library = FakeLibraryRepository()
@@ -523,11 +475,12 @@ class ReaderFlowTest {
         rule.waitForIdle()
         rule.waitForIdle()
 
-        assertTrue(textVisible("1 / 5"), "expected P to re-anchor at the top of ch-1, not a stale scroll offset")
+        assertTrue(
+            descriptionVisible("Page 1 of 5"),
+            "expected P to re-anchor at the top of ch-1, not a stale scroll offset"
+        )
     }
 
-    // While the palette overlay is up the reader has no keyboard (A can't stop the strip), so
-    // the auto-scroll drive loop pauses and auto-resumes on close.
     @Test
     fun paletteVisibilityPausesAutoScroll() {
         val library = FakeLibraryRepository()
@@ -552,20 +505,16 @@ class ReaderFlowTest {
             }
         }
         rule.waitForIdle()
-        rule.onNodeWithText("1 / 5").assertExists()
+        rule.onNodeWithContentDescription("Page 1 of 5").assertExists()
 
-        // CRITICAL: while autoScrolling's withFrameNanos loop runs, waitForIdle() never goes
-        // idle — the loop is always pending a frame. Drive time only through the main clock.
+        // waitForIdle never idles while auto-scroll runs; drive time through mainClock only.
         rule.mainClock.autoAdvance = false
         rule.onRoot().performKeyInput { pressKey(Key.A) }
         rule.mainClock.advanceTimeBy(400)
-        rule.onNodeWithText("1 / 5").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Page 1 of 5").assertDoesNotExist()
         val moving = currentPageCounter()
         assertNotNull(moving, "expected a page counter to be showing while auto-scrolling")
 
-        // Open the palette. Advance one frame first so the LaunchedEffect(..., paletteVisible)
-        // restart is observed before we snapshot the "paused" baseline — otherwise the
-        // recomposition's own frame could be mistaken for drift.
         paletteVisibleState.value = true
         rule.mainClock.advanceTimeByFrame()
         val paused = currentPageCounter()
@@ -573,7 +522,6 @@ class ReaderFlowTest {
         rule.mainClock.advanceTimeBy(500)
         assertEquals(paused, currentPageCounter(), "expected auto-scroll to pause while the palette is visible")
 
-        // Close the palette: the loop must auto-resume with no further key press.
         paletteVisibleState.value = false
         rule.mainClock.advanceTimeBy(500)
         assertTrue(currentPageCounter() != paused, "expected auto-scroll to resume once the palette closed")
@@ -581,9 +529,6 @@ class ReaderFlowTest {
         rule.mainClock.autoAdvance = true
     }
 
-    // While the palette overlay is up the controls overlay is pinned visible: no idle hide is
-    // ever scheduled (the reveal effect early-returns on paletteVisible); closing the palette
-    // resumes the idle countdown. This fails if that early-return is removed.
     @Test
     fun paletteVisibilityPinsTheControlsOverlay() {
         val library = FakeLibraryRepository()
@@ -609,22 +554,17 @@ class ReaderFlowTest {
         }
         rule.waitForIdle()
 
-        // Same clock discipline as the reveal test above: autoAdvance=false, explicit
-        // advanceTimeBy only, so the idle hide fires exactly when this test says so.
         rule.mainClock.autoAdvance = false
 
-        // Reveal via a click, then confirm the controls are up.
         rule.onRoot().performMouseInput { click(Offset(400f, 400f)) }
         rule.mainClock.advanceTimeBy(100)
         rule.onNodeWithText("Ch. 1").assertExists()
 
-        // Open the palette, then advance well past the idle window: still pinned visible.
         paletteVisibleState.value = true
         rule.mainClock.advanceTimeByFrame()
         rule.mainClock.advanceTimeBy(10_000)
         rule.onNodeWithText("Ch. 1").assertExists()
 
-        // Close the palette: the idle countdown resumes and the controls hide.
         paletteVisibleState.value = false
         rule.mainClock.advanceTimeBy(10_000)
         rule.onNodeWithText("Ch. 1").assertDoesNotExist()
@@ -632,9 +572,6 @@ class ReaderFlowTest {
         rule.mainClock.autoAdvance = true
     }
 
-    // The overlay Prev button must stop auto-scroll before re-anchoring — a drive loop left
-    // running would keep scrolling the OLD detached listState after the re-anchor mints a
-    // fresh one (visible freeze).
     @Test
     fun prevButtonStopsAutoScrollAndReanchors() {
         val library = FakeLibraryRepository()
@@ -651,19 +588,14 @@ class ReaderFlowTest {
         rule.onRoot().performKeyInput { pressKey(Key.A) }
         rule.mainClock.advanceTimeBy(400)
 
-        // Controls are still up (auto-hide is 2000ms and only 400ms has elapsed).
         rule.onNodeWithText("‹ Prev").performClick()
-        // If the drive loop survived the click still bound to the old listState, waitForIdle
-        // would hang on its always-pending frame — reaching the assertion below is itself the
-        // proof the button stopped auto-scroll.
+        // Reaching this point without hanging proves auto-scroll stopped.
         rule.mainClock.autoAdvance = true
         rule.waitForIdle()
 
-        assertTrue(textVisible("1 / 5"), "expected Prev to stop auto-scroll and re-anchor at ch-1's top")
+        assertTrue(descriptionVisible("Page 1 of 5"), "expected Prev to stop auto-scroll and re-anchor at ch-1's top")
     }
 
-    // Image fetches bypass ApplicationHost, so ReaderScreen is the one place left to apply the
-    // per-source header policy to pages before they reach a renderer.
     @Test
     fun headerPolicyPinsUserAgentOntoPagesDeliveredToPageContent() {
         val library = FakeLibraryRepository()
@@ -695,8 +627,6 @@ class ReaderFlowTest {
         assertEquals("Pinned/1.0", deliveredHeaders?.get("User-Agent"))
     }
 
-    // Prepared page urls (interceptor-rewritten, e.g. a signed CDN url) must reach the renderer,
-    // not just prepared headers.
     @Test
     fun headerPolicyUrlRewriteReachesPageContent() {
         val library = FakeLibraryRepository()
@@ -728,15 +658,6 @@ class ReaderFlowTest {
         assertEquals("${fakePages[0].url}?signed", deliveredUrl)
     }
 
-    // Regression: without an error slot, a failed Coil load rendered zero height, which the
-    // completion heuristic below (last PageRow scrolled into/past view) read as "already at the
-    // bottom" — a wall of failed pages instantly (falsely) marked the chapter finished with the
-    // reader never actually scrolled. This composes the real DefaultReaderPage path (no
-    // pageContent override) against a PolicyImageFetcher-equipped loader that 403s every page.
-    // setSafe is first-wins per JVM: reset before installing so an earlier test's loader (if one
-    // already won the singleton) can't silently stay installed and leave this test exercising the
-    // wrong Coil pipeline (no 403s, no error slot, no wall-clock wait to satisfy) — and reset
-    // again on the way out so the 403 loader installed here never leaks to a later test.
     @OptIn(DelicateCoilApi::class)
     @Test
     fun failedPageImagesReserveHeightAndDoNotFalselyFinishTheChapter() {
@@ -764,16 +685,12 @@ class ReaderFlowTest {
                 }
             }
 
-            // Real (wall-clock) wait: the failed fetch resolves on Coil's own dispatcher, not the
-            // Compose test's virtual clock.
+            // Wall-clock wait: Coil resolves on its own dispatcher, not the virtual clock.
             rule.waitUntil(timeoutMillis = 10_000) {
                 rule.onAllNodesWithTag("reader-page-error").fetchSemanticsNodes().isNotEmpty()
             }
             rule.waitForIdle()
 
-            // The error slot reserves the 3:4 aspect-ratio fallback height (DefaultReaderPage) at
-            // the strip's full width — a real minimum, not the placeholder 1.dp that would also
-            // pass for a near-invisible sliver.
             rule.onAllNodesWithTag("reader-page-error").onFirst().assertHeightIsAtLeast(100.dp)
 
             val progress = runBlocking { library.progress(SOURCE_ID, MANGA_ID, CHAPTER_ID) }
