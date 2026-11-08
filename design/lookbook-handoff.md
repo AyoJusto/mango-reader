@@ -67,7 +67,10 @@ Easings: `decel = CubicBezier(0.2, 0, 0, 1)`, `standard = CubicBezier(0.4, 0, 0.
 - Palette open — 180 ms decel, scale 0.98→1 + fade; backdrop dim/blur 240 ms
 - Reader overlay in — 160 ms ease-out, opacity only; cursor shown with it
 - Reader overlay out — 320 ms standard, after 1.5 s idle; cursor hides with it
-- View change — 200 ms decel, crossfade + 8 dp rise on incoming view
+- View change (top-level switch) — 200 ms decel, crossfade + 8 dp rise on incoming view
+- Push (open Details or the Reader) — 240 ms decel, incoming slides in 48 dp from the right + fades in; outgoing fades out
+- Pop (back) — the mirror: 240 ms decel, incoming slides in 48 dp from the left + fades in; outgoing fades out
+- Reduced motion — push, pop and view change all become a 120 ms crossfade with no movement
 - Cover hover — 160 ms decel, scale 1.03 + shadow
 - Progress bars — 300 ms standard, animate width
 - Banner in — 200 ms decel, slide down + fade; list below stays put
