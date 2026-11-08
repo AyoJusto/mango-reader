@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -82,10 +83,9 @@ class PaletteFlowTest {
         rule.onNodeWithText("Search everywhere…").performTextInput("Library")
         rule.waitForIdle()
 
-        // "Screens" is the category label the Screens provider stamps on every hit; nothing
-        // else in the app renders that word, so its presence alone proves the screen hit is showing.
-        val screenHits = rule.onAllNodes(hasText("Screens") and inPalette).fetchSemanticsNodes()
-        assertTrue(screenHits.isNotEmpty(), "expected the Screens-category hit to be showing")
+        // The query field also holds "Library", so only a clickable row counts as the screen hit.
+        val screenHits = rule.onAllNodes(hasText("Library") and hasClickAction() and inPalette).fetchSemanticsNodes()
+        assertTrue(screenHits.isNotEmpty(), "expected the Library screen hit to be showing")
     }
 
     @Test
@@ -195,6 +195,42 @@ class PaletteFlowTest {
     }
 
     @Test
+    fun footerHasNoKeyHints() {
+        val palette = PaletteState()
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                AppShell(FakeLibraryRepository(libraryItems()), FakeCatalogRepository(), FakeDownloadManager(), palette = palette)
+            }
+        }
+        rule.waitForIdle()
+        palette.visible = true
+        rule.waitForIdle()
+
+        rule.onNodeWithText("navigate", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun rowsWithoutSubtitleShowNoCategoryLine() {
+        val palette = PaletteState()
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                AppShell(FakeLibraryRepository(libraryItems()), FakeCatalogRepository(), FakeDownloadManager(), palette = palette)
+            }
+        }
+        rule.waitForIdle()
+        palette.visible = true
+        rule.waitForIdle()
+
+        // tabs are ["All", "Manhwa", "Actions"]; two Tabs from "All" land on "Actions".
+        rule.onRoot().performKeyInput { pressKey(Key.Tab) }
+        rule.onRoot().performKeyInput { pressKey(Key.Tab) }
+        rule.waitForIdle()
+
+        // The tab chip is the only "Actions" text left; a category fallback would add one per row.
+        rule.onAllNodes(hasText("Actions") and inPalette).assertCountEquals(1)
+    }
+
+    @Test
     fun tabKeySwitchesToTheManhwaTabAndScreenHitsDisappear() {
         val library = FakeLibraryRepository(libraryItems())
         val palette = PaletteState()
@@ -217,7 +253,7 @@ class PaletteFlowTest {
         rule.onRoot().performKeyInput { pressKey(Key.Tab) }
         rule.waitForIdle()
 
-        rule.onAllNodes(hasText("Screens") and inPalette).assertCountEquals(0)
+        rule.onAllNodes(hasText("Library") and hasClickAction() and inPalette).assertCountEquals(0)
         rule.onNode(hasText("Solo Leveling") and inPalette).assertExists()
     }
 

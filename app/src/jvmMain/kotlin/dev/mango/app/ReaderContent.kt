@@ -38,6 +38,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.mango.core.domain.Chapter
@@ -299,7 +301,11 @@ private fun ReaderOverlayBar(
             .shadow(elevation = 16.dp, shape = RoundedCornerShape(MangoRadius.panel))
             .clip(RoundedCornerShape(MangoRadius.panel))
             .background(theme.overlay)
-            .padding(vertical = MangoSpace.sm, horizontal = MangoSpace.md),
+            .padding(vertical = MangoSpace.sm, horizontal = MangoSpace.md)
+            // The visible page count is gone; assistive tech and flow tests read position here.
+            .semantics {
+                if (pageNumber != null && pageCount != null) contentDescription = "Page $pageNumber of $pageCount"
+            },
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
@@ -310,21 +316,8 @@ private fun ReaderOverlayBar(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (pageNumber != null && pageCount != null) {
-                    Row {
-                        Text(
-                            text = "$pageNumber / $pageCount" + if (offline) " · offline" else "",
-                            style = MangoType.meta,
-                            color = theme.textSecondary,
-                        )
-                        if (!offline) {
-                            Text(
-                                text = " panels · ${(progress * 100).roundToInt()}%",
-                                style = MangoType.meta,
-                                color = theme.textSecondary,
-                            )
-                        }
-                    }
+                if (offline) {
+                    Text(text = "offline", style = MangoType.meta, color = theme.textSecondary)
                 }
             }
             Spacer(modifier = Modifier.width(MangoSpace.sm))

@@ -16,9 +16,11 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
@@ -164,8 +166,8 @@ class ReaderFlowTest {
         }
     }
 
-    /** The currently visible "N / 5" page counter (chapter 1's page count), or null if none is. */
-    private fun currentPageCounter(): String? = (1..5).map { "$it / 5" }.firstOrNull { textVisible(it) }
+    /** The current "Page N of 5" description (chapter 1's page count), or null if none is. */
+    private fun currentPageCounter(): String? = (1..5).map { "Page $it of 5" }.firstOrNull { descriptionVisible(it) }
 
     /** Repeated PageDown+waitForIdle until [predicate] is true, or gives up after a generous cap. */
     private fun scrollUntil(predicate: () -> Boolean) {
@@ -176,6 +178,9 @@ class ReaderFlowTest {
         }
     }
 
+    private fun descriptionVisible(description: String): Boolean =
+        rule.onAllNodesWithContentDescription(description, substring = true).fetchSemanticsNodes().isNotEmpty()
+
     private fun textVisible(text: String): Boolean =
         rule.onAllNodesWithText(text, substring = true).fetchSemanticsNodes().isNotEmpty()
 
@@ -185,12 +190,22 @@ class ReaderFlowTest {
         setReaderContent(library, catalogWithPages())
         rule.waitForIdle()
 
-        rule.onNodeWithText("1 / 5").assertExists()
+        rule.onNodeWithContentDescription("Page 1 of 5").assertExists()
 
         rule.onRoot().performKeyInput { pressKey(Key.PageDown) }
         rule.waitForIdle()
 
-        rule.onNodeWithText("1 / 5").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Page 1 of 5").assertDoesNotExist()
+    }
+
+    @Test
+    fun barShowsNoPanelCount() {
+        setReaderContent(FakeLibraryRepository(), catalogWithPages())
+        rule.waitForIdle()
+
+        rule.onNodeWithContentDescription("Page 1 of 5").assertExists()
+        rule.onNodeWithText("panels", substring = true).assertDoesNotExist()
+        rule.onNodeWithText("offline").assertDoesNotExist()
     }
 
     @Test
@@ -219,7 +234,7 @@ class ReaderFlowTest {
         setReaderContent(library, catalogWithPages())
         rule.waitForIdle()
 
-        rule.onNodeWithText("4 / 5").assertExists()
+        rule.onNodeWithContentDescription("Page 4 of 5").assertExists()
     }
 
     @Test
@@ -236,7 +251,8 @@ class ReaderFlowTest {
         setReaderContent(library, catalog, downloads = downloads)
         rule.waitForIdle()
 
-        rule.onNodeWithText("1 / 2 · offline").assertExists()
+        rule.onNodeWithContentDescription("Page 1 of 2").assertExists()
+        rule.onNodeWithText("offline").assertExists()
         assertEquals(0, catalog.pagesCallCount)
     }
 
@@ -250,7 +266,7 @@ class ReaderFlowTest {
         setReaderContent(library, catalog)
         rule.waitForIdle()
 
-        rule.onNodeWithText("1 / 5").assertExists()
+        rule.onNodeWithContentDescription("Page 1 of 5").assertExists()
         assertEquals(1, catalog.pagesCallCount)
     }
 
@@ -280,9 +296,9 @@ class ReaderFlowTest {
         rule.waitForIdle()
 
         // "Ch. 2" alone isn't enough: it also appears in the divider ("Ch. 1 — end · Ch. 2"),
-        // which still attributes to ch-1. The " / 3" counter denominator is unique to ch-2's
+        // which still attributes to ch-1. The "of 3" description denominator is unique to ch-2's
         // pages, so it only appears once the strip has actually scrolled past the divider.
-        scrollUntil { textVisible("/ 3") }
+        scrollUntil { descriptionVisible("of 3") }
         rule.waitForIdle()
 
         val progress = runBlocking { library.progress(SOURCE_ID, MANGA_ID, CHAPTER_2_ID) }
@@ -384,8 +400,8 @@ class ReaderFlowTest {
         scrollUntil { textVisible("Retry") }
 
         assertTrue(textVisible("Retry"), "expected a Retry row once the next chapter's load fails")
-        // "/ 5" is ch-1's counter denominator (ch-2's is "/ 3") — proves ch-1 is still current.
-        assertTrue(textVisible("/ 5"), "expected ch-1 to still be the current chapter after the failed append")
+        // "of 5" is ch-1's page-count denominator (ch-2's is "of 3") — proves ch-1 is still current.
+        assertTrue(descriptionVisible("of 5"), "expected ch-1 to still be the current chapter after the failed append")
     }
 
     // The controls overlay reveals on genuine pointer movement anywhere in the reader (not just
@@ -453,14 +469,14 @@ class ReaderFlowTest {
         val library = FakeLibraryRepository()
         setReaderContent(library, catalogWithPages(), autoScrollSpeedDpPerSec = 2000f)
         rule.waitForIdle()
-        rule.onNodeWithText("1 / 5").assertExists()
+        rule.onNodeWithContentDescription("Page 1 of 5").assertExists()
 
         // CRITICAL: while autoScrolling's withFrameNanos loop runs, waitForIdle() never goes
         // idle — the loop is always pending a frame. Drive time only through the main clock.
         rule.mainClock.autoAdvance = false
         rule.onRoot().performKeyInput { pressKey(Key.A) }
         rule.mainClock.advanceTimeBy(500)
-        rule.onNodeWithText("1 / 5").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Page 1 of 5").assertDoesNotExist()
 
         rule.onRoot().performKeyInput { pressKey(Key.A) } // stop
         rule.mainClock.autoAdvance = true
@@ -523,7 +539,7 @@ class ReaderFlowTest {
         rule.waitForIdle()
         rule.waitForIdle()
 
-        assertTrue(textVisible("1 / 5"), "expected P to re-anchor at the top of ch-1, not a stale scroll offset")
+        assertTrue(descriptionVisible("Page 1 of 5"), "expected P to re-anchor at the top of ch-1, not a stale scroll offset")
     }
 
     // While the palette overlay is up the reader has no keyboard (A can't stop the strip), so
@@ -552,14 +568,14 @@ class ReaderFlowTest {
             }
         }
         rule.waitForIdle()
-        rule.onNodeWithText("1 / 5").assertExists()
+        rule.onNodeWithContentDescription("Page 1 of 5").assertExists()
 
         // CRITICAL: while autoScrolling's withFrameNanos loop runs, waitForIdle() never goes
         // idle — the loop is always pending a frame. Drive time only through the main clock.
         rule.mainClock.autoAdvance = false
         rule.onRoot().performKeyInput { pressKey(Key.A) }
         rule.mainClock.advanceTimeBy(400)
-        rule.onNodeWithText("1 / 5").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Page 1 of 5").assertDoesNotExist()
         val moving = currentPageCounter()
         assertNotNull(moving, "expected a page counter to be showing while auto-scrolling")
 
@@ -659,7 +675,7 @@ class ReaderFlowTest {
         rule.mainClock.autoAdvance = true
         rule.waitForIdle()
 
-        assertTrue(textVisible("1 / 5"), "expected Prev to stop auto-scroll and re-anchor at ch-1's top")
+        assertTrue(descriptionVisible("Page 1 of 5"), "expected Prev to stop auto-scroll and re-anchor at ch-1's top")
     }
 
     // Image fetches bypass ApplicationHost, so ReaderScreen is the one place left to apply the

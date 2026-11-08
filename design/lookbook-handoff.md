@@ -101,7 +101,7 @@ Mid-transition reference: at t≈120 ms the panel sits at translateX −38%, alp
 
 ### 2. Reader (board 05)
 - Fully immersive: long-strip images centered at user-set strip width (default 880 px), bg0 letterbox either side, **zero chrome while reading**.
-- On mouse-move, overlay fades in (160 ms): top-left back button (34×30, overlay fill + blur, radius 10, chevron-left) and a bottom-centered floating bar (520 dp wide, radius 14, overlay fill + 24 dp blur, shadow `0 16dp 48dp rgba(0,0,0,0.5)`, padding 12/16) containing: chapter label (13 Semibold; "Ch. 12", plus " — Title" only when the title says more than the number) + "41 / 68 panels · 60%" (11.5 secondary); right cluster: prev/next chapter buttons (30×28, white @ 6% fill, radius 8) and an **Auto-scroll** toggle pill (accent @ 16% fill, accent text + 6 dp dot when on); below, full-width 3 dp progress bar (white @ 10% track, accent fill).
+- On mouse-move, overlay fades in (160 ms): top-left back button (34×30, overlay fill + blur, radius 10, chevron-left) and a bottom-centered floating bar (520 dp wide, radius 14, overlay fill + 24 dp blur, shadow `0 16dp 48dp rgba(0,0,0,0.5)`, padding 12/16) containing: chapter label (13 Semibold; "Ch. 12", plus " — Title" only when the title says more than the number) + a bare "offline" (11.5 secondary) only when the chapter is offline; right cluster: prev/next chapter buttons (30×28, white @ 6% fill, radius 8) and an **Auto-scroll** toggle pill (accent @ 16% fill, accent text + 6 dp dot when on); below, full-width 3 dp progress bar (white @ 10% track, accent fill).
 - Fades out after 1.5 s idle (320 ms); cursor hides with it. Esc or back button exits.
 - **Loading placeholder (no reflow)**: pre-reserve the panel's known pixel height from source metadata (fallback 3:4 ratio); shimmer bg1→bg2 sweep, 1.8 s linear; loaded image crossfades over it in 200 ms. Scroll position never jumps.
 
@@ -112,7 +112,7 @@ Two columns, gap 40, gutters 48.
 - Chapter states: **in-progress** = accent dot + accent "reading · 60%" · **unread** = primary dot ("downloaded" sub in success when cached) · **read** = dot at 25% white, title drops to text.secondary.
 
 ### 4. Browse (board 07)
-Source catalog. Header: source name (Title 22) + "Popular · updated 5 min ago" (12.5 tertiary); right: Popular/Latest/Filter pill tabs (active = accent fill + accent.on text). Cover grid, 5 columns, gap 18, same cover grammar as Library minus progress. Infinite scroll: footer row with 14 dp spinner (2 dp ring, accent top arc) + "loading page 3" hint; next page appends with 200 ms fade-in.
+Source catalog. Header: the source selector alone names the source (no separate title); right: Popular/Latest/Filter pill tabs (active = accent fill + accent.on text). Cover grid, 5 columns, gap 18, same cover grammar as Library minus progress. Infinite scroll: footer row with 14 dp spinner (2 dp ring, accent top arc) + "loading page 3" hint; next page appends with 200 ms fade-in.
 
 ### 5. Search (board 07)
 Cross-source. Search input: bg2, radius 12, padding 10/14, focus ring (2 dp accent @ 45%, 2 dp bg gap), magnifier icon, accent caret, "3 sources" count right. Results grouped by source with micro-label headers; rows: 30×42 thumb · title + "88 chapters · Action" sub · optional **In library** pill (success @ 14% bg, success text, 11 Semibold, radius 999).
@@ -125,10 +125,10 @@ Rows: 36 dp icon tile (radius 10) · name + "v1.4.12 · EN · 2 series in librar
 **Inline error banner** (failure never blanks the screen): danger @ 10% fill radius 12, 8 dp danger dot, bold first sentence + secondary detail ("Your installed sources are untouched below."), **Retry** button (danger @ 16% bg, danger text) + dismiss ✕. Slides in above the list (200 ms decel); the list stays interactive.
 
 ### 8. Settings (board 09)
-Micro-label group headers ("APPEARANCE", "READER", "GENERAL"); each group is a bg1 card radius 14; rows padding 14/18 with hairline dividers inset 18 dp between rows. Row = title (13.5 Semibold) + sub (12 tertiary) left, control right.
-- **Theme row**: "Mango Dark · yours to edit" + **Export .json** / **Import…** buttons.
-- **Accent row**: 26 dp color swatches (selected has 2 dp accent ring with bg gap) + dashed "+" custom swatch; changing accent recolors every accent token instantly.
-- Reader group: Strip width slider (4 dp track, accent fill, 14 dp white thumb, mono value "880"), Auto-scroll speed, Hide-cursor toggle (38×22 pill, accent when on, 18 dp thumb slides 160 ms decel).
+Micro-label group headers ("APPEARANCE", "READER", "GENERAL"); each group is a bg1 card radius 14; rows padding 14/18 with hairline dividers inset 18 dp between rows. Row = title (13.5 Semibold) left, control right; only the Theme row has a sub-line, the theme name.
+- **Theme row**: Sub-line "Mango Dark" + **Export .json** / **Import…** buttons.
+- **Accent row**: 26 dp color swatches (selected has 2 dp accent ring with bg gap) + dashed "+" custom swatch.
+- Reader group: Strip width slider (4 dp track, accent fill, 14 dp white thumb, mono value with its unit, "880 dp"), Auto-scroll speed (value "120 dp/s"), Hide-cursor toggle (38×22 pill, accent when on, 18 dp thumb slides 160 ms decel).
 - General: palette hotkey keycaps, download location + Change… button.
 
 ## Command Palette (board 10)
@@ -138,7 +138,7 @@ Opens on **Double-Shift** anywhere; IntelliJ behavior, Spotlight styling.
 - Input row: magnifier + 19 sp query text + accent caret + `esc` keycap right.
 - Filter tabs: **All / Manga / Chapters / Actions / Settings** pills (active = accent fill, accent.on text); Tab cycles.
 - Result rows: 26 dp-wide thumb (36 dp tall cover for manga/chapters; 26 dp glyph tile white @ 7% for actions/settings) · primary 13.5 Medium · secondary 11.5 @ 45% white · right-aligned keycap hint (white @ 7% bg, radius 6, mono 11). Selected row: accent @ 14% fill.
-- Footer: hairline + "↑↓ navigate · ↵ open · tab next filter" hints and result count.
+- No footer. A row shows a secondary line only when the hit sets a subtitle; the category is not repeated as one.
 - Every app action and setting is registered here and executable directly.
 
 ## Shared States (board 11)
@@ -184,7 +184,7 @@ Extracted from the updated root `Mango Lookbook.dc.html` in the design project (
 
 ## Details — update checks (board 06)
 
-- Beside "197 chapters": "sorted newest first · checked 2 h ago" (12.5 tertiary) + the same
+- Beside "197 chapters": "checked 2 h ago" (12.5 tertiary) + the same
   32×30 refresh button (surface fill here). Refresh re-runs the live revalidation.
 - Chapters that arrived since the last check wear a **NEW** chip after the title: accent @ 16%
   bg, accent text, 10.5 bold, +0.06em, padding 1.5/7, radius 999. Clears on open or next check.

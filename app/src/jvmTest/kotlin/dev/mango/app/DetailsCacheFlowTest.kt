@@ -52,6 +52,7 @@ class DetailsCacheFlowTest {
 
         rule.onNodeWithText("Solo Leveling").assertExists()
         rule.onNodeWithText("1 chapters").assertExists()
+        rule.onNodeWithText("sorted newest first", substring = true).assertDoesNotExist()
     }
 
     @Test

@@ -114,7 +114,7 @@ fun SettingsScreenContent(
                 SettingsGroup(label = "Appearance") {
                     SettingsRow(
                         title = "Theme",
-                        subtitle = "${theme.name} · yours to edit",
+                        subtitle = theme.name,
                     ) {
                         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(MangoSpace.xs)) {
                             Row(
@@ -198,7 +198,7 @@ fun SettingsScreenContent(
                         }
                     }
                     SettingsDivider()
-                    SettingsRow(title = "Accent", subtitle = "Recolors every accent token instantly") {
+                    SettingsRow(title = "Accent") {
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs),
                             modifier = Modifier.testTag(settingsEntryTag("Accent")),
@@ -216,7 +216,6 @@ fun SettingsScreenContent(
                     SettingsDivider()
                     SettingsRow(
                         title = "App font",
-                        subtitle = "Applies to the interface, not the pages",
                         modifier = Modifier.testTag(settingsEntryTag("App font")),
                     ) {
                         // A stored name whose font is gone shows as the default rather than
@@ -234,7 +233,7 @@ fun SettingsScreenContent(
 
                 SettingsGroup(label = "Reader") {
                     var pendingStripWidth by remember(stripWidth) { mutableStateOf(stripWidth) }
-                    SettingsRow(title = "Strip width", subtitle = "Width of the centered reading column") {
+                    SettingsRow(title = "Strip width") {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)
@@ -247,16 +246,16 @@ fun SettingsScreenContent(
                                 modifier = Modifier.width(180.dp).testTag(settingsEntryTag("Strip width")),
                             )
                             Text(
-                                text = pendingStripWidth.roundToInt().toString(),
+                                text = "${pendingStripWidth.roundToInt()} dp",
                                 style = MangoType.monoChapter,
                                 color = theme.textPrimary,
-                                modifier = Modifier.width(36.dp),
+                                modifier = Modifier.width(64.dp),
                             )
                         }
                     }
                     SettingsDivider()
                     var pendingAutoScroll by remember(autoScrollSpeed) { mutableStateOf(autoScrollSpeed) }
-                    SettingsRow(title = "Auto-scroll speed", subtitle = "dp/s while auto-scroll (A) is running") {
+                    SettingsRow(title = "Auto-scroll speed") {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)
@@ -269,15 +268,15 @@ fun SettingsScreenContent(
                                 modifier = Modifier.width(180.dp).testTag(settingsEntryTag("Auto-scroll speed")),
                             )
                             Text(
-                                text = pendingAutoScroll.roundToInt().toString(),
+                                text = "${pendingAutoScroll.roundToInt()} dp/s",
                                 style = MangoType.monoChapter,
                                 color = theme.textPrimary,
-                                modifier = Modifier.width(36.dp),
+                                modifier = Modifier.width(64.dp),
                             )
                         }
                     }
                     SettingsDivider()
-                    SettingsRow(title = "Hide cursor", subtitle = "Blank the mouse cursor with the reader overlay") {
+                    SettingsRow(title = "Hide cursor") {
                         TogglePill(
                             checked = hideCursorInReader,
                             onCheckedChange = onHideCursorInReaderChange,

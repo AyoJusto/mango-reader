@@ -164,12 +164,6 @@ fun BrowseScreenContent(
     Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
         ContentColumn(max = MangoSpace.gridMaxWidth) {
             Column(modifier = Modifier.fillMaxSize().padding(MangoSpace.md)) {
-                val selectedSource = sources.firstOrNull { it.sourceId == selectedSourceId }
-                if (selectedSource != null) {
-                    // "updated …" caption from board 07 is skipped: SourceInfo carries no such timestamp.
-                    Text(text = selectedSource.name, style = MangoType.title, color = theme.textPrimary)
-                    Spacer(modifier = Modifier.height(MangoSpace.sm))
-                }
                 if (sources.isNotEmpty()) {
                     SegmentedControl(
                         options = sources.map { it.name },

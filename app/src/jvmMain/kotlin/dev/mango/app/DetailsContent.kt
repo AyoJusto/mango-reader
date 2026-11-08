@@ -463,15 +463,13 @@ private fun DetailsChapterListColumn(
                 color = theme.textPrimary,
                 modifier = Modifier.weight(1f),
             )
-            Text(
-                text = if (checkedAt != null) {
-                    "sorted newest first · checked ${formatRelativeTime(checkedAt, Clock.System.now())}"
-                } else {
-                    "sorted newest first"
-                },
-                fontSize = 12.5.sp,
-                color = theme.textTertiary,
-            )
+            if (checkedAt != null) {
+                Text(
+                    text = "checked ${formatRelativeTime(checkedAt, Clock.System.now())}",
+                    fontSize = 12.5.sp,
+                    color = theme.textTertiary,
+                )
+            }
             RefreshGlyphButton(
                 checking = revalidating,
                 onClick = onRefresh,

@@ -1,6 +1,8 @@
 package dev.mango.app
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
@@ -118,6 +120,8 @@ class BrowseFlowTest {
 
         rule.onNodeWithText("Popular").assertExists()
         rule.onNodeWithText("Solo Leveling").assertExists()
+        // The selector segment is the only place the source name shows.
+        rule.onAllNodesWithText("FlameComics").assertCountEquals(1)
     }
 
     @Test

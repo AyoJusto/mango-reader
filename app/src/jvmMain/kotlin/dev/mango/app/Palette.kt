@@ -374,7 +374,6 @@ fun PaletteContent(
                             PaletteResultRow(hit = hit, selected = index == selectedIndex, onClick = { onRunHit(hit) })
                         }
                     }
-                    PaletteFooter(resultCount = hits.size)
                 }
             }
         }
@@ -449,7 +448,7 @@ private fun PaletteResultRow(hit: PaletteHit, selected: Boolean, onClick: () -> 
         PaletteResultTile(category = hit.category, title = hit.title)
         Column(modifier = Modifier.weight(1f)) {
             Text(text = hit.title, fontSize = 13.5.sp, fontWeight = FontWeight.Medium, color = theme.textPrimary)
-            Text(text = hit.subtitle ?: hit.category, style = MangoType.meta, color = theme.textTertiary)
+            hit.subtitle?.let { Text(text = it, style = MangoType.meta, color = theme.textTertiary) }
         }
         hit.hint?.let { hint -> Keycap(hint) }
     }
@@ -468,23 +467,6 @@ private fun PaletteResultTile(category: String, title: String) {
     ) {
         val glyph = PALETTE_CATEGORY_GLYPHS[category] ?: title.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
         Text(text = glyph, style = MangoType.label, color = theme.textSecondary)
-    }
-}
-
-/** Hairline divider, keyboard hints, and the result count. */
-@Composable
-private fun PaletteFooter(resultCount: Int) {
-    val theme = LocalMangoTheme.current
-    Column(modifier = Modifier.padding(top = MangoSpace.sm)) {
-        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(theme.divider))
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = MangoSpace.sm),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(text = "↑↓ navigate · ↵ open · tab next filter", style = MangoType.hint, color = theme.textTertiary)
-            Text(text = resultCount.toString(), style = MangoType.hint, color = theme.textTertiary)
-        }
     }
 }
 
