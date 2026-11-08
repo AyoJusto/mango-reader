@@ -6,6 +6,10 @@ plugins {
 }
 
 kotlin {
+    jvmToolchain {
+        languageVersion.set(JavaLanguageVersion.of(25))
+        vendor.set(JvmVendorSpec.ADOPTIUM)
+    }
     jvm()
 
     sourceSets {
@@ -121,7 +125,7 @@ tasks.withType<Test> {
     }
     // JCEF needs the same AWT opens in the test JVM when a live test drives it
     jvmArgs(jcefJvmArgs)
-    // Test workers run on the Gradle JVM, not mango.jbrHome
-    jvmArgs(quietNativeWarningArgs(javaMajor(null)))
+    // Test workers run on the pinned toolchain JDK, not mango.jbrHome
+    jvmArgs(quietNativeWarningArgs(25))
 }
 

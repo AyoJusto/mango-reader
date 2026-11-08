@@ -12,7 +12,7 @@ import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.contentLength
 import io.ktor.http.isSuccess
-import io.ktor.utils.io.readRemaining
+import io.ktor.utils.io.readBuffer
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
@@ -108,7 +108,7 @@ class InkdexRepo(
             // the download owns this cap (BundleLoader's in-memory check is defense-in-depth
             // on top of it): read at most one byte past the limit so a hostile or broken
             // registry response is never fully buffered before rejection
-            response.bodyAsChannel().readRemaining(BundleLoader.MAX_BUNDLE_BYTES + 1L).readByteArray()
+            response.bodyAsChannel().readBuffer(BundleLoader.MAX_BUNDLE_BYTES + 1L).readByteArray()
         }
         if (bytes.size > BundleLoader.MAX_BUNDLE_BYTES) {
             throw InkdexException(

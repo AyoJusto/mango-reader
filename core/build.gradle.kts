@@ -9,12 +9,16 @@ sqldelight {
             packageName.set("dev.mango.core.db")
             // default dialect is sqlite 3.18, which predates upsert (ON CONFLICT DO UPDATE,
             // sqlite 3.24); the bundled xerial driver is a modern 3.4x
-            dialect("app.cash.sqldelight:sqlite-3-38-dialect:2.3.2")
+            dialect("app.cash.sqldelight:sqlite-3-38-dialect:${libs.versions.sqldelight.get()}")
         }
     }
 }
 
 kotlin {
+    jvmToolchain {
+        languageVersion.set(JavaLanguageVersion.of(25))
+        vendor.set(JvmVendorSpec.ADOPTIUM)
+    }
     jvm()
 
     sourceSets {
@@ -47,4 +51,6 @@ tasks.withType<Test> {
         if (!project.hasProperty("live")) excludeTags("live")
     }
     testLogging { showStandardStreams = true }
+    // JDK 25 warns on sqlite-jdbc's native load and Truffle's sun.misc.Unsafe use; both are expected here
+    jvmArgs("--enable-native-access=ALL-UNNAMED", "--sun-misc-unsafe-memory-access=allow")
 }
