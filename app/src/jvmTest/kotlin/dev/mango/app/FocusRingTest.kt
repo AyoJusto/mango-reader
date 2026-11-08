@@ -22,6 +22,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.requestFocus
+import androidx.compose.ui.test.withKeyDown
 import org.junit.Rule
 import org.junit.Test
 
@@ -60,6 +61,21 @@ class FocusRingTest {
         rule.waitForIdle()
 
         rule.onAllNodes(hasRing).assertCountEquals(1)
+    }
+
+    @Test
+    fun aLoneModifierOrAShortcutShowsNoRing() {
+        startShell()
+        rule.onNodeWithTag(SIDEBAR_TOGGLE_TAG).requestFocus()
+
+        rule.onNodeWithTag(SIDEBAR_TOGGLE_TAG).performKeyInput {
+            pressKey(Key.CtrlLeft)
+            withKeyDown(Key.CtrlLeft) { pressKey(Key.S) }
+            pressKey(Key.ShiftLeft)
+        }
+        rule.waitForIdle()
+
+        rule.onAllNodes(hasRing).assertCountEquals(0)
     }
 
     @Test
