@@ -79,6 +79,27 @@ class ScreenTransitionTest {
     }
 
     @Test
+    fun replaceCurrentDoesNotAnimate() = runComposeUiTest {
+        val navigator = Navigator()
+        mainClock.autoAdvance = false
+        setContent { TestAppShell(library(), catalog(), FakeDownloadManager(), navigator = navigator) }
+        repeat(SETTLE_FRAMES) { mainClock.advanceTimeByFrame() }
+        onNodeWithText("Series 1").performClick()
+        repeat(SETTLE_FRAMES) { mainClock.advanceTimeByFrame() }
+        val settledLeft = onNodeWithTag("screen:Details").fetchSemanticsNode().boundsInRoot.left
+
+        // Series 1 has no chapters, so the toggled flag has nothing to continue into.
+        val details = navigator.current.screen as Screen.Details
+        navigator.replaceCurrent(details.copy(autoContinue = !details.autoContinue))
+        repeat(6) {
+            mainClock.advanceTimeByFrame()
+            val nodes = onAllNodesWithTag("screen:Details").fetchSemanticsNodes()
+            assertEquals(1, nodes.size, "frame $it")
+            assertEquals(settledLeft, nodes.single().boundsInRoot.left, "frame $it")
+        }
+    }
+
+    @Test
     fun topLevelSwitchDoesNotSlideSideways() = runComposeUiTest {
         mainClock.autoAdvance = false
         setContent { TestAppShell(library(), catalog(), FakeDownloadManager()) }
