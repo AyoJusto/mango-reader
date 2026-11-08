@@ -133,6 +133,68 @@ class LibraryFlowTest {
         rule.onNodeWithText("+3 new").assertExists()
     }
 
+    private fun inProgressItems() = listOf(
+        LibraryItem(
+            MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling"),
+            Clock.System.now(),
+            chapterCount = 10,
+            unreadCount = 7,
+        ),
+    )
+
+    private fun showLibrary(items: List<LibraryItem>, libraryView: String = LIBRARY_VIEW_GRID, checkedAt: Long? = null) {
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                LibraryScreenContent(
+                    items = items,
+                    libraryView = libraryView,
+                    onOpenDetails = {},
+                    checkedAt = checkedAt,
+                )
+            }
+        }
+        rule.waitForIdle()
+    }
+
+    @Test
+    fun gridShowsNoChapterOrPercentUnderACover() {
+        showLibrary(inProgressItems())
+
+        rule.onNodeWithText("Ch. ", substring = true).assertDoesNotExist()
+        rule.onNodeWithText("%", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun headerShowsNoSeriesCount() {
+        showLibrary(inProgressItems(), checkedAt = Clock.System.now().toEpochMilliseconds())
+
+        rule.onNodeWithText("series", substring = true).assertDoesNotExist()
+        rule.onNodeWithText("All · 1").assertExists()
+    }
+
+    @Test
+    fun finishedSeriesShowsNoCompletedCaptionInGrid() {
+        val finished = inProgressItems().map { it.copy(unreadCount = 0) }
+
+        showLibrary(finished)
+        rule.onNodeWithText("Completed").assertDoesNotExist()
+    }
+
+    @Test
+    fun finishedSeriesShowsCompletedInList() {
+        val finished = inProgressItems().map { it.copy(unreadCount = 0) }
+
+        showLibrary(finished, LIBRARY_VIEW_LIST)
+        rule.onNodeWithText("Completed").assertExists()
+    }
+
+    @Test
+    fun listRowShowsNoPercentColumn() {
+        showLibrary(inProgressItems(), LIBRARY_VIEW_LIST)
+
+        rule.onNodeWithText("%", substring = true).assertDoesNotExist()
+    }
+
     @Test
     fun aNonNullCheckedAtShowsCheckedInTheHeaderCaption() {
         rule.setContent {

@@ -48,7 +48,6 @@ import dev.mango.core.domain.CollectionInfo
 import dev.mango.core.domain.LibraryItem
 import dev.mango.core.domain.LibraryRepository
 import dev.mango.core.domain.MangaEntry
-import kotlin.math.roundToInt
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlinx.coroutines.CancellationException
@@ -67,12 +66,6 @@ internal const val LIBRARY_GRID_TEST_TAG = "library-grid"
 /** A series' read fraction in [0, 1], or null when its chapter count is unknown (never opened yet). */
 private fun LibraryItem.readFraction(): Float? =
     if (chapterCount > 0) (chapterCount - unreadCount).toFloat() / chapterCount else null
-
-/** "Ch. 142 · 72%" once the chapter count is known; blank otherwise — nothing to report yet. */
-private fun LibraryItem.metaLine(): String {
-    val fraction = readFraction() ?: return ""
-    return "Ch. $chapterCount · ${(fraction * 100).roundToInt()}%"
-}
 
 /**
  * A series counts as finished, for the library grid/list, once every known chapter has been
@@ -120,21 +113,14 @@ fun LibraryScreenContent(
                         color = theme.textPrimary,
                         modifier = Modifier.weight(1f),
                     )
-                    Text(
-                        text = if (checkedAt != null) {
-                            "${items.size} series · checked ${
-                                formatRelativeTime(
-                                    Instant.fromEpochMilliseconds(checkedAt),
-                                    now
-                                )
-                            }"
-                        } else {
-                            "${items.size} series"
-                        },
-                        style = MangoType.caption,
-                        color = theme.textTertiary,
-                        modifier = Modifier.padding(end = MangoSpace.sm),
-                    )
+                    if (checkedAt != null) {
+                        Text(
+                            text = "checked ${formatRelativeTime(Instant.fromEpochMilliseconds(checkedAt), now)}",
+                            style = MangoType.caption,
+                            color = theme.textTertiary,
+                            modifier = Modifier.padding(end = MangoSpace.sm),
+                        )
+                    }
                     RefreshGlyphButton(
                         checking = checking,
                         onClick = onCheckForUpdates,
@@ -194,9 +180,7 @@ fun LibraryScreenContent(
                                 title = item.entry.title,
                                 coverUrl = item.entry.cover,
                                 sourceId = item.entry.sourceId,
-                                metaLine = item.metaLine(),
                                 unreadCount = item.unreadCount,
-                                progress = item.readFraction(),
                                 finished = item.isFinished(),
                                 onClick = { onOpenDetails(item.entry) },
                                 newCount = item.newCount,
@@ -210,8 +194,8 @@ fun LibraryScreenContent(
 }
 
 /**
- * One row of the Library's list view: a small cover thumb, title + meta, a flexible progress
- * track, the read percentage, and when the series was last read.
+ * One row of the Library's list view: a small cover thumb, the title, a flexible progress
+ * track, and when the series was last read.
  */
 @Composable
 private fun LibraryListRow(item: LibraryItem, onClick: () -> Unit) {
@@ -253,22 +237,17 @@ private fun LibraryListRow(item: LibraryItem, onClick: () -> Unit) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                text = if (item.isFinished()) "Completed" else item.metaLine(),
-                style = MangoType.meta,
-                color = theme.textTertiary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            if (item.isFinished()) {
+                Text(
+                    text = "Completed",
+                    style = MangoType.meta,
+                    color = theme.textTertiary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         ProgressTrack(progress = fraction ?: 0f, modifier = Modifier.weight(1f))
-        Text(
-            text = fraction?.let { "${(it * 100).roundToInt()}%" } ?: "—",
-            style = MangoType.caption,
-            color = theme.textSecondary,
-            textAlign = TextAlign.End,
-            modifier = Modifier.width(36.dp),
-        )
         Text(
             text = item.lastReadAt?.let { formatDate(it) } ?: "—",
             style = MangoType.caption,

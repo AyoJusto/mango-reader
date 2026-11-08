@@ -28,7 +28,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.BoxScope
@@ -69,7 +68,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
@@ -613,18 +611,16 @@ fun rememberCoverRequest(sourceId: String, url: String?): ImageRequest? {
 }
 
 /**
- * The Library/Browse cover-card grammar: a 2:3 cover with a title and meta line beneath. Rest
- * shows an unread-count pill; hovering scales the cover up and reveals a scrim with the meta
- * line and a progress bar; a finished series dims the cover and swaps the pill for a checkmark.
+ * The Library/Browse cover-card grammar: a 2:3 cover with its title beneath. Rest shows an
+ * unread-count pill; hovering scales the cover up; a finished series dims the cover and swaps
+ * the pill for a checkmark.
  */
 @Composable
 fun CoverCard(
     title: String,
     coverUrl: String?,
     sourceId: String,
-    metaLine: String,
     unreadCount: Int?,
-    progress: Float?,
     finished: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -648,10 +644,6 @@ fun CoverCard(
     val hovered by interaction.collectIsHoveredAsState()
     val scale by animateFloatAsState(
         targetValue = if (hovered) MangoMotion.COVER_HOVER_SCALE else 1f,
-        animationSpec = tween(MangoMotion.COVER_HOVER_MS, easing = MangoMotion.decel),
-    )
-    val scrimAlpha by animateFloatAsState(
-        targetValue = if (hovered) 1f else 0f,
         animationSpec = tween(MangoMotion.COVER_HOVER_MS, easing = MangoMotion.decel),
     )
     Column(
@@ -709,22 +701,6 @@ fun CoverCard(
                     )
                 }
             }
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .alpha(scrimAlpha)
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, theme.bg0.copy(alpha = 0.85f))))
-                    .padding(8.dp),
-            ) {
-                Column {
-                    Text(text = metaLine, style = MangoType.meta, color = theme.textSecondary)
-                    if (progress != null) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        ProgressTrack(progress = progress, height = 3.dp)
-                    }
-                }
-            }
         }
         Text(
             text = title,
@@ -735,15 +711,8 @@ fun CoverCard(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 6.dp),
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            if (newCount > 0 && !finished) {
-                Text(text = "+$newCount new", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = theme.accent)
-            }
-            Text(
-                text = if (finished) "Completed" else metaLine,
-                style = MangoType.meta,
-                color = theme.textTertiary,
-            )
+        if (newCount > 0 && !finished) {
+            Text(text = "+$newCount new", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = theme.accent)
         }
     }
 }

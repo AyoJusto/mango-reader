@@ -94,10 +94,10 @@ Mid-transition reference: at t≈120 ms the panel sits at translateX −38%, alp
 ## Screens / Views
 
 ### 1. Library (board 04)
-- Header: "Library" (Display 28) left; right: "24 series" (13, tertiary) + Grid/List segmented control (bg2 track radius 10, padding 3; selected segment surface fill radius 8 + small shadow).
-- **Grid view**: adaptive columns = `floor(width / 196)`, gap 20, covers 2:3 radius 12. Beneath each: title (13 Semibold, ellipsized) + meta line (11.5 tertiary, e.g. "Ch. 142 · 72%"). Unread count: pill top-right on cover, accent @ 92% bg, accent.on text, 11 Bold, radius 999, 8 dp inset.
-- **Cover states**: rest (unread pill only) · hover (scale 1.03 + shadow `0 12dp 32dp rgba(0,0,0,0.5)` + bottom scrim gradient to bg0 @ 85% showing "Ch. 142 · 72%" and a 3 dp accent progress bar) · **finished** (cover at 70% opacity, pill replaced by success ✓ pill: success @ 20% bg, success text; meta says "Completed").
-- **List view**: rows padding 8/12 radius 10, hover bg1: 32×44 cover thumb · title+chapter block (250 dp) · flexible 4 dp progress track (accent fill; success fill at 100%) · right-aligned % (12) · last-read (12, tertiary, 110 dp).
+- Header: "Library" (Display 28) left; right: Grid/List segmented control (bg2 track radius 10, padding 3; selected segment surface fill radius 8 + small shadow).
+- **Grid view**: adaptive columns = `floor(width / 196)`, gap 20, covers 2:3 radius 12. Beneath each: title (13 Semibold, ellipsized) only; no chapter or percent caption. Unread count: pill top-right on cover, accent @ 92% bg, accent.on text, 11 Bold, radius 999, 8 dp inset.
+- **Cover states**: rest (unread pill only) · hover (scale 1.03 + shadow `0 12dp 32dp rgba(0,0,0,0.5)`, no scrim) · **finished** (cover at 70% opacity, pill replaced by success ✓ pill: success @ 20% bg, success text; no caption in the grid).
+- **List view**: rows padding 8/12 radius 10, hover bg1: 32×44 cover thumb · title block (250 dp; "Completed" under the title for finished series) · flexible 4 dp progress track (accent fill; success fill at 100%) · last-read (12, tertiary, 110 dp).
 
 ### 2. Reader (board 05)
 - Fully immersive: long-strip images centered at user-set strip width (default 880 px), bg0 letterbox either side, **zero chrome while reading**.
@@ -171,16 +171,16 @@ Extracted from the updated root `Mango Lookbook.dc.html` in the design project (
 
 ## Library — update checks (board 04)
 
-- Header right side becomes: "24 series · checked 2 h ago" (13, tertiary) · a 32×30 refresh
+- Header right side becomes: "checked 2 h ago" (13, tertiary) · a 32×30 refresh
   icon-button (bg2 fill radius 10, hover surface; 14 dp circular-arrow stroke glyph,
   text.secondary) · the Grid/List segmented control. Checked-time hidden if never checked.
 - Manual only — no automatic background checks (owner decision).
 - When a check finds chapters for a series: the unread pill increments and pulses once
-  (glow ring `0 0 0 3dp accent @ 25%`), and the card caption gains an amber prefix
-  **"+n new"** (11 bold, accent) before the meta line ("+3 new · Ch. 142 · 72%"). The prefix
+  (glow ring `0 0 0 3dp accent @ 25%`), and the card gains an amber caption
+  **"+n new"** (11 bold, accent) under the title ("+3 new"). The prefix
   persists until the user opens the series (Details visit), then clears.
-- Fourth cover-states tile: rest pill · hover scrim · finished ✓ · **refresh found n** (pill
-  with glow ring + bottom scrim carrying the "+3 new" caption).
+- Fourth cover-states tile: rest pill · hover · finished ✓ · **refresh found n** (pill
+  with glow ring + the "+3 new" caption under the title).
 
 ## Details — update checks (board 06)
 
