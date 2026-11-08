@@ -26,7 +26,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -176,7 +175,6 @@ fun ReaderContent(
     nextChallengeUrl: String? = null,
     autoScrolling: Boolean = false,
     stripWidthDp: Float = DEFAULT_STRIP_WIDTH_DP,
-    onBack: () -> Unit,
     onPrev: () -> Unit = {},
     onNext: () -> Unit = {},
     onRetryNext: () -> Unit = {},
@@ -232,10 +230,6 @@ fun ReaderContent(
                 modifier = Modifier.fillMaxSize(),
             ) {
                 Box(modifier = Modifier.fillMaxSize()) {
-                    ReaderBackButton(
-                        onClick = onBack,
-                        modifier = Modifier.align(Alignment.TopStart).padding(16.dp),
-                    )
                     ReaderOverlayBar(
                         label = currentSegment?.label.orEmpty(),
                         pageNumber = pageNumber,
@@ -253,23 +247,6 @@ fun ReaderContent(
                 }
             }
         }
-    }
-}
-
-/** Top-left exit control, per board 05: overlay-token fill, a leading chevron, wired to [onClick]. */
-@Composable
-private fun ReaderBackButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val theme = LocalMangoTheme.current
-    Box(
-        modifier = modifier
-            .size(width = 34.dp, height = 30.dp)
-            .keyboardFocusRing(RoundedCornerShape(MangoRadius.control))
-            .clip(RoundedCornerShape(MangoRadius.control))
-            .background(theme.overlay)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(imageVector = Icons.Filled.ChevronLeft, contentDescription = "Back", tint = theme.textPrimary)
     }
 }
 

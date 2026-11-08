@@ -600,7 +600,6 @@ fun ReaderScreen(
                     nextChallengeSolving = solvingNext,
                     autoScrolling = autoScrolling,
                     stripWidthDp = stripWidthDp,
-                    onBack = onBack,
                     onPrev = { reanchorToPreviousChapter() },
                     onNext = { goToNextChapter() },
                     onToggleAutoScroll = { autoScrolling = !autoScrolling },

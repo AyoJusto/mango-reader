@@ -2,6 +2,7 @@ package dev.mango.app
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -288,6 +289,19 @@ class ScreenScreenshotsTest {
                     fontFamilyName = "Georgia",
                     installedFonts = listOf("Georgia"),
                 )
+            }
+        }
+        assertTrue(Files.size(file) > 0, "expected a non-empty PNG at $file")
+    }
+
+    @Test
+    fun titleBar() {
+        val file = Screenshots.render("titlebar", width = 640, height = 96) {
+            ProvideMangoTheme(MangoDark) {
+                Column(modifier = Modifier.fillMaxSize().background(MangoDark.bg0)) {
+                    MangoTitleBar(sidebarOpen = false, onToggleSidebar = {}, canGoBack = false)
+                    MangoTitleBar(sidebarOpen = false, onToggleSidebar = {}, canGoBack = true)
+                }
             }
         }
         assertTrue(Files.size(file) > 0, "expected a non-empty PNG at $file")

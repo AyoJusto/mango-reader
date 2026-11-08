@@ -241,6 +241,8 @@ fun AppShell(
             MangoTitleBar(
                 sidebarOpen = sidebarOpen,
                 onToggleSidebar = { onSidebarChange(!sidebarOpen) },
+                canGoBack = navigator.canGoBack,
+                onBack = { navigator.back() },
             )
         }
         // Content, sidebar, and palette live in one Box so the overlays can stack above
@@ -395,12 +397,6 @@ fun AppShell(
                                                             }
                                                         },
                                                     )
-                                                    IconButton(
-                                                        onClick = { navigator.back() },
-                                                        modifier = Modifier.padding(8.dp),
-                                                    ) {
-                                                        Text("←", color = theme.textSecondary)
-                                                    }
                                                 }
                                             }
                                         }

@@ -144,6 +144,8 @@ fun main() {
                                     { sidebarOpen = !sidebarOpen },
                                     // First in the chain so it sees presses the title-bar buttons consume.
                                     Modifier.trackLastInput(lastInputWasKeyboard).windowDragArea(),
+                                    canGoBack = navigator.canGoBack,
+                                    onBack = { navigator.back() },
                                 ) {
                                     WindowControls(Modifier.align(Alignment.CenterEnd))
                                 }

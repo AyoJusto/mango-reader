@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.LibraryBooks
 import androidx.compose.material.icons.automirrored.outlined.ViewSidebar
+import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Extension
@@ -75,7 +76,8 @@ internal const val SIDEBAR_TOGGLE_TAG = "sidebar-toggle"
 internal val TITLE_BAR_HEIGHT = 44.dp
 
 /**
- * The 44dp title bar: logo, sidebar-toggle glyph and app title on the left. In the app window
+ * The 44dp title bar: Back chevron, logo, sidebar-toggle glyph and app title on the left. Back
+ * stays visible but dimmed and inert when [canGoBack] is false, so the bar never shifts. In the app window
  * the caller passes a drag-area [modifier] and Nucleus's native [windowControls]; without them
  * (tests, previews) it renders the same content with no controls.
  */
@@ -84,6 +86,8 @@ fun MangoTitleBar(
     sidebarOpen: Boolean,
     onToggleSidebar: () -> Unit,
     modifier: Modifier = Modifier,
+    canGoBack: Boolean = false,
+    onBack: () -> Unit = {},
     windowControls: @Composable BoxScope.() -> Unit = {},
 ) {
     val theme = LocalMangoTheme.current
@@ -95,7 +99,31 @@ fun MangoTitleBar(
                 .background(theme.bg0),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            val backHover = rememberHoverFill(rest = theme.surface.copy(alpha = 0f), hover = theme.surface)
+            Box(
+                modifier = Modifier
+                    .size(width = 34.dp, height = 28.dp)
+                    .keyboardFocusRing(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(8.dp))
+                    .then(if (canGoBack) Modifier.background(backHover.fill).hoverable(backHover.interaction) else Modifier)
+                    .noWindowDrag()
+                    .clickable(
+                        enabled = canGoBack,
+                        interactionSource = backHover.interaction,
+                        indication = null,
+                        onClick = onBack,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.ChevronLeft,
+                    contentDescription = "Back",
+                    tint = if (canGoBack) theme.textSecondary else theme.textTertiary.copy(alpha = 0.5f),
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+            Spacer(modifier = Modifier.width(6.dp))
             Image(
                 painter = painterResource(Res.drawable.mango_icon),
                 contentDescription = null,

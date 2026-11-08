@@ -80,6 +80,7 @@ Easings: `decel = CubicBezier(0.2, 0, 0, 1)`, `standard = CubicBezier(0.4, 0, 0.
 ## Window Chrome (board 03)
 Borderless window, custom title bar 44 dp tall, background = bg0 (blends into app — no OS strip; whole bar is a drag region except buttons).
 - **Right**: standard Windows controls, each 44 dp wide: minimize (–), maximize (9×9 outline square), close (✕). Icon color text.secondary. Hover: surface fill 120 ms; close hover: danger fill.
+- **Far left, before the app icon**: the single Back control, a 16 dp chevron-left in a 34×28 dp, radius 8 box (`contentDescription` "Back"). Enabled: text.secondary glyph, surface hover fill. Disabled (nothing to go back to): text.tertiary at 50% alpha, no hover, not clickable, never hidden. Details and the Reader have no in-screen back arrow; Esc and the mouse back button trigger the same Back.
 - **Left, mirrored in the same row**: sidebar-toggle glyph (34×28 dp, radius 8, a 16 dp panel-with-left-rail icon). Active/open: surface fill + accent-colored icon. Reserve room for 1–2 future glyphs.
 
 ## Sidebar (board 03 — signature element)

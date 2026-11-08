@@ -7,7 +7,9 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasAnyAncestor
@@ -17,6 +19,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -227,6 +230,40 @@ class ScreenFlowTest {
     )
 
     @Test
+    fun titleBarBackIsDisabledOnLibrary() {
+        rule.setContent { TestAppShell(FakeLibraryRepository(), soloCatalog(), FakeDownloadManager()) }
+
+        rule.onNodeWithContentDescription("Back").assertExists().assertIsNotEnabled()
+    }
+
+    @Test
+    fun titleBarBackReturnsFromDetails() {
+        val library = FakeLibraryRepository(listOf(LibraryItem(soloEntry, Clock.System.now())))
+        rule.setContent { TestAppShell(library, soloCatalog(), FakeDownloadManager()) }
+
+        rule.onNodeWithText("Solo Leveling").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("screen:Details").assertExists()
+        rule.onNodeWithContentDescription("Back").assertIsEnabled().performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithTag("screen:Library").assertExists()
+        rule.onNodeWithTag("screen:Details").assertDoesNotExist()
+    }
+
+    @Test
+    fun detailsHasNoInScreenBackArrow() {
+        val library = FakeLibraryRepository(listOf(LibraryItem(soloEntry, Clock.System.now())))
+        rule.setContent { TestAppShell(library, soloCatalog(), FakeDownloadManager()) }
+
+        rule.onNodeWithText("Solo Leveling").performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithTag("screen:Details").assertExists()
+        rule.onNodeWithText("←").assertDoesNotExist()
+    }
+
+    @Test
     fun backFromSearchOpenedDetailsReturnsToSearch() {
         rule.setContent { TestAppShell(FakeLibraryRepository(), soloCatalog(), FakeDownloadManager()) }
 
@@ -239,7 +276,7 @@ class ScreenFlowTest {
         rule.waitForIdle()
         rule.onNodeWithText("Add to library").assertExists()
 
-        rule.onNodeWithText("←").performClick()
+        rule.onNodeWithContentDescription("Back").performClick()
         rule.waitForIdle()
 
         rule.onNodeWithText("solo").assertExists()

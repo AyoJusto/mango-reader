@@ -52,7 +52,6 @@ class ReaderScreenshotsTest {
                     segments = fakeSegments,
                     listState = rememberLazyListState(),
                     controlsVisible = true,
-                    onBack = {},
                     pageContent = { page, _ -> FakePageContent(page) },
                 )
             }
@@ -68,7 +67,6 @@ class ReaderScreenshotsTest {
                     segments = fakeSegments,
                     listState = rememberLazyListState(),
                     controlsVisible = false,
-                    onBack = {},
                     pageContent = { page, _ -> FakePageContent(page) },
                 )
             }

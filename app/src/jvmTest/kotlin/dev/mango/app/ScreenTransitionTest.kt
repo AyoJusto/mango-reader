@@ -5,6 +5,7 @@ import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -127,7 +128,7 @@ class ScreenTransitionTest {
         waitForIdle()
         onNodeWithTag("screen:Details").assertExists()
 
-        onNodeWithText("←").performClick()
+        onNodeWithContentDescription("Back").performClick()
         waitForIdle()
 
         onNodeWithText("Series 20").assertIsDisplayed()
