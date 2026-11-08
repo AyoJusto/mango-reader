@@ -1,10 +1,10 @@
 package dev.mango.app
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -29,8 +29,8 @@ class SettingsScreenTest {
             }
         }
 
-        // The name also labels the theme dropdown, so the subtitle makes a second match.
-        rule.onAllNodesWithText(MangoDark.name).onFirst().assertExists()
+        // The dropdown is the only place the name shows.
+        rule.onAllNodesWithText(MangoDark.name).assertCountEquals(1)
         rule.onNodeWithText("yours to edit", substring = true).assertDoesNotExist()
         rule.onNodeWithText("Export .json").assertExists()
         rule.onNodeWithText("Import…").assertExists()

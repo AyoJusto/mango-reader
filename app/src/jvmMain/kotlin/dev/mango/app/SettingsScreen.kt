@@ -112,10 +112,7 @@ fun SettingsScreenContent(
                 Text(text = "Settings", style = MangoType.display, color = theme.textPrimary)
 
                 SettingsGroup(label = "Appearance") {
-                    SettingsRow(
-                        title = "Theme",
-                        subtitle = theme.name,
-                    ) {
+                    SettingsRow(title = "Theme") {
                         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(MangoSpace.xs)) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,

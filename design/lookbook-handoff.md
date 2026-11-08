@@ -125,8 +125,8 @@ Rows: 36 dp icon tile (radius 10) · name + "v1.4.12 · EN · 2 series in librar
 **Inline error banner** (failure never blanks the screen): danger @ 10% fill radius 12, 8 dp danger dot, bold first sentence + secondary detail ("Your installed sources are untouched below."), **Retry** button (danger @ 16% bg, danger text) + dismiss ✕. Slides in above the list (200 ms decel); the list stays interactive.
 
 ### 8. Settings (board 09)
-Micro-label group headers ("APPEARANCE", "READER", "GENERAL"); each group is a bg1 card radius 14; rows padding 14/18 with hairline dividers inset 18 dp between rows. Row = title (13.5 Semibold) left, control right; only the Theme row has a sub-line, the theme name.
-- **Theme row**: Sub-line "Mango Dark" + **Export .json** / **Import…** buttons.
+Micro-label group headers ("APPEARANCE", "READER", "GENERAL"); each group is a bg1 card radius 14; rows padding 14/18 with hairline dividers inset 18 dp between rows. Row = title (13.5 Semibold) left, control right; no row has a sub-line.
+- **Theme row**: Theme dropdown (shows the current theme name) + **Export .json** / **Import…** buttons.
 - **Accent row**: 26 dp color swatches (selected has 2 dp accent ring with bg gap) + dashed "+" custom swatch.
 - Reader group: Strip width slider (4 dp track, accent fill, 14 dp white thumb, mono value with its unit, "880 dp"), Auto-scroll speed (value "120 dp/s"), Hide-cursor toggle (38×22 pill, accent when on, 18 dp thumb slides 160 ms decel).
 - General: palette hotkey keycaps, download location + Change… button.
