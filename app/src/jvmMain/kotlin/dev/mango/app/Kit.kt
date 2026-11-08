@@ -637,6 +637,27 @@ fun rememberCoverRequest(sourceId: String, url: String?): ImageRequest? {
 }
 
 /**
+ * Marks a cover as the same element on every screen it appears on, so opening a series grows the
+ * clicked cover into the Details cover and Back shrinks it home. A no-op outside the screen host
+ * and under reduced motion, where screens only fade.
+ */
+@Composable
+fun Modifier.sharedCover(sourceId: String, mangaId: String): Modifier {
+    val sharedTransitionScope = LocalSharedTransitionScope.current
+    val animatedVisibilityScope = LocalAnimatedVisibilityScope.current
+    val motion = LocalMangoMotion.current
+    if (sharedTransitionScope == null || animatedVisibilityScope == null || motion.reduced) return this
+    return with(sharedTransitionScope) {
+        this@sharedCover.sharedElement(
+            sharedContentState = rememberSharedContentState("cover:$sourceId/$mangaId"),
+            animatedVisibilityScope = animatedVisibilityScope,
+            // The default spring outlasts the screen transition; motion stays at 320 ms or less.
+            boundsTransform = { _, _ -> tween(motion.screenMs, easing = motion.decel) },
+        )
+    }
+}
+
+/**
  * The Library/Browse cover-card grammar: a 2:3 cover with its title beneath. Rest shows an
  * unread-count pill; hovering scales the cover up; a finished series dims the cover and swaps
  * the pill for a checkmark.
@@ -646,6 +667,7 @@ fun CoverCard(
     title: String,
     coverUrl: String?,
     sourceId: String,
+    mangaId: String,
     unreadCount: Int?,
     finished: Boolean,
     onClick: () -> Unit,
@@ -680,6 +702,8 @@ fun CoverCard(
     ) {
         Box(
             modifier = Modifier
+                .sharedCover(sourceId, mangaId)
+                .testTag("cover:$sourceId/$mangaId")
                 .fillMaxWidth()
                 .aspectRatio(2f / 3f)
                 .graphicsLayer { scaleX = scale; scaleY = scale }

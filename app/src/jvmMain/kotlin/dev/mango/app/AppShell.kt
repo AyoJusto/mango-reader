@@ -3,6 +3,8 @@ package dev.mango.app
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -248,7 +250,8 @@ fun AppShell(
                     animationSpec = tween(motion.paletteBackdropMs),
                 )
                 val contentBlur = if (contentBlurDp > 0.dp) Modifier.blur(contentBlurDp) else Modifier
-                Box(modifier = Modifier.fillMaxSize().hazeSource(hazeState).then(contentBlur)) {
+                SharedTransitionLayout(modifier = Modifier.fillMaxSize().hazeSource(hazeState).then(contentBlur)) {
+                    val sharedTransitionScope = this
                     AnimatedContent(
                         targetState = navigator.current,
                         // The id, not the whole entry: replaceCurrent swaps the screen in place and must not animate.
@@ -261,7 +264,10 @@ fun AppShell(
                     ) { entry ->
                         val current = entry.screen
                         val rootModifier = Modifier.fillMaxSize().testTag("screen:${current::class.simpleName}")
-                        CompositionLocalProvider(LocalAnimatedVisibilityScope provides this) {
+                        CompositionLocalProvider(
+                            LocalAnimatedVisibilityScope provides this,
+                            LocalSharedTransitionScope provides sharedTransitionScope,
+                        ) {
                             screenStates.SaveableStateProvider(entry.id) {
                                 if (current is Screen.Reader) {
                                     Box(modifier = rootModifier) {
@@ -465,6 +471,9 @@ fun AppShell(
  * along with it; null outside the screen host.
  */
 val LocalAnimatedVisibilityScope = staticCompositionLocalOf<AnimatedVisibilityScope?> { null }
+
+/** The [SharedTransitionScope] screens share elements through; null outside the screen host. */
+val LocalSharedTransitionScope = staticCompositionLocalOf<SharedTransitionScope?> { null }
 
 /**
  * Pushes slide in from the right, pops from the left, and top-level switches rise in place.

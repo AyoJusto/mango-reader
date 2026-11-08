@@ -71,6 +71,7 @@ Easings: `decel = CubicBezier(0.2, 0, 0, 1)`, `standard = CubicBezier(0.4, 0, 0.
 - Push (open Details) — 240 ms decel, incoming slides in 48 dp from the right + fades in; outgoing fades out
 - Pop (back from Details) — the mirror: 240 ms decel, incoming slides in 48 dp from the left + fades in; outgoing fades out
 - Into or out of the Reader — 240 ms crossfade, no slide, so the reader keeps its immersive entry
+- Cover into Details — 240 ms decel, the clicked cover (Library grid or list thumb, Browse, Search) grows into the Details cover and Back shrinks it home; with no source cover on screen (palette, sidebar Continue, a scrolled-away tile) it's the plain push
 - Reduced motion — push, pop and view change all become a 120 ms crossfade with no movement
 - Cover hover — 160 ms decel, scale 1.03 + shadow
 - Progress bars — 300 ms standard, animate width

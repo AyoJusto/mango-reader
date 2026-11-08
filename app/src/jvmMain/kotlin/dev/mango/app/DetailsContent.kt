@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -265,6 +266,8 @@ private fun DetailsSidebarColumn(
     ) {
         Box(
             modifier = Modifier
+                .sharedCover(details.entry.sourceId, details.entry.mangaId)
+                .testTag("detailsCover")
                 .fillMaxWidth()
                 .aspectRatio(2f / 3f)
                 .shadow(elevation = 16.dp, shape = RoundedCornerShape(MangoRadius.panel))

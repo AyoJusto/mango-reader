@@ -191,6 +191,8 @@ private fun SearchResultRow(entry: MangaEntry, onClick: () -> Unit) {
     ) {
         Box(
             modifier = Modifier
+                .sharedCover(entry.sourceId, entry.mangaId)
+                .testTag("cover:${entry.sourceId}/${entry.mangaId}")
                 .size(width = 30.dp, height = 42.dp)
                 .clip(RoundedCornerShape(MangoRadius.keycap))
                 .background(theme.bg2),

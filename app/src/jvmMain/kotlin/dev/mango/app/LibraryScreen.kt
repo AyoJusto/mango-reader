@@ -180,6 +180,7 @@ fun LibraryScreenContent(
                                 title = item.entry.title,
                                 coverUrl = item.entry.cover,
                                 sourceId = item.entry.sourceId,
+                                mangaId = item.entry.mangaId,
                                 unreadCount = item.unreadCount,
                                 finished = item.isFinished(),
                                 onClick = { onOpenDetails(item.entry) },
@@ -215,6 +216,8 @@ private fun LibraryListRow(item: LibraryItem, onClick: () -> Unit) {
     ) {
         Box(
             modifier = Modifier
+                .sharedCover(item.entry.sourceId, item.entry.mangaId)
+                .testTag("cover:${item.entry.sourceId}/${item.entry.mangaId}")
                 .size(width = 32.dp, height = 44.dp)
                 .clip(RoundedCornerShape(MangoRadius.keycap))
                 .background(theme.bg2),

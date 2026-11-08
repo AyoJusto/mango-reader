@@ -1,5 +1,6 @@
 package dev.mango.app
 
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
@@ -9,14 +10,18 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.toSize
 import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.LibraryItem
 import dev.mango.core.domain.MangaDetails
 import dev.mango.core.domain.MangaEntry
 import dev.mango.core.domain.MangaStatus
 import dev.mango.core.domain.SourceInfo
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 
@@ -126,5 +131,54 @@ class ScreenTransitionTest {
         waitForIdle()
 
         onNodeWithText("Series 20").assertIsDisplayed()
+    }
+
+    /** Unclipped, unlike boundsInRoot: a cover in flight pokes outside its column. */
+    private fun ComposeUiTest.boundsOf(tag: String): Rect {
+        val node = onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode()
+        return Rect(node.positionInRoot, node.size.toSize())
+    }
+
+    /**
+     * Opens Series 0's Details from the Library grid. Returns the tile's bounds, then the Details
+     * cover's on the first frame it exists (it waits on the details load) and once settled.
+     */
+    private fun ComposeUiTest.openSeries0Cover(motion: MangoMotion): Triple<Rect, Rect, Rect> {
+        mainClock.autoAdvance = false
+        setContent { TestAppShell(library(), catalog(), FakeDownloadManager(), motion = motion) }
+        repeat(SETTLE_FRAMES) { mainClock.advanceTimeByFrame() }
+        val tile = boundsOf("cover:FlameComics/manga-0")
+        onNodeWithText("Series 0").performClick()
+        var frames = 0
+        while (onAllNodesWithTag("detailsCover", useUnmergedTree = true).fetchSemanticsNodes().isEmpty()) {
+            assertTrue(frames++ < 3, "the Details cover never appeared")
+            mainClock.advanceTimeByFrame()
+        }
+        val firstFrame = boundsOf("detailsCover")
+        repeat(SETTLE_FRAMES) { mainClock.advanceTimeByFrame() }
+        val settled = boundsOf("detailsCover")
+        repeat(SETTLE_FRAMES) { mainClock.advanceTimeByFrame() }
+        assertEquals(settled, boundsOf("detailsCover"), "the cover is still moving")
+        return Triple(tile, firstFrame, settled)
+    }
+
+    @Test
+    fun coverGrowsFromTheLibraryTileIntoDetails() = runComposeUiTest {
+        val (tile, firstFrame, settled) = openSeries0Cover(MangoMotion())
+        val tolerance = with(density) { 4.dp.toPx() }
+        val edges = listOf(
+            tile.left - firstFrame.left,
+            tile.top - firstFrame.top,
+            tile.right - firstFrame.right,
+            tile.bottom - firstFrame.bottom,
+        )
+        assertTrue(edges.all { abs(it) <= tolerance }, "tile $tile, first frame $firstFrame")
+        assertNotEquals(tile, settled)
+    }
+
+    @Test
+    fun reducedMotionHasNoSharedCover() = runComposeUiTest {
+        val (_, firstFrame, settled) = openSeries0Cover(MangoMotion(reduced = true))
+        assertEquals(settled, firstFrame)
     }
 }
