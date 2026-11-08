@@ -23,12 +23,13 @@ private const val KEY_HELD = 0x8000
 private val logger = Logger.getLogger("SideButtons")
 private val warned = AtomicBoolean(false)
 
-private val getAsyncKeyState by lazy {
-    user32Function("GetAsyncKeyState", FunctionDescriptor.of(ValueLayout.JAVA_SHORT, ValueLayout.JAVA_INT))
+// Not GetAsyncKeyState: mouse software taps side buttons, so the live state already reads released.
+private val getKeyState by lazy {
+    user32Function("GetKeyState", FunctionDescriptor.of(ValueLayout.JAVA_SHORT, ValueLayout.JAVA_INT))
 }
 
 private fun held(virtualKey: Int): Boolean {
-    val state = getAsyncKeyState.invoke(virtualKey) as Short
+    val state = getKeyState.invoke(virtualKey) as Short
     return (state.toInt() and KEY_HELD) != 0
 }
 
@@ -37,8 +38,8 @@ private fun held(virtualKey: Int): Boolean {
  * primary press, so a press handler calls this to learn what the user actually pressed. A held
  * left button wins: the press is then a real click.
  */
-// ponytail: polls the Win32 key state at press time, so Windows only and blind to a side button
-// released before the press is handled; drop it once Nucleus maps its OTHER mouse button to
+// ponytail: reads the Win32 key state at press time, so Windows only and only correct on the
+// window thread that received the press; drop it once Nucleus maps its OTHER mouse button to
 // PointerButton.Back/Forward.
 fun pressedSideButton(): SideButton =
     try {
