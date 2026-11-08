@@ -72,7 +72,7 @@ fun main() {
             title = "mango",
             icon = painterResource(Res.drawable.mango_icon),
             onPreviewKeyEvent = { keyEvent ->
-                if (keyEvent.type == KeyEventType.KeyDown) lastInputWasKeyboard.value = true
+                if (keyEvent.showsFocusRings()) lastInputWasKeyboard.value = true
                 when {
                     keyEvent.key == Key.S && keyEvent.isCtrlPressed && keyEvent.type == KeyEventType.KeyDown -> {
                         if (!sidebarKeyDown) {

@@ -85,7 +85,11 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -127,11 +131,20 @@ private var SemanticsPropertyReceiver.focusRing by FocusRingKey
 private val FOCUS_RING_WIDTH = 2.dp
 private val FOCUS_RING_GAP = 2.dp
 
+private val MODIFIER_KEYS = setOf(
+    Key.CtrlLeft, Key.CtrlRight, Key.ShiftLeft, Key.ShiftRight,
+    Key.AltLeft, Key.AltRight, Key.MetaLeft, Key.MetaRight,
+)
+
+/** Navigation keys only: a lone modifier or a Ctrl/Alt/Win shortcut doesn't mean the user is tabbing around. */
+fun KeyEvent.showsFocusRings(): Boolean =
+    type == KeyEventType.KeyDown && key !in MODIFIER_KEYS && !isCtrlPressed && !isAltPressed && !isMetaPressed
+
 /** Hooks the Initial pass so a press a child consumes still counts. */
 @OptIn(ExperimentalComposeUiApi::class)
 fun Modifier.trackLastInput(lastInputWasKeyboard: MutableState<Boolean>): Modifier = this
     .onPreviewKeyEvent {
-        if (it.type == KeyEventType.KeyDown) lastInputWasKeyboard.value = true
+        if (it.showsFocusRings()) lastInputWasKeyboard.value = true
         false
     }
     .onPointerEvent(PointerEventType.Press, PointerEventPass.Initial) { lastInputWasKeyboard.value = false }
