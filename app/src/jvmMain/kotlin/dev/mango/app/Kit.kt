@@ -54,6 +54,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -66,13 +67,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
@@ -80,8 +87,15 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.SemanticsPropertyReceiver
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
@@ -105,6 +119,59 @@ import kotlin.time.Duration.Companion.seconds
  * screen-specific logic.
  */
 
+
+/** True while the most recent input was a key press, so focus rings show for the keyboard only. */
+val LocalLastInputWasKeyboard = staticCompositionLocalOf<State<Boolean>> { mutableStateOf(false) }
+
+/** Present on a node exactly while its keyboard focus ring is drawn. */
+val FocusRingKey = SemanticsPropertyKey<Boolean>("FocusRing")
+
+private var SemanticsPropertyReceiver.focusRing by FocusRingKey
+
+private val FOCUS_RING_WIDTH = 2.dp
+private val FOCUS_RING_GAP = 2.dp
+
+/**
+ * Records whether the latest input was a key press or a mouse press. The pointer hook runs on
+ * the Initial pass so a press a child consumes still counts.
+ */
+@OptIn(ExperimentalComposeUiApi::class)
+fun Modifier.trackLastInput(lastInputWasKeyboard: MutableState<Boolean>): Modifier = this
+    .onPreviewKeyEvent {
+        if (it.type == KeyEventType.KeyDown) lastInputWasKeyboard.value = true
+        false
+    }
+    .onPointerEvent(PointerEventType.Press, PointerEventPass.Initial) { lastInputWasKeyboard.value = false }
+
+/**
+ * Draws the theme's focus color outside the control, a gap away from it, while the control holds
+ * focus after keyboard input. Place it before the control's `clip` and `clickable` in the chain:
+ * it watches focus of what follows and draws past the bounds the clip would cut off.
+ */
+@Composable
+fun Modifier.keyboardFocusRing(shape: Shape): Modifier {
+    val theme = LocalMangoTheme.current
+    val keyboard by LocalLastInputWasKeyboard.current
+    var focused by remember { mutableStateOf(false) }
+    val ring = if (focused && keyboard) {
+        Modifier
+            .drawBehind {
+                val grow = (FOCUS_RING_GAP + FOCUS_RING_WIDTH / 2).toPx()
+                val outline = shape.createOutline(
+                    Size(size.width + 2 * grow, size.height + 2 * grow),
+                    layoutDirection,
+                    this,
+                )
+                translate(-grow, -grow) {
+                    drawOutline(outline, theme.focus, style = Stroke(FOCUS_RING_WIDTH.toPx()))
+                }
+            }
+            .semantics { focusRing = true }
+    } else {
+        Modifier
+    }
+    return onFocusChanged { focused = it.hasFocus }.then(ring)
+}
 /**
  * Centers screen content in a width-capped column, web-page style. Below [max] the content
  * fills the window exactly as an unwrapped `fillMaxWidth` would; beyond it, the column stops
@@ -198,6 +265,7 @@ fun RefreshGlyphButton(
     Box(
         modifier = modifier
             .size(width = 32.dp, height = 30.dp)
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.control))
             .clip(RoundedCornerShape(MangoRadius.control))
             .background(hover.fill)
             .hoverable(hover.interaction)
@@ -259,6 +327,7 @@ fun KitButton(
         modifier = modifier
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .height(38.dp)
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.control))
             .clip(RoundedCornerShape(MangoRadius.control))
             .background(hover.fill)
             .hoverable(interaction)
@@ -384,6 +453,7 @@ private fun ErrorBannerRetryButton(onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .graphicsLayer { scaleX = scale; scaleY = scale }
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.control))
             .clip(RoundedCornerShape(MangoRadius.control))
             .background(theme.danger.copy(alpha = 0.16f))
             .hoverable(interaction)
@@ -401,6 +471,7 @@ private fun ErrorBannerDismissButton(onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .size(24.dp)
+            .keyboardFocusRing(CircleShape)
             .clip(CircleShape)
             .background(hover.fill)
             .hoverable(hover.interaction)
@@ -599,6 +670,7 @@ private fun SegmentedControlOption(text: String, selected: Boolean, onClick: () 
     Box(
         modifier = Modifier
             .then(if (selected) Modifier.shadow(elevation = 2.dp, shape = RoundedCornerShape(8.dp)) else Modifier)
+            .keyboardFocusRing(RoundedCornerShape(8.dp))
             .clip(RoundedCornerShape(8.dp))
             .background(fill)
             .hoverable(interaction)
@@ -697,6 +769,7 @@ fun CoverCard(
     )
     Column(
         modifier = modifier
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.row))
             .hoverable(interaction)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick),
     ) {
@@ -803,6 +876,7 @@ fun KitDropdown(
             modifier = Modifier
                 .onSizeChanged { triggerWidthPx = it.width }
                 .height(38.dp)
+                .keyboardFocusRing(RoundedCornerShape(MangoRadius.control))
                 .clip(RoundedCornerShape(MangoRadius.control))
                 .background(hover.fill)
                 .hoverable(hover.interaction)
@@ -973,6 +1047,7 @@ fun SplitButton(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
+                .keyboardFocusRing(RoundedCornerShape(topStart = MangoRadius.control, bottomStart = MangoRadius.control))
                 .clip(RoundedCornerShape(topStart = MangoRadius.control, bottomStart = MangoRadius.control))
                 .background(theme.accent)
                 .clickable(
@@ -997,6 +1072,7 @@ fun SplitButton(
             modifier = Modifier
                 .width(arrowWidth)
                 .fillMaxHeight()
+                .keyboardFocusRing(RoundedCornerShape(topEnd = MangoRadius.control, bottomEnd = MangoRadius.control))
                 .clip(RoundedCornerShape(topEnd = MangoRadius.control, bottomEnd = MangoRadius.control))
                 .background(theme.accent)
                 .clickable(

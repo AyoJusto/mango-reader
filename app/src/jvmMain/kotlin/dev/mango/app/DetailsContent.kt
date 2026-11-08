@@ -563,6 +563,7 @@ private fun ChapterRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.control))
             .clip(RoundedCornerShape(MangoRadius.control))
             .background(hover.fill)
             .hoverable(hover.interaction)
@@ -665,6 +666,7 @@ private fun ChapterDownloadGlyph(onClick: () -> Unit) {
     val hover = rememberHoverFill(rest = theme.surface.copy(alpha = 0f), hover = theme.surface)
     Box(
         modifier = Modifier
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.keycap))
             .clip(RoundedCornerShape(MangoRadius.keycap))
             .background(hover.fill)
             .hoverable(hover.interaction)

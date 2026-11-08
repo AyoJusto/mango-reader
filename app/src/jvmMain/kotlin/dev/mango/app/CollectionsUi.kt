@@ -338,7 +338,7 @@ fun ManageCollectionsDialog(
                     text = "＋ New collection",
                     style = MangoType.body,
                     color = theme.textSecondary,
-                    modifier = Modifier.clickable(
+                    modifier = Modifier.keyboardFocusRing(RoundedCornerShape(MangoRadius.keycap)).clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = { creatingNew = true },
@@ -546,7 +546,7 @@ private fun ManageCollectionsRow(
                     text = "Make default",
                     style = MangoType.caption,
                     color = theme.accent,
-                    modifier = Modifier.clickable(
+                    modifier = Modifier.keyboardFocusRing(RoundedCornerShape(MangoRadius.keycap)).clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = onSetDefault,
@@ -559,7 +559,7 @@ private fun ManageCollectionsRow(
                     text = "▲",
                     style = MangoType.body,
                     color = if (canMoveUp) theme.textSecondary else theme.textTertiary.copy(alpha = 0.3f),
-                    modifier = Modifier.clickable(
+                    modifier = Modifier.keyboardFocusRing(RoundedCornerShape(MangoRadius.keycap)).clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         enabled = canMoveUp,
@@ -570,7 +570,7 @@ private fun ManageCollectionsRow(
                     text = "▼",
                     style = MangoType.body,
                     color = if (canMoveDown) theme.textSecondary else theme.textTertiary.copy(alpha = 0.3f),
-                    modifier = Modifier.clickable(
+                    modifier = Modifier.keyboardFocusRing(RoundedCornerShape(MangoRadius.keycap)).clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         enabled = canMoveDown,
@@ -583,7 +583,7 @@ private fun ManageCollectionsRow(
                     text = "✕",
                     style = MangoType.body,
                     color = theme.danger.copy(alpha = 0.8f),
-                    modifier = Modifier.clickable(
+                    modifier = Modifier.keyboardFocusRing(RoundedCornerShape(MangoRadius.keycap)).clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = { showDeleteConfirm = true },

@@ -26,6 +26,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -130,6 +131,8 @@ fun AppShell(
     navigator: Navigator = remember { Navigator() },
     // Production reads the real side-button state; tests substitute a canned answer.
     sideButton: () -> SideButton = ::pressedSideButton,
+    // Owned by the caller so the title bar, which production draws outside this function, shares it.
+    lastInputWasKeyboard: MutableState<Boolean> = remember { mutableStateOf(false) },
 ) {
     // Session-only, like searchState below: which collection the Library chip row is filtering
     // to, and whether the manage-collections dialog is open.
@@ -219,6 +222,7 @@ fun AppShell(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .trackLastInput(lastInputWasKeyboard)
             // Nucleus reports a side-button press as a primary press. Consuming it on the
             // Initial pass keeps every clickable below from treating it as a click.
             .onPointerEvent(PointerEventType.Press, PointerEventPass.Initial) { event ->

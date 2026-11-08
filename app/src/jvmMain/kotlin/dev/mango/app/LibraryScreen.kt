@@ -206,6 +206,7 @@ private fun LibraryListRow(item: LibraryItem, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.control))
             .clip(RoundedCornerShape(MangoRadius.control))
             .background(hover.fill)
             .hoverable(hover.interaction)
@@ -352,6 +353,7 @@ private fun CollectionChip(text: String, active: Boolean, onClick: () -> Unit) {
     )
     Box(
         modifier = Modifier
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.pill))
             .clip(RoundedCornerShape(MangoRadius.pill))
             .background(hover.fill)
             .hoverable(hover.interaction)

@@ -112,6 +112,7 @@ fun MangoTitleBar(
                 modifier = Modifier
                     .testTag(SIDEBAR_TOGGLE_TAG)
                     .size(width = 34.dp, height = 28.dp)
+                    .keyboardFocusRing(RoundedCornerShape(8.dp))
                     .clip(RoundedCornerShape(8.dp))
                     .background(hover.fill)
                     .hoverable(hover.interaction)
@@ -302,6 +303,7 @@ private fun ContinueCard(item: ContinueItem, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.control))
             .clip(RoundedCornerShape(MangoRadius.control))
             .background(hover.fill)
             .hoverable(hover.interaction)
@@ -357,6 +359,7 @@ private fun SidebarNavRow(nav: SidebarNavItem, active: Boolean, pill: String?, o
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.control))
             .clip(RoundedCornerShape(MangoRadius.control))
             .background(hover.fill)
             .hoverable(hover.interaction)

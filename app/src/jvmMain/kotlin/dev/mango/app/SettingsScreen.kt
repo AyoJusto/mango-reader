@@ -382,6 +382,7 @@ private fun AccentSwatch(label: String, color: Color, selected: Boolean, onClick
             modifier = Modifier
                 .testTag("accent-swatch-$label")
                 .size(26.dp)
+                .keyboardFocusRing(CircleShape)
                 .clip(CircleShape)
                 .background(color)
                 .clickable(onClick = onClick),
@@ -426,6 +427,7 @@ private fun TogglePill(checked: Boolean, onCheckedChange: (Boolean) -> Unit, mod
     Box(
         modifier = modifier
             .size(width = TOGGLE_PILL_SIZE.first, height = TOGGLE_PILL_SIZE.second)
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.pill))
             .clip(RoundedCornerShape(MangoRadius.pill))
             .background(trackColor)
             .clickable { onCheckedChange(!checked) },

@@ -72,12 +72,15 @@ fun main() {
         // Window-level, not a focusable Box inside AppShell, so it fires no matter which
         // screen or field currently has focus.
         val detector = remember { DoubleShiftDetector() }
+        val lastInputWasKeyboard = remember { mutableStateOf(false) }
         DecoratedWindow(
             onCloseRequest = { graph.dispose(); exitApplication() },
             state = windowState,
             title = "mango",
             icon = painterResource(Res.drawable.mango_icon),
             onPreviewKeyEvent = { keyEvent ->
+                // The window sees keys even when nothing inside holds focus yet (the first Tab).
+                if (keyEvent.type == KeyEventType.KeyDown) lastInputWasKeyboard.value = true
                 when {
                     keyEvent.key == Key.S && keyEvent.isCtrlPressed && keyEvent.type == KeyEventType.KeyDown -> {
                         if (!sidebarKeyDown) {
@@ -129,11 +132,19 @@ fun main() {
             ProvideMangoTheme(theme, fontFamily = appFont) {
                 WindowAppearance(WindowAppearanceMode.Dark)
                 WindowBackground(LocalMangoTheme.current.bg0)
-                CompositionLocalProvider(LocalMangoMotion provides motion) {
+                CompositionLocalProvider(
+                    LocalMangoMotion provides motion,
+                    LocalLastInputWasKeyboard provides lastInputWasKeyboard,
+                ) {
                     WindowScaffold(
                         titleBar = {
                             if (windowState.placement != WindowPlacement.Fullscreen) {
-                                MangoTitleBar(sidebarOpen, { sidebarOpen = !sidebarOpen }, Modifier.windowDragArea()) {
+                                MangoTitleBar(
+                                    sidebarOpen,
+                                    { sidebarOpen = !sidebarOpen },
+                                    // First in the chain so it sees presses the title-bar buttons consume.
+                                    Modifier.trackLastInput(lastInputWasKeyboard).windowDragArea(),
+                                ) {
                                     WindowControls(Modifier.align(Alignment.CenterEnd))
                                 }
                             }
@@ -192,6 +203,7 @@ fun main() {
                             libraryCheckedAt = libraryCheckedAt,
                             onLibraryChecked = { libraryCheckedAt = it; settings.libraryCheckedAt = it },
                             searchHistory = searchHistory,
+                            lastInputWasKeyboard = lastInputWasKeyboard,
                             onSearchHistoryChange = { searchHistory = it; settings.searchHistory = it },
                         )
                     }

@@ -36,12 +36,16 @@ fun TestAppShell(
     navigator: Navigator? = null,
     sideButton: () -> SideButton = { SideButton.None },
 ) {
+    val lastInputWasKeyboard = remember { mutableStateOf(false) }
     var sidebarOpen by remember { mutableStateOf(false) }
     var libraryView by remember { mutableStateOf(LIBRARY_VIEW_GRID) }
     var libraryCheckedAt by remember { mutableStateOf<Long?>(null) }
     var history by remember { mutableStateOf(searchHistory) }
     ProvideMangoTheme(MangoDark) {
-        CompositionLocalProvider(LocalMangoMotion provides motion) {
+        CompositionLocalProvider(
+            LocalMangoMotion provides motion,
+            LocalLastInputWasKeyboard provides lastInputWasKeyboard,
+        ) {
             AppShell(
                 library = library,
                 catalog = catalog,
@@ -59,6 +63,7 @@ fun TestAppShell(
                 onSearchHistoryChange = { history = it; onSearchHistoryChange(it) },
                 navigator = navigator ?: remember { Navigator() },
                 sideButton = sideButton,
+                lastInputWasKeyboard = lastInputWasKeyboard,
             )
         }
     }

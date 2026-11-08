@@ -78,6 +78,7 @@ private fun SearchHistoryRow(entry: SearchHistoryEntry, now: Instant, onReplay: 
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.control))
             .clip(RoundedCornerShape(MangoRadius.control))
             .background(hover.fill)
             .hoverable(hover.interaction)
@@ -105,6 +106,7 @@ private fun SearchHistoryRow(entry: SearchHistoryEntry, now: Instant, onReplay: 
         Box(
             modifier = Modifier
                 .size(22.dp)
+                .keyboardFocusRing(RoundedCornerShape(MangoRadius.keycap))
                 .clip(RoundedCornerShape(MangoRadius.keycap))
                 .background(removeHover.fill)
                 .hoverable(removeHover.interaction)
@@ -158,6 +160,7 @@ private fun SearchHistorySection(
                 fontSize = 11.5.sp,
                 color = if (clearHovered) theme.textPrimary else theme.textTertiary,
                 modifier = Modifier
+                    .keyboardFocusRing(RoundedCornerShape(MangoRadius.keycap))
                     .hoverable(clearInteraction)
                     .clickable(interactionSource = clearInteraction, indication = null, onClick = onClearHistory),
             )
@@ -181,6 +184,7 @@ private fun SearchResultRow(entry: MangaEntry, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.row))
             .clip(RoundedCornerShape(MangoRadius.row))
             .background(hover.fill)
             .hoverable(hover.interaction)
@@ -358,7 +362,7 @@ fun SearchScreenContent(
                             text = source.name,
                             container = if (selected) theme.accent.copy(alpha = 0.14f) else theme.surface,
                             content = if (selected) theme.accent else theme.textSecondary,
-                            modifier = Modifier.clickable(
+                            modifier = Modifier.keyboardFocusRing(RoundedCornerShape(MangoRadius.keycap)).clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
                                 onClick = { onToggleSource(source.sourceId) },
