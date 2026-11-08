@@ -279,7 +279,11 @@ fun AppShell(
                                                 onSearchHistoryChange = onSearchHistoryChange,
                                             )
 
-                                            Screen.Browse -> BrowseScreen(catalog, challengeSolver, browseState) { entry ->
+                                            Screen.Browse -> BrowseScreen(
+                                                catalog,
+                                                challengeSolver,
+                                                browseState
+                                            ) { entry ->
                                                 navigator.go(Screen.Details(entry.sourceId, entry.mangaId))
                                             }
 
@@ -436,14 +440,14 @@ private fun screenTransition(
     }
     return when (move) {
         Move.Push -> (slideInHorizontally(tween(motion.screenMs, easing = motion.decel)) { +slidePx } +
-            fadeIn(tween(motion.screenMs))) togetherWith fadeOut(tween(motion.screenMs))
+                fadeIn(tween(motion.screenMs))) togetherWith fadeOut(tween(motion.screenMs))
 
         Move.Pop -> (slideInHorizontally(tween(motion.screenMs, easing = motion.decel)) { -slidePx } +
-            fadeIn(tween(motion.screenMs))) togetherWith fadeOut(tween(motion.screenMs))
+                fadeIn(tween(motion.screenMs))) togetherWith fadeOut(tween(motion.screenMs))
 
         Move.Switch -> (fadeIn(tween(motion.viewChangeMs, easing = motion.decel)) +
-            slideInVertically(tween(motion.viewChangeMs, easing = motion.decel)) { +risePx }) togetherWith
-            fadeOut(tween(motion.viewChangeMs))
+                slideInVertically(tween(motion.viewChangeMs, easing = motion.decel)) { +risePx }) togetherWith
+                fadeOut(tween(motion.viewChangeMs))
     }
 }
 

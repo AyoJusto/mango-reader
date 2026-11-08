@@ -44,7 +44,18 @@ class FormatTest {
 
     @Test
     fun titlesThatRestateTheNumberAreNotReal() {
-        listOf("Chapter 8", "chapter 8", "Ch. 8", "ch 8", "CH.8", "Episode 8", "Ep. 8", "8", "Chapter 08", " Chapter 8 ")
+        listOf(
+            "Chapter 8",
+            "chapter 8",
+            "Ch. 8",
+            "ch 8",
+            "CH.8",
+            "Episode 8",
+            "Ep. 8",
+            "8",
+            "Chapter 08",
+            " Chapter 8 "
+        )
             .forEach { assertEquals(null, realChapterTitle(8.0, it), it) }
     }
 

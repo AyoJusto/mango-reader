@@ -111,7 +111,10 @@ fun MangoTitleBar(
                     .size(width = 34.dp, height = 28.dp)
                     .keyboardFocusRing(RoundedCornerShape(8.dp))
                     .clip(RoundedCornerShape(8.dp))
-                    .then(if (canGoBack) Modifier.background(backHover.fill).hoverable(backHover.interaction) else Modifier)
+                    .then(
+                        if (canGoBack) Modifier.background(backHover.fill)
+                            .hoverable(backHover.interaction) else Modifier
+                    )
                     .noWindowDrag()
                     .clickable(
                         enabled = canGoBack,

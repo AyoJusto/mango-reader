@@ -99,7 +99,8 @@ class SettingsScreenTest {
 
     @Test
     fun selectingAThemeFromTheDropdownAppliesThePristineLibraryEntry() {
-        val custom = MangoDark.copy(name = "Custom Theme", accent = ACCENT_PRESETS.first { it.first == "Violet" }.second)
+        val custom =
+            MangoDark.copy(name = "Custom Theme", accent = ACCENT_PRESETS.first { it.first == "Violet" }.second)
         var applied: MangoTheme? = null
 
         rule.setContent {

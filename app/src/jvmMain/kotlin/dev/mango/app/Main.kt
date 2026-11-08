@@ -40,7 +40,9 @@ fun main() {
     val settings = Settings(AppGraph.defaultDataDir())
     val themeStore = ThemeStore(AppGraph.defaultDataDir())
     // Must be set before the first composition asks SingletonImageLoader for a loader.
-    SingletonImageLoader.setSafe { context -> ImageLoader.Builder(context).components { add(graph.imageFetcherFactory) }.build() }
+    SingletonImageLoader.setSafe { context ->
+        ImageLoader.Builder(context).components { add(graph.imageFetcherFactory) }.build()
+    }
     nucleusApplication(backend = NucleusBackend.Tao) {
         var theme by remember { mutableStateOf(themeStore.load()) }
         var themeLibrary by remember { mutableStateOf(themeStore.list()) }

@@ -31,20 +31,36 @@ private const val SETTLE_FRAMES = 30
 
 @OptIn(ExperimentalTestApi::class)
 class ScreenTransitionTest {
-    private val entries = List(30) { i -> MangaEntry(sourceId = "FlameComics", mangaId = "manga-$i", title = "Series $i") }
+    private val entries =
+        List(30) { i -> MangaEntry(sourceId = "FlameComics", mangaId = "manga-$i", title = "Series $i") }
 
     private fun library() = FakeLibraryRepository(entries.map { LibraryItem(it, Clock.System.now()) })
 
     private fun catalog() = FakeCatalogRepository(
         sources = listOf(SourceInfo("FlameComics", "FlameComics")),
-        details = entries.associate { (it.sourceId to it.mangaId) to MangaDetails(entry = it, status = MangaStatus.ONGOING) },
-        chapters = mapOf(("FlameComics" to "manga-0") to listOf(Chapter(chapterId = "c1", number = 1.0, title = null, publishedAt = null))),
+        details = entries.associate {
+            (it.sourceId to it.mangaId) to MangaDetails(
+                entry = it,
+                status = MangaStatus.ONGOING
+            )
+        },
+        chapters = mapOf(
+            ("FlameComics" to "manga-0") to listOf(
+                Chapter(
+                    chapterId = "c1",
+                    number = 1.0,
+                    title = null,
+                    publishedAt = null
+                )
+            )
+        ),
     )
 
-    private fun ComposeUiTest.leftEdgesOf(tag: String, sampleMs: Long = 300): List<Float> = List((sampleMs / FRAME_MS).toInt()) {
-        mainClock.advanceTimeBy(FRAME_MS)
-        onAllNodesWithTag(tag).fetchSemanticsNodes().firstOrNull()?.boundsInRoot?.left
-    }.filterNotNull()
+    private fun ComposeUiTest.leftEdgesOf(tag: String, sampleMs: Long = 300): List<Float> =
+        List((sampleMs / FRAME_MS).toInt()) {
+            mainClock.advanceTimeBy(FRAME_MS)
+            onAllNodesWithTag(tag).fetchSemanticsNodes().firstOrNull()?.boundsInRoot?.left
+        }.filterNotNull()
 
     private fun ComposeUiTest.openDetailsFromLibrary(motion: MangoMotion, sampleMs: Long = 300): List<Float> {
         mainClock.autoAdvance = false

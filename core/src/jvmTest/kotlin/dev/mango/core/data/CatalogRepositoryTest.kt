@@ -103,7 +103,12 @@ class CatalogRepositoryTest {
 
         val result = repo.prepareImageRequests(
             "Synthetic",
-            listOf(SourceImageRequest(url = "https://synthetic.example/img/page1.jpg", headers = mapOf("Referer" to "r1"))),
+            listOf(
+                SourceImageRequest(
+                    url = "https://synthetic.example/img/page1.jpg",
+                    headers = mapOf("Referer" to "r1")
+                )
+            ),
         )
 
         val request = result.single()

@@ -181,7 +181,12 @@ class PaletteFlowTest {
         val palette = PaletteState()
         rule.setContent {
             ProvideMangoTheme(MangoDark) {
-                AppShell(FakeLibraryRepository(libraryItems()), FakeCatalogRepository(), FakeDownloadManager(), palette = palette)
+                AppShell(
+                    FakeLibraryRepository(libraryItems()),
+                    FakeCatalogRepository(),
+                    FakeDownloadManager(),
+                    palette = palette
+                )
             }
         }
         rule.waitForIdle()
@@ -196,7 +201,12 @@ class PaletteFlowTest {
         val palette = PaletteState()
         rule.setContent {
             ProvideMangoTheme(MangoDark) {
-                AppShell(FakeLibraryRepository(libraryItems()), FakeCatalogRepository(), FakeDownloadManager(), palette = palette)
+                AppShell(
+                    FakeLibraryRepository(libraryItems()),
+                    FakeCatalogRepository(),
+                    FakeDownloadManager(),
+                    palette = palette
+                )
             }
         }
         rule.waitForIdle()
@@ -356,7 +366,8 @@ class PaletteFlowTest {
     fun everyThemeInTheLibrarySurfacesADynamicPaletteHitAndSelectingOneAppliesIt() {
         val library = FakeLibraryRepository(libraryItems())
         val palette = PaletteState()
-        val custom = MangoDark.copy(name = "Custom Theme", accent = ACCENT_PRESETS.first { it.first == "Violet" }.second)
+        val custom =
+            MangoDark.copy(name = "Custom Theme", accent = ACCENT_PRESETS.first { it.first == "Violet" }.second)
         var appliedTheme: MangoTheme = MangoDark
 
         rule.setContent {

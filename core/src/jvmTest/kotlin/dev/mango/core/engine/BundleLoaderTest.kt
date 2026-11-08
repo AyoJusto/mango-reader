@@ -65,7 +65,7 @@ internal fun readFixture(name: String): ByteArray = synchronized(FIXTURE_REGISTR
     val actualSha = sha256Hex(bytes)
     check(actualSha == expectedSha) {
         "checksum mismatch for freshly downloaded fixture $name from $url: " +
-            "expected $expectedSha, got $actualSha"
+                "expected $expectedSha, got $actualSha"
     }
 
     Files.createDirectories(fixtureCacheDir)

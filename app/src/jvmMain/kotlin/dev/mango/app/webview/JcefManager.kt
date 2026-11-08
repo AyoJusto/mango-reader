@@ -24,6 +24,7 @@ const val WebViewUserAgent =
 
 class JcefManager(private val installDir: Path) {
     private val initLock = Mutex()
+
     @Volatile
     private var app: CefApp? = null
 

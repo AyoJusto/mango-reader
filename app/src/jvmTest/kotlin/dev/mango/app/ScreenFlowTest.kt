@@ -483,7 +483,13 @@ class ScreenFlowTest {
                         false
                     },
                 ) {
-                    KitSearchField(value = "", onValueChange = {}, placeholder = "Filter", onSearch = {}, focusRequester = focus)
+                    KitSearchField(
+                        value = "",
+                        onValueChange = {},
+                        placeholder = "Filter",
+                        onSearch = {},
+                        focusRequester = focus
+                    )
                 }
             }
         }

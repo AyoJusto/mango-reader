@@ -99,7 +99,10 @@ fun SettingsScreenContent(
 
                 SettingsGroup(label = "Appearance") {
                     SettingsRow(title = "Theme") {
-                        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(MangoSpace.xs)) {
+                        Column(
+                            horizontalAlignment = Alignment.End,
+                            verticalArrangement = Arrangement.spacedBy(MangoSpace.xs)
+                        ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs),
@@ -221,7 +224,9 @@ fun SettingsScreenContent(
                                 onValueChange = { pendingStripWidth = it },
                                 onValueChangeFinished = { onStripWidthChange(pendingStripWidth) },
                                 valueRange = 600f..1400f,
-                                modifier = Modifier.width(180.dp).keyboardFocusRing(RoundedCornerShape(MangoRadius.pill)).testTag(settingsEntryTag("Strip width")),
+                                modifier = Modifier.width(180.dp)
+                                    .keyboardFocusRing(RoundedCornerShape(MangoRadius.pill))
+                                    .testTag(settingsEntryTag("Strip width")),
                             )
                             Text(
                                 text = "${pendingStripWidth.roundToInt()} dp",
@@ -243,7 +248,9 @@ fun SettingsScreenContent(
                                 onValueChange = { pendingAutoScroll = it },
                                 onValueChangeFinished = { onAutoScrollSpeedChange(pendingAutoScroll) },
                                 valueRange = 30f..600f,
-                                modifier = Modifier.width(180.dp).keyboardFocusRing(RoundedCornerShape(MangoRadius.pill)).testTag(settingsEntryTag("Auto-scroll speed")),
+                                modifier = Modifier.width(180.dp)
+                                    .keyboardFocusRing(RoundedCornerShape(MangoRadius.pill))
+                                    .testTag(settingsEntryTag("Auto-scroll speed")),
                             )
                             Text(
                                 text = "${pendingAutoScroll.roundToInt()} dp/s",

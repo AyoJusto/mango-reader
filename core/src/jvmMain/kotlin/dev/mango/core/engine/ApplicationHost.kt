@@ -70,14 +70,16 @@ class ApplicationHost(
         private val promiseCtor: Value get() = context.eval("js", "Promise")
 
         // Dates round-trip via a sentinel object; bundles call .getTime() on revived state at module load.
-        private val stateStringify: Value get() = context.eval(
-            "js",
-            """(v) => JSON.stringify(v, function (k, val) { const o = this[k]; return o instanceof Date ? { "${'$'}mangoDate${'$'}": o.getTime() } : val; })""",
-        )
-        private val stateParse: Value get() = context.eval(
-            "js",
-            """(s) => JSON.parse(s, (k, val) => (val !== null && typeof val === "object" && typeof val["${'$'}mangoDate${'$'}"] === "number") ? new Date(val["${'$'}mangoDate${'$'}"]) : val)""",
-        )
+        private val stateStringify: Value
+            get() = context.eval(
+                "js",
+                """(v) => JSON.stringify(v, function (k, val) { const o = this[k]; return o instanceof Date ? { "${'$'}mangoDate${'$'}": o.getTime() } : val; })""",
+            )
+        private val stateParse: Value
+            get() = context.eval(
+                "js",
+                """(s) => JSON.parse(s, (k, val) => (val !== null && typeof val === "object" && typeof val["${'$'}mangoDate${'$'}"] === "number") ? new Date(val["${'$'}mangoDate${'$'}"]) : val)""",
+            )
 
         private val members: Map<String, Any?> = mapOf(
             "isResourceLimited" to false,

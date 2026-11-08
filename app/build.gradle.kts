@@ -89,7 +89,16 @@ compose.desktop {
             description = "Manhwa reader for Paperback extensions"
             vendor = "Justin Goldstock"
             // jdeps finds the first four; the rest are needed at runtime (Truffle, charsets, locales, accessibility)
-            modules("java.instrument", "java.management", "java.sql", "jdk.unsupported", "jdk.management", "jdk.charsets", "jdk.localedata", "jdk.accessibility")
+            modules(
+                "java.instrument",
+                "java.management",
+                "java.sql",
+                "jdk.unsupported",
+                "jdk.management",
+                "jdk.charsets",
+                "jdk.localedata",
+                "jdk.accessibility"
+            )
             windows {
                 iconFile.set(project.file("icons/mango.ico"))
                 perUserInstall = true

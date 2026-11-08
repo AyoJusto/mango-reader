@@ -948,7 +948,12 @@ fun SplitButton(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
-                .keyboardFocusRing(RoundedCornerShape(topStart = MangoRadius.control, bottomStart = MangoRadius.control))
+                .keyboardFocusRing(
+                    RoundedCornerShape(
+                        topStart = MangoRadius.control,
+                        bottomStart = MangoRadius.control
+                    )
+                )
                 .clip(RoundedCornerShape(topStart = MangoRadius.control, bottomStart = MangoRadius.control))
                 .background(theme.accent)
                 .clickable(

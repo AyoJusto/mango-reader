@@ -28,7 +28,11 @@ class SourceHeaderPolicyTest {
         store: CookieStore = newStore(),
         userAgent: suspend (String) -> String? = { null },
         interceptRequests: (suspend (String, List<SourceImageRequest>) -> List<SourceImageRequest>)? = null,
-    ) = DefaultSourceHeaderPolicy(cookieStoreFor = { store }, userAgentFor = userAgent, interceptRequests = interceptRequests)
+    ) = DefaultSourceHeaderPolicy(
+        cookieStoreFor = { store },
+        userAgentFor = userAgent,
+        interceptRequests = interceptRequests
+    )
 
     @Test
     fun pinnedUserAgentFillsInWhenHeadersLackOne() = runBlocking {
@@ -218,7 +222,13 @@ class SourceHeaderPolicyTest {
             interceptRequests = { _, _ -> error("batch boom") },
         ).withPolicyHeaders(
             "src",
-            listOf(Page(index = 0, url = "https://example.com/a.jpg", headers = mapOf("Referer" to "https://example.com"))),
+            listOf(
+                Page(
+                    index = 0,
+                    url = "https://example.com/a.jpg",
+                    headers = mapOf("Referer" to "https://example.com")
+                )
+            ),
         )
 
         val page = result.single()

@@ -233,4 +233,4 @@ private fun sanitizedThemeFileName(name: String): String =
 
 /** Reserved on Windows regardless of extension or case. */
 private val WINDOWS_RESERVED_FILE_NAMES = setOf("CON", "PRN", "AUX", "NUL") +
-    (1..9).map { "COM$it" } + (1..9).map { "LPT$it" }
+        (1..9).map { "COM$it" } + (1..9).map { "LPT$it" }

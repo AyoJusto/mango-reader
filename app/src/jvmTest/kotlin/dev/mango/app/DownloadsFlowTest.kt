@@ -247,6 +247,7 @@ class DownloadsFlowTest {
 
         assertEquals(1, clearCount)
     }
+
     @Test
     fun aChapterRowWithoutATitleIsAsTallAsOneWithATitle() {
         val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
@@ -274,6 +275,7 @@ class DownloadsFlowTest {
         val untitled = rule.onNode(hasText("2") and hasClickAction()).fetchSemanticsNode()
         assertEquals(titled.boundsInRoot.height, untitled.boundsInRoot.height)
     }
+
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun mouseBackOnTheClearStorageConfirmCancelsInsteadOfClearing() {

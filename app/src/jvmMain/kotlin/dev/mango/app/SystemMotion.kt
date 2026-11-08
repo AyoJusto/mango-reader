@@ -20,7 +20,13 @@ private val logger = Logger.getLogger("SystemMotion")
 private val systemParametersInfo by lazy {
     user32Function(
         "SystemParametersInfoW",
-        FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT),
+        FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS,
+            ValueLayout.JAVA_INT
+        ),
     )
 }
 

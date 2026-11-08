@@ -475,7 +475,10 @@ class ReaderFlowTest {
         rule.waitForIdle()
         rule.waitForIdle()
 
-        assertTrue(descriptionVisible("Page 1 of 5"), "expected P to re-anchor at the top of ch-1, not a stale scroll offset")
+        assertTrue(
+            descriptionVisible("Page 1 of 5"),
+            "expected P to re-anchor at the top of ch-1, not a stale scroll offset"
+        )
     }
 
     @Test

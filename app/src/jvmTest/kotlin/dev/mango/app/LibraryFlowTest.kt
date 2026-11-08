@@ -132,7 +132,11 @@ class LibraryFlowTest {
         ),
     )
 
-    private fun showLibrary(items: List<LibraryItem>, libraryView: String = LIBRARY_VIEW_GRID, checkedAt: Long? = null) {
+    private fun showLibrary(
+        items: List<LibraryItem>,
+        libraryView: String = LIBRARY_VIEW_GRID,
+        checkedAt: Long? = null
+    ) {
         rule.setContent {
             ProvideMangoTheme(MangoDark) {
                 LibraryScreenContent(

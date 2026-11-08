@@ -54,7 +54,9 @@ class DefaultSourceHeaderPolicy(
     // The first cover's interceptor headers serve every cover; per-URL signed covers would break.
     override suspend fun coverHeadersFor(sourceId: String, url: String): Map<String, String> {
         val added = coverHeaderCache[sourceId] ?: coverHeaderLock.withLock {
-            coverHeaderCache[sourceId] ?: interceptedCoverHeaders(sourceId, url).also { coverHeaderCache[sourceId] = it }
+            coverHeaderCache[sourceId] ?: interceptedCoverHeaders(sourceId, url).also {
+                coverHeaderCache[sourceId] = it
+            }
         }
         return headersFor(sourceId, url, added)
     }
@@ -83,7 +85,7 @@ class DefaultSourceHeaderPolicy(
                 if (result.size == pages.size) result else {
                     log.warning(
                         "image request interception returned ${result.size} items for ${pages.size} pages " +
-                            "(source $sourceId) - degrading batch"
+                                "(source $sourceId) - degrading batch"
                     )
                     null
                 }

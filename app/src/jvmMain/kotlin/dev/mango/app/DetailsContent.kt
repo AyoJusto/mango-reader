@@ -618,6 +618,7 @@ private fun ChapterRow(
                 strokeWidth = 1.5.dp,
                 color = theme.accent,
             )
+
             download?.status == DownloadStatus.QUEUED -> Spacer(modifier = Modifier.size(12.dp))
             else -> ChapterDownloadGlyph(onClick = onDownload)
         }
