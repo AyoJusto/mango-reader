@@ -33,6 +33,8 @@ fun TestAppShell(
     searchHistory: List<SearchHistoryEntry> = emptyList(),
     onSearchHistoryChange: (List<SearchHistoryEntry>) -> Unit = {},
     motion: MangoMotion = MangoMotion(),
+    navigator: Navigator? = null,
+    sideButton: () -> SideButton = { SideButton.None },
 ) {
     var sidebarOpen by remember { mutableStateOf(false) }
     var libraryView by remember { mutableStateOf(LIBRARY_VIEW_GRID) }
@@ -55,6 +57,8 @@ fun TestAppShell(
                 onLibraryChecked = { libraryCheckedAt = it; onLibraryChecked(it) },
                 searchHistory = history,
                 onSearchHistoryChange = { history = it; onSearchHistoryChange(it) },
+                navigator = navigator ?: remember { Navigator() },
+                sideButton = sideButton,
             )
         }
     }

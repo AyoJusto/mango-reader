@@ -83,6 +83,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -468,6 +469,7 @@ fun KitSearchField(
     val theme = LocalMangoTheme.current
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
+    val focusManager = LocalFocusManager.current
     val ring = if (focused) {
         Modifier.border(2.dp, theme.focus, RoundedCornerShape(KIT_SEARCH_FIELD_RING_RADIUS))
     } else {
@@ -491,7 +493,14 @@ fun KitSearchField(
                 onValueChange = onValueChange,
                 modifier = Modifier
                     .weight(1f)
-                    .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
+                    .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+                    // Esc in a focused field only drops focus; it must not reach the window,
+                    // where an unconsumed Esc means back.
+                    .onPreviewKeyEvent { event ->
+                        if (event.key != Key.Escape) return@onPreviewKeyEvent false
+                        if (event.type == KeyEventType.KeyDown) focusManager.clearFocus()
+                        true
+                    },
                 textStyle = MangoType.body.copy(color = theme.textPrimary),
                 singleLine = true,
                 cursorBrush = SolidColor(theme.accent),
@@ -831,6 +840,13 @@ fun KitDropdown(
 
                                 Key.Enter, Key.NumPadEnter -> {
                                     selectActive()
+                                    true
+                                }
+
+                                // Runs before the filter field, which would otherwise keep Esc
+                                // to drop its own focus and leave the menu open.
+                                Key.Escape -> {
+                                    expanded = false
                                     true
                                 }
 

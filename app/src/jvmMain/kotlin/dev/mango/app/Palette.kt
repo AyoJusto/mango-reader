@@ -567,7 +567,7 @@ private fun libraryProvider(library: LibraryRepository, navigate: (Screen) -> Un
                 category = "Manhwa",
                 title = item.entry.title,
                 subtitle = item.entry.sourceId,
-                run = { navigate(Screen.Details(item.entry.sourceId, item.entry.mangaId, fromBrowse = false)) },
+                run = { navigate(Screen.Details(item.entry.sourceId, item.entry.mangaId)) },
             )
         }
     }

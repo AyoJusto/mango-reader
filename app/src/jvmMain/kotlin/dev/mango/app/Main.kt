@@ -67,6 +67,7 @@ fun main() {
         // A floating window this size fills a 2560x1440 monitor; the OS clamps it on smaller screens
         val windowState = rememberWindowState(size = DpSize(2560.dp, 1440.dp))
         val palette = remember { PaletteState() }
+        val navigator = remember { Navigator() }
         // A hand-rolled IntelliJ-style double-Shift chord detector, own file/class — this is
         // Window-level, not a focusable Box inside AppShell, so it fires no matter which
         // screen or field currently has focus.
@@ -106,6 +107,17 @@ fun main() {
                     }
 
                     else -> false
+                }
+            },
+            // Bubbling, not preview: a focused field or the reader that wants Esc consumes it
+            // first, and only a leftover Esc means back.
+            onKeyEvent = { keyEvent ->
+                if (keyEvent.key == Key.Escape && keyEvent.type == KeyEventType.KeyDown &&
+                    !palette.visible && !sidebarOpen
+                ) {
+                    navigator.back()
+                } else {
+                    false
                 }
             },
         ) {
@@ -168,6 +180,7 @@ fun main() {
                                 }
                             },
                             palette = palette,
+                            navigator = navigator,
                             sidebarOpen = sidebarOpen,
                             onSidebarChange = { sidebarOpen = it },
                             libraryView = libraryView,

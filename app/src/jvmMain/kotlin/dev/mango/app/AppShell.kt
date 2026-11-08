@@ -21,8 +21,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
@@ -62,44 +66,12 @@ private object NoOpCatalogCache : CatalogCache {
 }
 
 /**
- * Navigation state for the app shell. Hand-rolled — no nav library: the tree is a handful of
- * flat cases, not worth a dependency.
- */
-sealed interface Screen {
-    data object Library : Screen
-    data object Search : Screen
-    data object Browse : Screen
-    data object Downloads : Screen
-    data object Extensions : Screen
-    data object Settings : Screen
-    data class Details(
-        val sourceId: String,
-        val mangaId: String,
-        val fromBrowse: Boolean,
-        /**
-         * One-shot: fires the Continue action into the Reader once chapters load. Must be
-         * stripped from [AppShell]'s Reader back-target, or backing out of the Reader would
-         * bounce straight back in.
-         */
-        val autoContinue: Boolean = false,
-    ) : Screen
-
-    data class Reader(
-        val sourceId: String,
-        val mangaId: String,
-        val chapterId: String,
-        // sorted ascending by number at construction (the only construction site sorts below) so
-        // the reader can walk it directly for next/prev without re-sorting on every navigation
-        val chapters: List<Chapter>,
-    ) : Screen
-}
-
-/**
  * The whole application UI: the title bar on top (omitted when [showTitleBar] is false, because
  * the window draws it), the current screen filling the content area, an overlay sidebar for top-level navigation, and the command palette above everything.
  * Screens talk only to the repository ports passed in here — never engine or DB types
  * (CLAUDE.md boundary).
  */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun AppShell(
     library: LibraryRepository,
@@ -139,12 +111,10 @@ fun AppShell(
     onLibraryChecked: (Long) -> Unit = {},
     searchHistory: List<SearchHistoryEntry> = emptyList(),
     onSearchHistoryChange: (List<SearchHistoryEntry>) -> Unit = {},
+    navigator: Navigator = remember { Navigator() },
+    // Production reads the real side-button state; tests substitute a canned answer.
+    sideButton: () -> SideButton = ::pressedSideButton,
 ) {
-    var screen by remember { mutableStateOf<Screen>(Screen.Library) }
-    // Reader has no fromBrowse of its own; remember which Details screen led to it so its
-    // back button can return there. autoContinue is stripped: the back-target must land on
-    // Details, not re-fire the Continue action into the Reader.
-    var lastDetails by remember { mutableStateOf<Screen.Details?>(null) }
     // Session-only, like searchState below: which collection the Library chip row is filtering
     // to, and whether the manage-collections dialog is open.
     var selectedCollectionId by remember { mutableStateOf<Long?>(null) }
@@ -223,7 +193,23 @@ fun AppShell(
     // branches below register as the blur source, the panel samples it.
     val hazeState = rememberHazeState()
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            // Nucleus reports a side-button press as a primary press. Consuming it on the
+            // Initial pass keeps every clickable below from treating it as a click.
+            .onPointerEvent(PointerEventType.Press, PointerEventPass.Initial) { event ->
+                when (sideButton()) {
+                    SideButton.Back -> {
+                        event.changes.forEach { it.consume() }
+                        navigator.back()
+                    }
+
+                    SideButton.Forward -> event.changes.forEach { it.consume() }
+                    SideButton.None -> Unit
+                }
+            },
+    ) {
         if (showTitleBar) {
             MangoTitleBar(
                 sidebarOpen = sidebarOpen,
@@ -241,7 +227,7 @@ fun AppShell(
                     animationSpec = tween(motion.paletteBackdropMs),
                 )
                 val contentBlur = if (contentBlurDp > 0.dp) Modifier.blur(contentBlurDp) else Modifier
-                when (val current = screen) {
+                when (val current = navigator.current.screen) {
                     is Screen.Reader -> {
                         Box(modifier = Modifier.fillMaxSize().hazeSource(hazeState).then(contentBlur)) {
                             ReaderScreen(
@@ -253,7 +239,7 @@ fun AppShell(
                                 downloads = downloads,
                                 library = library,
                                 challengeSolver = challengeSolver,
-                                onBack = { lastDetails?.let { screen = it } ?: run { screen = Screen.Library } },
+                                onBack = { navigator.back() },
                                 onToggleFullscreen = onToggleFullscreen,
                                 autoScrollSpeedDpPerSec = autoScrollSpeed,
                                 stripWidthDp = stripWidthDp,
@@ -275,9 +261,9 @@ fun AppShell(
                                     library = library,
                                     libraryView = libraryView,
                                     onLibraryViewChange = onLibraryViewChange,
-                                    onBrowse = { screen = Screen.Browse },
+                                    onBrowse = { navigator.go(Screen.Browse) },
                                     onOpenDetails = { entry ->
-                                        screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = false)
+                                        navigator.go(Screen.Details(entry.sourceId, entry.mangaId))
                                     },
                                     checkedAt = libraryCheckedAt,
                                     checking = checking,
@@ -292,17 +278,14 @@ fun AppShell(
                                     challengeSolver = challengeSolver,
                                     state = searchState,
                                     onOpenDetails = { entry ->
-                                        // Details has no fromSearch case yet: back from a Search-opened
-                                        // Details returns to Library, same as fromBrowse = false
-                                        // everywhere else that isn't Browse itself.
-                                        screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = false)
+                                        navigator.go(Screen.Details(entry.sourceId, entry.mangaId))
                                     },
                                     searchHistory = searchHistory,
                                     onSearchHistoryChange = onSearchHistoryChange,
                                 )
 
                                 Screen.Browse -> BrowseScreen(catalog, challengeSolver, browseState) { entry ->
-                                    screen = Screen.Details(entry.sourceId, entry.mangaId, fromBrowse = true)
+                                    navigator.go(Screen.Details(entry.sourceId, entry.mangaId))
                                 }
 
                                 Screen.Downloads -> DownloadsScreen(downloads)
@@ -327,7 +310,6 @@ fun AppShell(
                                 )
 
                                 is Screen.Details -> {
-                                    LaunchedEffect(current) { lastDetails = current.copy(autoContinue = false) }
                                     Box(modifier = Modifier.fillMaxSize()) {
                                         DetailsScreen(
                                             sourceId = current.sourceId,
@@ -339,11 +321,16 @@ fun AppShell(
                                             catalogCache = catalogCache,
                                             autoContinue = current.autoContinue,
                                             onOpenChapter = { chapter, chapters ->
-                                                screen = Screen.Reader(
-                                                    sourceId = current.sourceId,
-                                                    mangaId = current.mangaId,
-                                                    chapterId = chapter.chapterId,
-                                                    chapters = chapters.sortedBy { it.number },
+                                                // The one-shot flag comes off the stack entry first,
+                                                // so backing out of the Reader lands on plain Details.
+                                                navigator.replaceCurrent(current.copy(autoContinue = false))
+                                                navigator.go(
+                                                    Screen.Reader(
+                                                        sourceId = current.sourceId,
+                                                        mangaId = current.mangaId,
+                                                        chapterId = chapter.chapterId,
+                                                        chapters = chapters.sortedBy { it.number },
+                                                    ),
                                                 )
                                             },
                                             // Downloading a chapter (or the whole series) implies the user
@@ -369,9 +356,7 @@ fun AppShell(
                                             },
                                         )
                                         IconButton(
-                                            onClick = {
-                                                screen = if (current.fromBrowse) Screen.Browse else Screen.Library
-                                            },
+                                            onClick = { navigator.back() },
                                             modifier = Modifier.padding(8.dp),
                                         ) {
                                             Text("←", color = theme.textSecondary)
@@ -385,14 +370,14 @@ fun AppShell(
                 Sidebar(
                     visible = sidebarOpen,
                     continueItems = continueItems,
-                    activeScreen = screen,
+                    activeScreen = navigator.current.screen,
                     pendingDownloadCount = pendingDownloadCount,
                     onNavigate = { target ->
-                        screen = target
+                        navigator.go(target)
                         onSidebarChange(false)
                     },
                     onContinue = { item ->
-                        screen = Screen.Details(item.sourceId, item.mangaId, fromBrowse = false, autoContinue = true)
+                        navigator.go(Screen.Details(item.sourceId, item.mangaId, autoContinue = true))
                         onSidebarChange(false)
                     },
                     modifier = Modifier.align(Alignment.CenterStart),
@@ -409,7 +394,7 @@ fun AppShell(
                 val tabs = remember(theme, themeLibrary, collections) {
                     paletteTabs(
                         library = library,
-                        navigate = { target -> screen = target },
+                        navigate = { target -> navigator.go(target) },
                         theme = theme,
                         onThemeChange = onThemeChange,
                         themes = themeLibrary,
@@ -420,7 +405,7 @@ fun AppShell(
                         onCheckForUpdates = { checkForUpdates() },
                         onClearSearchHistory = { onSearchHistoryChange(emptyList()) },
                         collections = collections,
-                        onSelectCollection = { id -> selectedCollectionId = id; screen = Screen.Library },
+                        onSelectCollection = { id -> selectedCollectionId = id; navigator.go(Screen.Library) },
                         onManageCollections = { showManageCollections = true },
                     )
                 }
