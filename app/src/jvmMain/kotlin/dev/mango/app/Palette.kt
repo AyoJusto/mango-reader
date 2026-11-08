@@ -1,6 +1,7 @@
 package dev.mango.app
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -262,6 +263,7 @@ fun PaletteContent(
     onDismiss: () -> Unit,
 ) {
     val theme = LocalMangoTheme.current
+    val motion = LocalMangoMotion.current
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
     val listState = rememberLazyListState()
@@ -340,11 +342,15 @@ fun PaletteContent(
         AnimatedVisibility(
             visibleState = panelVisible,
             modifier = Modifier.padding(top = PALETTE_PANEL_TOP_OFFSET),
-            enter = scaleIn(
-                initialScale = 0.98f,
-                animationSpec = tween(MangoMotion.PALETTE_OPEN_MS, easing = MangoMotion.decel),
-            ) + fadeIn(
-                animationSpec = tween(MangoMotion.PALETTE_OPEN_MS, easing = MangoMotion.decel),
+            enter = (if (motion.slides) {
+                scaleIn(
+                    initialScale = 0.98f,
+                    animationSpec = tween(motion.paletteOpenMs, easing = motion.decel),
+                )
+            } else {
+                EnterTransition.None
+            }) + fadeIn(
+                animationSpec = tween(motion.paletteOpenMs, easing = motion.decel),
             ),
         ) {
             Box(

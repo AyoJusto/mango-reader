@@ -1,6 +1,7 @@
 package dev.mango.app
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,28 +32,31 @@ fun TestAppShell(
     onLibraryChecked: (Long) -> Unit = {},
     searchHistory: List<SearchHistoryEntry> = emptyList(),
     onSearchHistoryChange: (List<SearchHistoryEntry>) -> Unit = {},
+    motion: MangoMotion = MangoMotion(),
 ) {
     var sidebarOpen by remember { mutableStateOf(false) }
     var libraryView by remember { mutableStateOf(LIBRARY_VIEW_GRID) }
     var libraryCheckedAt by remember { mutableStateOf<Long?>(null) }
     var history by remember { mutableStateOf(searchHistory) }
     ProvideMangoTheme(MangoDark) {
-        AppShell(
-            library = library,
-            catalog = catalog,
-            downloads = downloads,
-            challengeSolver = challengeSolver ?: remember { FakeChallengeSolver() },
-            catalogCache = catalogCache,
-            palette = palette ?: remember { PaletteState() },
-            sidebarOpen = sidebarOpen,
-            onSidebarChange = { sidebarOpen = it },
-            libraryView = libraryView,
-            onLibraryViewChange = { libraryView = it },
-            libraryCheckedAt = libraryCheckedAt,
-            onLibraryChecked = { libraryCheckedAt = it; onLibraryChecked(it) },
-            searchHistory = history,
-            onSearchHistoryChange = { history = it; onSearchHistoryChange(it) },
-        )
+        CompositionLocalProvider(LocalMangoMotion provides motion) {
+            AppShell(
+                library = library,
+                catalog = catalog,
+                downloads = downloads,
+                challengeSolver = challengeSolver ?: remember { FakeChallengeSolver() },
+                catalogCache = catalogCache,
+                palette = palette ?: remember { PaletteState() },
+                sidebarOpen = sidebarOpen,
+                onSidebarChange = { sidebarOpen = it },
+                libraryView = libraryView,
+                onLibraryViewChange = { libraryView = it },
+                libraryCheckedAt = libraryCheckedAt,
+                onLibraryChecked = { libraryCheckedAt = it; onLibraryChecked(it) },
+                searchHistory = history,
+                onSearchHistoryChange = { history = it; onSearchHistoryChange(it) },
+            )
+        }
     }
 }
 

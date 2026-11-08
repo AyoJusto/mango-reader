@@ -1,6 +1,7 @@
 package dev.mango.app
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.animateColor
 import androidx.compose.animation.animateColorAsState
@@ -122,13 +123,18 @@ fun ContentColumn(
 /** Shimmer placeholder for a reserved shape whose content is still loading: bg1-bg2-bg1 sweep. */
 @Composable
 fun SkeletonBlock(modifier: Modifier = Modifier) {
+    val motion = LocalMangoMotion.current
     val theme = LocalMangoTheme.current
+    if (motion.reduced) {
+        Box(modifier = modifier.background(theme.bg1))
+        return
+    }
     val transition = rememberInfiniteTransition(label = "skeleton")
     val color by transition.animateColor(
         initialValue = theme.bg1,
         targetValue = theme.bg2,
         animationSpec = infiniteRepeatable(
-            animation = tween(MangoMotion.SHIMMER_MS, easing = LinearEasing),
+            animation = tween(motion.shimmerMs, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse,
         ),
         label = "skeleton-color",
@@ -154,11 +160,12 @@ class HoverFill(val interaction: MutableInteractionSource, fillState: State<Colo
  */
 @Composable
 fun rememberHoverFill(rest: Color, hover: Color): HoverFill {
+    val motion = LocalMangoMotion.current
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
     val fill = animateColorAsState(
         targetValue = if (hovered) hover else rest,
-        animationSpec = tween(MangoMotion.HOVER_MS),
+        animationSpec = tween(motion.hoverMs),
     )
     return HoverFill(interaction, fill)
 }
@@ -225,6 +232,7 @@ fun KitButton(
     modifier: Modifier = Modifier,
 ) {
     val theme = LocalMangoTheme.current
+    val motion = LocalMangoMotion.current
     val restFill = when (style) {
         KitButtonStyle.PRIMARY -> theme.accent
         KitButtonStyle.SECONDARY -> theme.surface
@@ -242,8 +250,8 @@ fun KitButton(
         KitButtonStyle.DANGER -> theme.danger
     }
     val scale by animateFloatAsState(
-        targetValue = if (pressed) MangoMotion.PRESS_SCALE else 1f,
-        animationSpec = tween(MangoMotion.PRESS_MS, easing = MangoMotion.standard),
+        targetValue = if (pressed) motion.pressScale else 1f,
+        animationSpec = tween(motion.pressMs, easing = motion.standard),
     )
     Box(
         modifier = modifier
@@ -319,14 +327,19 @@ fun ErrorBanner(
     modifier: Modifier = Modifier,
 ) {
     val theme = LocalMangoTheme.current
+    val motion = LocalMangoMotion.current
     val visibleState = remember { MutableTransitionState(false) }.apply { targetState = true }
     AnimatedVisibility(
         visibleState = visibleState,
         modifier = modifier,
-        enter = slideInVertically(
-            animationSpec = tween(MangoMotion.BANNER_IN_MS, easing = MangoMotion.decel),
-        ) { height -> -height / 2 } + fadeIn(
-            animationSpec = tween(MangoMotion.BANNER_IN_MS, easing = MangoMotion.decel),
+        enter = (if (motion.slides) {
+            slideInVertically(
+                animationSpec = tween(motion.bannerInMs, easing = motion.decel),
+            ) { height -> -height / 2 }
+        } else {
+            EnterTransition.None
+        }) + fadeIn(
+            animationSpec = tween(motion.bannerInMs, easing = motion.decel),
         ),
     ) {
         Row(
@@ -359,11 +372,12 @@ fun ErrorBanner(
 @Composable
 private fun ErrorBannerRetryButton(onClick: () -> Unit) {
     val theme = LocalMangoTheme.current
+    val motion = LocalMangoMotion.current
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (pressed) MangoMotion.PRESS_SCALE else 1f,
-        animationSpec = tween(MangoMotion.PRESS_MS, easing = MangoMotion.standard),
+        targetValue = if (pressed) motion.pressScale else 1f,
+        animationSpec = tween(motion.pressMs, easing = motion.standard),
     )
     Box(
         modifier = Modifier
@@ -513,10 +527,11 @@ fun ProgressTrack(
     successAtFull: Boolean = true,
 ) {
     val theme = LocalMangoTheme.current
+    val motion = LocalMangoMotion.current
     val clamped = progress.coerceIn(0f, 1f)
     val animated by animateFloatAsState(
         targetValue = clamped,
-        animationSpec = tween(MangoMotion.PROGRESS_BAR_MS, easing = MangoMotion.standard),
+        animationSpec = tween(motion.progressBarMs, easing = motion.standard),
     )
     val fillColor = if (successAtFull && clamped >= 1f) theme.success else theme.accent
     Box(
@@ -564,11 +579,12 @@ fun SegmentedControl(
 @Composable
 private fun SegmentedControlOption(text: String, selected: Boolean, onClick: () -> Unit) {
     val theme = LocalMangoTheme.current
+    val motion = LocalMangoMotion.current
     val interaction = remember { MutableInteractionSource() }
     val fill by animateColorAsState(
         // Same-color-at-zero-alpha rest state; see rememberHoverFill's KDoc for why.
         targetValue = if (selected) theme.surface else theme.surface.copy(alpha = 0f),
-        animationSpec = tween(MangoMotion.HOVER_MS),
+        animationSpec = tween(motion.hoverMs),
     )
     Box(
         modifier = Modifier
@@ -627,6 +643,7 @@ fun CoverCard(
     newCount: Int = 0,
 ) {
     val theme = LocalMangoTheme.current
+    val motion = LocalMangoMotion.current
     val interaction = remember { MutableInteractionSource() }
     // Pulses the unread pill once when unreadCount rises while the card stays composed (a
     // fresh chapter landing during this session) — never on first composition, since that
@@ -643,8 +660,8 @@ fun CoverCard(
     }
     val hovered by interaction.collectIsHoveredAsState()
     val scale by animateFloatAsState(
-        targetValue = if (hovered) MangoMotion.COVER_HOVER_SCALE else 1f,
-        animationSpec = tween(MangoMotion.COVER_HOVER_MS, easing = MangoMotion.decel),
+        targetValue = if (hovered) motion.coverHoverScale else 1f,
+        animationSpec = tween(motion.coverHoverMs, easing = motion.decel),
     )
     Column(
         modifier = modifier

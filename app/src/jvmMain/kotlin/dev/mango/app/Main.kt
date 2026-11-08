@@ -1,5 +1,6 @@
 package dev.mango.app
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -111,72 +112,76 @@ fun main() {
             val appFont = remember(fontFamilyName, installedFonts) {
                 resolveAppFontFamily(fontFamilyName, installedFonts)
             }
+            val animationsOn = rememberWindowsAnimationsOn()
+            val motion = remember(animationsOn) { MangoMotion(reduced = !animationsOn) }
             ProvideMangoTheme(theme, fontFamily = appFont) {
                 WindowAppearance(WindowAppearanceMode.Dark)
                 WindowBackground(LocalMangoTheme.current.bg0)
-                WindowScaffold(
-                    titleBar = {
-                        if (windowState.placement != WindowPlacement.Fullscreen) {
-                            MangoTitleBar(sidebarOpen, { sidebarOpen = !sidebarOpen }, Modifier.windowDragArea()) {
-                                WindowControls(Modifier.align(Alignment.CenterEnd))
+                CompositionLocalProvider(LocalMangoMotion provides motion) {
+                    WindowScaffold(
+                        titleBar = {
+                            if (windowState.placement != WindowPlacement.Fullscreen) {
+                                MangoTitleBar(sidebarOpen, { sidebarOpen = !sidebarOpen }, Modifier.windowDragArea()) {
+                                    WindowControls(Modifier.align(Alignment.CenterEnd))
+                                }
                             }
-                        }
-                    },
-                    titleBarPlacement = TitleBarPlacement.Docked,
-                ) {
-                    AppShell(
-                        graph.library,
-                        graph.catalog,
-                        graph.downloads,
-                        graph.extensions,
-                        graph.challengeSolver,
-                        graph.catalogCache,
-                        headerPolicy = graph.headerPolicy,
-                        theme = theme,
-                        onThemeChange = { theme = it; themeStore.save(it) },
-                        themeLibrary = themeLibrary,
-                        onThemeImport = { imported ->
-                            val err = themeStore.saveImported(imported)
-                            if (err == null) {
+                        },
+                        titleBarPlacement = TitleBarPlacement.Docked,
+                    ) {
+                        AppShell(
+                            graph.library,
+                            graph.catalog,
+                            graph.downloads,
+                            graph.extensions,
+                            graph.challengeSolver,
+                            graph.catalogCache,
+                            headerPolicy = graph.headerPolicy,
+                            theme = theme,
+                            onThemeChange = { theme = it; themeStore.save(it) },
+                            themeLibrary = themeLibrary,
+                            onThemeImport = { imported ->
+                                val err = themeStore.saveImported(imported)
+                                if (err == null) {
+                                    themeLibrary = themeStore.list()
+                                    theme = imported
+                                    themeStore.save(imported)
+                                }
+                                err
+                            },
+                            onThemeDelete = {
+                                themeStore.deleteImported(theme.name)
                                 themeLibrary = themeStore.list()
-                                theme = imported
-                                themeStore.save(imported)
-                            }
-                            err
-                        },
-                        onThemeDelete = {
-                            themeStore.deleteImported(theme.name)
-                            themeLibrary = themeStore.list()
-                            theme = MangoDark
-                            themeStore.save(MangoDark)
-                        },
-                        autoScrollSpeed = autoScrollSpeed,
-                        onAutoScrollSpeedChange = { autoScrollSpeed = it; settings.autoScrollSpeed = it },
-                        stripWidthDp = stripWidthDp,
-                        onStripWidthDpChange = { stripWidthDp = it; settings.stripWidth = it },
-                        hideCursorInReader = hideCursorInReader,
-                        onHideCursorInReaderChange = { hideCursorInReader = it; settings.hideCursorInReader = it },
-                        onToggleFullscreen = {
-                            windowState.placement = if (windowState.placement == WindowPlacement.Fullscreen) {
-                                WindowPlacement.Floating
-                            } else {
-                                WindowPlacement.Fullscreen
-                            }
-                        },
-                        palette = palette,
-                        sidebarOpen = sidebarOpen,
-                        onSidebarChange = { sidebarOpen = it },
-                        libraryView = libraryView,
-                        onLibraryViewChange = { libraryView = it; settings.libraryView = it },
-                        fontFamilyName = fontFamilyName,
-                        installedFonts = installedFonts,
-                        onFontFamilyChange = { fontFamilyName = it; settings.fontFamilyName = it },
-                        showTitleBar = false,
-                        libraryCheckedAt = libraryCheckedAt,
-                        onLibraryChecked = { libraryCheckedAt = it; settings.libraryCheckedAt = it },
-                        searchHistory = searchHistory,
-                        onSearchHistoryChange = { searchHistory = it; settings.searchHistory = it },
-                    )
+                                theme = MangoDark
+                                themeStore.save(MangoDark)
+                            },
+                            autoScrollSpeed = autoScrollSpeed,
+                            onAutoScrollSpeedChange = { autoScrollSpeed = it; settings.autoScrollSpeed = it },
+                            stripWidthDp = stripWidthDp,
+                            onStripWidthDpChange = { stripWidthDp = it; settings.stripWidth = it },
+                            hideCursorInReader = hideCursorInReader,
+                            onHideCursorInReaderChange = { hideCursorInReader = it; settings.hideCursorInReader = it },
+                            onToggleFullscreen = {
+                                windowState.placement = if (windowState.placement == WindowPlacement.Fullscreen) {
+                                    WindowPlacement.Floating
+                                } else {
+                                    WindowPlacement.Fullscreen
+                                }
+                            },
+                            palette = palette,
+                            sidebarOpen = sidebarOpen,
+                            onSidebarChange = { sidebarOpen = it },
+                            libraryView = libraryView,
+                            onLibraryViewChange = { libraryView = it; settings.libraryView = it },
+                            fontFamilyName = fontFamilyName,
+                            installedFonts = installedFonts,
+                            onFontFamilyChange = { fontFamilyName = it; settings.fontFamilyName = it },
+                            showTitleBar = false,
+                            libraryCheckedAt = libraryCheckedAt,
+                            onLibraryChecked = { libraryCheckedAt = it; settings.libraryCheckedAt = it },
+                            searchHistory = searchHistory,
+                            onSearchHistoryChange = { searchHistory = it; settings.searchHistory = it },
+                        )
+                    }
                 }
             }
         }

@@ -1,6 +1,8 @@
 package dev.mango.app
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -171,18 +173,27 @@ fun Sidebar(
     hazeState: HazeState? = null,
 ) {
     val theme = LocalMangoTheme.current
+    val motion = LocalMangoMotion.current
     AnimatedVisibility(
         visible = visible,
         modifier = modifier,
-        enter = slideInHorizontally(
-            animationSpec = tween(MangoMotion.SIDEBAR_OPEN_MS, easing = MangoMotion.decel),
-        ) { fullWidth -> -fullWidth } + fadeIn(
-            animationSpec = tween(MangoMotion.SIDEBAR_OPEN_MS, easing = MangoMotion.decel),
+        enter = (if (motion.slides) {
+            slideInHorizontally(
+                animationSpec = tween(motion.sidebarOpenMs, easing = motion.decel),
+            ) { fullWidth -> -fullWidth }
+        } else {
+            EnterTransition.None
+        }) + fadeIn(
+            animationSpec = tween(motion.sidebarOpenMs, easing = motion.decel),
         ),
-        exit = slideOutHorizontally(
-            animationSpec = tween(MangoMotion.SIDEBAR_CLOSE_MS, easing = MangoMotion.standard),
-        ) { fullWidth -> -fullWidth } + fadeOut(
-            animationSpec = tween(MangoMotion.SIDEBAR_CLOSE_MS, easing = MangoMotion.standard),
+        exit = (if (motion.slides) {
+            slideOutHorizontally(
+                animationSpec = tween(motion.sidebarCloseMs, easing = motion.standard),
+            ) { fullWidth -> -fullWidth }
+        } else {
+            ExitTransition.None
+        }) + fadeOut(
+            animationSpec = tween(motion.sidebarCloseMs, easing = motion.standard),
         ),
     ) {
         Column(
@@ -253,30 +264,31 @@ fun Sidebar(
 
 /**
  * One stagger group of the sidebar's contents: fades and rises in on first composition (the
- * panel opening), offset by [groupIndex] * [MangoMotion.SIDEBAR_STAGGER_MS] capped at
- * [MangoMotion.SIDEBAR_STAGGER_CAP_MS]. Content stays composed at full opacity once settled, so
+ * panel opening), offset by [groupIndex] * [motion.sidebarStaggerMs] capped at
+ * [motion.sidebarStaggerCapMs]. Content stays composed at full opacity once settled, so
  * closing the sidebar is just the outer panel's own slide-out — no separate exit animation here.
  */
 @Composable
 private fun SidebarStaggerGroup(groupIndex: Int, content: @Composable ColumnScope.() -> Unit) {
+    val motion = LocalMangoMotion.current
     val progress = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
-        val delayMs = (groupIndex * MangoMotion.SIDEBAR_STAGGER_MS).coerceAtMost(MangoMotion.SIDEBAR_STAGGER_CAP_MS)
+        val delayMs = (groupIndex * motion.sidebarStaggerMs).coerceAtMost(motion.sidebarStaggerCapMs)
         progress.animateTo(
             targetValue = 1f,
             // delayMillis, not a raw suspend delay(): stays on the same frame-clock-driven
             // timing every other animation in this file uses.
             animationSpec = tween(
-                durationMillis = MangoMotion.SIDEBAR_OPEN_MS,
+                durationMillis = motion.sidebarOpenMs,
                 delayMillis = delayMs,
-                easing = MangoMotion.decel
+                easing = motion.decel
             ),
         )
     }
     Column(
         modifier = Modifier.graphicsLayer {
             alpha = progress.value
-            translationY = (1f - progress.value) * 6.dp.toPx()
+            if (motion.slides) translationY = (1f - progress.value) * 6.dp.toPx()
         },
         verticalArrangement = Arrangement.spacedBy(4.dp),
         content = content,

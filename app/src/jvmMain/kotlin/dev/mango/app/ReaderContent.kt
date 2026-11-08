@@ -186,6 +186,7 @@ fun ReaderContent(
     pageContent: @Composable (Page, Boolean) -> Unit,
 ) {
     val theme = LocalMangoTheme.current
+    val motion = LocalMangoMotion.current
     val rows = remember(segments, isLastChapter, nextLoading, nextError, nextChallengeUrl) {
         buildRows(segments, isLastChapter, nextLoading, nextError, nextChallengeUrl)
     }
@@ -226,8 +227,8 @@ fun ReaderContent(
             }
             AnimatedVisibility(
                 visible = controlsVisible,
-                enter = fadeIn(animationSpec = tween(MangoMotion.READER_OVERLAY_IN_MS, easing = MangoMotion.decel)),
-                exit = fadeOut(animationSpec = tween(MangoMotion.READER_OVERLAY_OUT_MS, easing = MangoMotion.standard)),
+                enter = fadeIn(animationSpec = tween(motion.readerOverlayInMs, easing = motion.decel)),
+                exit = fadeOut(animationSpec = tween(motion.readerOverlayOutMs, easing = motion.standard)),
                 modifier = Modifier.fillMaxSize(),
             ) {
                 Box(modifier = Modifier.fillMaxSize()) {

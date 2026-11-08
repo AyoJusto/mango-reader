@@ -157,6 +157,7 @@ fun AppShell(
     val searchState = remember { SearchState() }
     val scope = rememberCoroutineScope()
 
+    val motion = LocalMangoMotion.current
     val updater = remember(catalog, catalogCache, library) { LibraryUpdater(catalog, catalogCache, library) }
     var checking by remember { mutableStateOf(false) }
 
@@ -237,7 +238,7 @@ fun AppShell(
                 // modifier below stays untouched; this composes an ordinary blur onto the same Box.
                 val contentBlurDp by animateDpAsState(
                     targetValue = if (palette.visible) 10.dp else 0.dp,
-                    animationSpec = tween(MangoMotion.PALETTE_BACKDROP_MS),
+                    animationSpec = tween(motion.paletteBackdropMs),
                 )
                 val contentBlur = if (contentBlurDp > 0.dp) Modifier.blur(contentBlurDp) else Modifier
                 when (val current = screen) {

@@ -409,9 +409,10 @@ private val TOGGLE_THUMB_INSET = 2.dp
 @Composable
 private fun TogglePill(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     val theme = LocalMangoTheme.current
+    val motion = LocalMangoMotion.current
     val trackColor by animateColorAsState(
         targetValue = if (checked) theme.accent else theme.surface,
-        animationSpec = tween(MangoMotion.HOVER_MS),
+        animationSpec = tween(motion.hoverMs),
     )
     val thumbStart by animateDpAsState(
         targetValue = if (checked) {
@@ -419,7 +420,7 @@ private fun TogglePill(checked: Boolean, onCheckedChange: (Boolean) -> Unit, mod
         } else {
             TOGGLE_THUMB_INSET
         },
-        animationSpec = tween(MangoMotion.COVER_HOVER_MS, easing = MangoMotion.decel),
+        animationSpec = tween(motion.coverHoverMs, easing = motion.decel),
     )
     Box(
         modifier = modifier
