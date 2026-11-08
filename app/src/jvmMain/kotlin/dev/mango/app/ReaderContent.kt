@@ -44,7 +44,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.Page
-import kotlin.math.roundToInt
 
 /** The reading strip's default width — the spec's literal value; a user-facing width slider is not wired yet. */
 internal const val DEFAULT_STRIP_WIDTH_DP = 880f

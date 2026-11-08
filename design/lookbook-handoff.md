@@ -108,7 +108,7 @@ Mid-transition reference: at t≈120 ms the panel sits at translateX −38%, alp
 ### 3. Details (board 06)
 Two columns, gap 40, gutters 48.
 - Left (300 dp fixed): 2:3 cover radius 14 + shadow; **Continue — Ch. 142** primary button (38 dp, accent); row of "Mark finished" secondary + download icon-button (34 dp); metadata key/value list (12.5, keys tertiary, values secondary; Progress value in accent).
-- Right: title (Display 28), genre chips (bg2, radius 999, padding 3/11, 12 secondary), description (14/1.6 secondary, max 680 dp), "197 chapters" (16 Semibold) + sort hint, then chapter rows: state dot (8 dp) · chapter number (mono 12, tertiary, 76 dp) · title (13.5 Medium, flexible, ellipsized; omitted when it only restates the number) · state text · date (12 tertiary, 90 dp right-aligned). Row hover bg1, radius 10, padding 9/12.
+- Right: title (Display 28), genre chips (bg2, radius 999, padding 3/11, 12 secondary), description (14/1.6 secondary, max 680 dp), "197 chapters" (16 Semibold) (no sort hint), then chapter rows: state dot (8 dp) · chapter number (mono 12, tertiary, 76 dp) · title (13.5 Medium, flexible, ellipsized; omitted when it only restates the number) · state text · date (12 tertiary, 90 dp right-aligned). Row hover bg1, radius 10, padding 9/12.
 - Chapter states: **in-progress** = accent dot + accent "reading · 60%" · **unread** = primary dot ("downloaded" sub in success when cached) · **read** = dot at 25% white, title drops to text.secondary.
 
 ### 4. Browse (board 07)
