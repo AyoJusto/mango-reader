@@ -322,6 +322,37 @@ class ScreenFlowTest {
         rule.onNode(hasText("offline")).assertDoesNotExist()
     }
 
+    @Test
+    fun titleBarBackLeavesTheReader() {
+        val library = FakeLibraryRepository(listOf(LibraryItem(soloEntry, Clock.System.now())))
+        runBlocking { library.setProgress("FlameComics", "manga-1", "c1", page = 1, finished = false) }
+        val catalog = soloCatalog(
+            chapters = listOf(Chapter(chapterId = "c1", number = 1.0, title = null, publishedAt = null)),
+        )
+        val dir = Files.createTempDirectory("title-bar-back-reader-test")
+        val file0 = dir.resolve("0000.jpg").also { Files.write(it, byteArrayOf(1)) }
+        val downloads = FakeDownloadManager(
+            localPagesByKey = mapOf("FlameComics/manga-1/c1" to listOf(file0.toString())),
+        )
+
+        rule.setContent { TestAppShell(library, catalog, downloads) }
+        rule.waitForIdle()
+        rule.onNodeWithTag(SIDEBAR_TOGGLE_TAG).performClick()
+        rule.waitForIdle()
+        rule.onNode(hasText("Solo Leveling") and hasAnyAncestor(hasTestTag(SIDEBAR_TEST_TAG))).performClick()
+        rule.waitForIdle()
+        rule.waitForIdle()
+        rule.onNodeWithTag("screen:Reader").assertExists()
+
+        rule.onNodeWithContentDescription("Back").assertIsEnabled().performClick()
+        rule.waitForIdle()
+        rule.mainClock.advanceTimeBy(2_000)
+        rule.waitForIdle()
+
+        rule.onNodeWithTag("screen:Details").assertExists()
+        rule.onNodeWithTag("screen:Reader").assertDoesNotExist()
+    }
+
     // Nucleus reports a side-button press as a primary click, so the shell must consume it
     // before any clickable underneath sees it.
     @Test
