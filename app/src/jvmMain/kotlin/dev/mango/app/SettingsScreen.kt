@@ -2,6 +2,7 @@ package dev.mango.app
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -420,7 +421,7 @@ private fun TogglePill(checked: Boolean, onCheckedChange: (Boolean) -> Unit, mod
         } else {
             TOGGLE_THUMB_INSET
         },
-        animationSpec = tween(motion.coverHoverMs, easing = motion.decel),
+        animationSpec = if (motion.slides) tween(motion.coverHoverMs, easing = motion.decel) else snap(),
     )
     Box(
         modifier = modifier

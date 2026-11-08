@@ -12,6 +12,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
@@ -531,7 +532,7 @@ fun ProgressTrack(
     val clamped = progress.coerceIn(0f, 1f)
     val animated by animateFloatAsState(
         targetValue = clamped,
-        animationSpec = tween(motion.progressBarMs, easing = motion.standard),
+        animationSpec = if (motion.slides) tween(motion.progressBarMs, easing = motion.standard) else snap(),
     )
     val fillColor = if (successAtFull && clamped >= 1f) theme.success else theme.accent
     Box(
