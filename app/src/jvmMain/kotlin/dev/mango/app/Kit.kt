@@ -606,7 +606,7 @@ fun rememberCoverRequest(sourceId: String, url: String?): ImageRequest? {
     val plainRequest = remember(url) { ImageRequest.Builder(context).data(url).build() }
     val policy = LocalSourceHeaderPolicy.current ?: return plainRequest
     val state = produceState<ImageRequest?>(initialValue = null, sourceId, url, policy) {
-        val headers = policy.headersFor(sourceId, url, emptyMap())
+        val headers = policy.coverHeadersFor(sourceId, url)
         value = ImageRequest.Builder(context).data(url).policyHeaders(headers).build()
     }
     return state.value

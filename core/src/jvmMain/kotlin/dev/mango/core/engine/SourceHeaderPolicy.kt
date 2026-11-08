@@ -7,6 +7,7 @@ import dev.mango.core.domain.SourceImageRequest
 import io.ktor.http.HttpHeaders
 import io.ktor.http.Url
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.withLock
 
 /**
  * [SourceHeaderPolicy] backed by a per-source [CookieStore] lookup and User-Agent resolver.
@@ -52,6 +53,35 @@ class DefaultSourceHeaderPolicy(
         } catch (e: Exception) {
             log.warning("header policy failed for source $sourceId ($url): $e")
             canonical
+        }
+    }
+
+    private val coverHeaderCache = java.util.concurrent.ConcurrentHashMap<String, Map<String, String>>()
+    private val coverHeaderLock = kotlinx.coroutines.sync.Mutex()
+
+    // ponytail: the interceptor's headers from the first cover are reused for every cover of that
+    // source and URL rewrites are not applied; per-URL interception is the upgrade path if a
+    // source signs cover URLs.
+    override suspend fun coverHeadersFor(sourceId: String, url: String): Map<String, String> {
+        val added = coverHeaderCache[sourceId] ?: coverHeaderLock.withLock {
+            coverHeaderCache[sourceId] ?: interceptedCoverHeaders(sourceId, url).also { coverHeaderCache[sourceId] = it }
+        }
+        return headersFor(sourceId, url, added)
+    }
+
+    private suspend fun interceptedCoverHeaders(sourceId: String, url: String): Map<String, String> {
+        val intercept = interceptRequests ?: return emptyMap()
+        return try {
+            val result = intercept(sourceId, listOf(SourceImageRequest(url, emptyMap())))
+            if (result.size != 1) {
+                log.warning("cover interception returned ${result.size} items for 1 request (source $sourceId)")
+            }
+            result.singleOrNull()?.headers ?: emptyMap()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.warning("cover interception failed for source $sourceId: $e")
+            emptyMap()
         }
     }
 

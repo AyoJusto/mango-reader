@@ -167,6 +167,54 @@ class SourceHeaderPolicyTest {
     }
 
     @Test
+    fun coverHeadersIncludeWhatTheInterceptorAdds() = runBlocking {
+        val result = policy(
+            userAgent = { "Pinned/1.0" },
+            interceptRequests = { _, requests -> requests.map { it.copy(headers = it.headers + ("Referer" to "https://example.com/")) } },
+        ).coverHeadersFor("src", "https://example.com/c.webp")
+
+        assertEquals("https://example.com/", result["Referer"])
+        assertEquals("Pinned/1.0", result["User-Agent"])
+    }
+
+    @Test
+    fun theInterceptorRunsOncePerSourceForCovers() = runBlocking {
+        var calls = 0
+        val policy = policy(
+            interceptRequests = { _, requests ->
+                calls++
+                requests.map { it.copy(headers = it.headers + ("Referer" to "https://example.com/")) }
+            },
+        )
+
+        policy.coverHeadersFor("a", "https://example.com/1.webp")
+        policy.coverHeadersFor("a", "https://example.com/2.webp")
+        val third = policy.coverHeadersFor("a", "https://example.com/3.webp")
+        policy.coverHeadersFor("b", "https://example.com/4.webp")
+
+        assertEquals(2, calls)
+        assertEquals("https://example.com/", third["Referer"])
+    }
+
+    @Test
+    fun aThrowingInterceptorDegradesCoverHeadersToThePlainPolicy() = runBlocking {
+        val result = policy(
+            userAgent = { "Pinned/1.0" },
+            interceptRequests = { _, _ -> error("cover boom") },
+        ).coverHeadersFor("src", "https://example.com/c.webp")
+
+        assertEquals(mapOf("User-Agent" to "Pinned/1.0"), result)
+    }
+
+    @Test
+    fun withoutAnInterceptorCoverHeadersEqualPlainHeaders() = runBlocking {
+        val policy = policy(userAgent = { "Pinned/1.0" })
+        val url = "https://example.com/c.webp"
+
+        assertEquals(policy.headersFor("src", url, emptyMap()), policy.coverHeadersFor("src", url))
+    }
+
+    @Test
     fun aThrowingInterceptBatchDegradesToJarAndUserAgentOnlyPages() = runBlocking {
         val store = newStore()
         store.put(StoredCookie(name = "cf_clearance", value = "token", domain = "example.com"))

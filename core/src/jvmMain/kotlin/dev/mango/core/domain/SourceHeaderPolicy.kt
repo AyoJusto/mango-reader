@@ -15,11 +15,16 @@ interface SourceHeaderPolicy {
      * [url] degrades to the canonicalized [headers] — a policy fault here must never sink an
      * image the site would otherwise have served.
      *
-     * Deliberately runs no source interceptor: covers load one-by-one per composable, and a
-     * fresh interceptor context per cover is real cost for a hypothetical — no known source needs
-     * intercepted covers. [withPolicyHeaders] is the batched path that does.
+     * Runs no source interceptor; see [withPolicyHeaders] for pages and [coverHeadersFor] for covers.
      */
     suspend fun headersFor(sourceId: String, url: String, headers: Map<String, String>): Map<String, String>
+
+    /**
+     * The headers for a cover image at [url]. Implementations may add the source interceptor's
+     * headers, computed once per source rather than per cover.
+     */
+    suspend fun coverHeadersFor(sourceId: String, url: String): Map<String, String> =
+        headersFor(sourceId, url, emptyMap())
 
     /** [headersFor] applied to every page's own url and headers. */
     suspend fun withPolicyHeaders(sourceId: String, pages: List<Page>): List<Page>
