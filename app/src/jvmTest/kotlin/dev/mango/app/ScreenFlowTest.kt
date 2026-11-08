@@ -22,6 +22,7 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performKeyInput
@@ -382,6 +383,93 @@ class ScreenFlowTest {
 
         rule.onNodeWithTag(LIBRARY_GRID_TEST_TAG).assertExists()
         rule.onNodeWithText("In library ✓").assertDoesNotExist()
+    }
+
+    // Nucleus reports the side press as a primary click on the sidebar glyph too, so the title
+    // bar must consume it and go back rather than toggle the sidebar.
+    @Test
+    fun mouseBackOverTheSidebarGlyphGoesBackWithoutTogglingTheSidebar() {
+        val library = FakeLibraryRepository(listOf(LibraryItem(soloEntry, Clock.System.now())))
+        var side = SideButton.None
+
+        rule.setContent { TestAppShell(library, soloCatalog(), FakeDownloadManager(), sideButton = { side }) }
+        rule.waitForIdle()
+        rule.onNodeWithText("Solo Leveling").performMouseInput { click() }
+        rule.waitForIdle()
+        rule.onNodeWithTag("screen:Details").assertExists()
+
+        side = SideButton.Back
+        rule.onNodeWithTag(SIDEBAR_TOGGLE_TAG).performMouseInput { click() }
+        rule.waitForIdle()
+
+        rule.onNodeWithTag("screen:Library").assertExists()
+        rule.onNodeWithTag("screen:Details").assertDoesNotExist()
+        rule.onNodeWithTag(SIDEBAR_TEST_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun mouseBackWithThePaletteOpenClosesItInsteadOfGoingBack() {
+        val library = FakeLibraryRepository(listOf(LibraryItem(soloEntry, Clock.System.now())))
+        val palette = PaletteState()
+        var side = SideButton.None
+
+        rule.setContent {
+            TestAppShell(library, soloCatalog(), FakeDownloadManager(), palette = palette, sideButton = { side })
+        }
+        rule.waitForIdle()
+        rule.onNodeWithText("Solo Leveling").performMouseInput { click() }
+        rule.waitForIdle()
+        palette.visible = true
+        rule.waitForIdle()
+
+        side = SideButton.Back
+        rule.onNodeWithTag("screen:Details").performMouseInput { click() }
+        rule.waitForIdle()
+
+        assertFalse(palette.visible)
+        rule.onNodeWithTag("screen:Details").assertExists()
+    }
+
+    // Manage collections is an in-shell overlay, not a Compose dialog, so nothing else stops
+    // Esc or mouse back from reaching the navigator underneath it.
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun escAndMouseBackCloseManageCollectionsWithoutLeavingTheScreen() {
+        val library = FakeLibraryRepository(listOf(LibraryItem(soloEntry, Clock.System.now())))
+        val palette = PaletteState()
+        var side = SideButton.None
+
+        rule.setContent {
+            TestAppShell(library, soloCatalog(), FakeDownloadManager(), palette = palette, sideButton = { side })
+        }
+        rule.waitForIdle()
+        rule.onNodeWithText("Solo Leveling").performMouseInput { click() }
+        rule.waitForIdle()
+
+        fun openManageCollections() {
+            palette.visible = true
+            rule.waitForIdle()
+            rule.onNodeWithText("Search everywhere…").performTextInput("Manage collections")
+            rule.waitForIdle()
+            rule.onRoot().performKeyInput { pressKey(Key.Enter) }
+            rule.waitForIdle()
+            rule.onNodeWithText("Manage collections").assertExists()
+        }
+
+        openManageCollections()
+        rule.onNodeWithText("Manage collections").performKeyInput { pressKey(Key.Escape) }
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Manage collections").assertDoesNotExist()
+        rule.onNodeWithTag("screen:Details").assertExists()
+
+        openManageCollections()
+        side = SideButton.Back
+        rule.onNodeWithText("Manage collections").performMouseInput { click() }
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Manage collections").assertDoesNotExist()
+        rule.onNodeWithTag("screen:Details").assertExists()
     }
 
     @Test

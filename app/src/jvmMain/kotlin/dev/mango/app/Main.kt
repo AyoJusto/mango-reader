@@ -68,6 +68,7 @@ fun main() {
         val windowState = rememberWindowState(size = DpSize(2560.dp, 1440.dp))
         val palette = remember { PaletteState() }
         val navigator = remember { Navigator() }
+        val manageCollectionsOpen = remember { mutableStateOf(false) }
         // A hand-rolled IntelliJ-style double-Shift chord detector, own file/class — this is
         // Window-level, not a focusable Box inside AppShell, so it fires no matter which
         // screen or field currently has focus.
@@ -98,7 +99,7 @@ fun main() {
                     // Esc closes the sidebar only when nothing above it is open; the palette
                     // and the reader own their Esc semantics.
                     keyEvent.key == Key.Escape && keyEvent.type == KeyEventType.KeyDown &&
-                            sidebarOpen && !palette.visible -> {
+                            sidebarOpen && !palette.visible && !manageCollectionsOpen.value -> {
                         sidebarOpen = false
                         true
                     }
@@ -115,10 +116,8 @@ fun main() {
             // Bubbling, not preview: a focused field or the reader that wants Esc consumes it
             // first, and only a leftover Esc means back.
             onKeyEvent = { keyEvent ->
-                if (keyEvent.key == Key.Escape && keyEvent.type == KeyEventType.KeyDown &&
-                    !palette.visible && !sidebarOpen
-                ) {
-                    navigator.back()
+                if (keyEvent.key == Key.Escape && keyEvent.type == KeyEventType.KeyDown) {
+                    backOrCloseOverlay(navigator, palette, sidebarOpen, { sidebarOpen = it }, manageCollectionsOpen)
                 } else {
                     false
                 }
@@ -146,6 +145,9 @@ fun main() {
                                     Modifier.trackLastInput(lastInputWasKeyboard).windowDragArea(),
                                     canGoBack = navigator.canGoBack,
                                     onBack = { navigator.back() },
+                                    onMouseBack = {
+                                        backOrCloseOverlay(navigator, palette, sidebarOpen, { sidebarOpen = it }, manageCollectionsOpen)
+                                    },
                                 ) {
                                     WindowControls(Modifier.align(Alignment.CenterEnd))
                                 }
@@ -206,6 +208,7 @@ fun main() {
                             onLibraryChecked = { libraryCheckedAt = it; settings.libraryCheckedAt = it },
                             searchHistory = searchHistory,
                             lastInputWasKeyboard = lastInputWasKeyboard,
+                            manageCollectionsOpen = manageCollectionsOpen,
                             onSearchHistoryChange = { searchHistory = it; settings.searchHistory = it },
                         )
                     }

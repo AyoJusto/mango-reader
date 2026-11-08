@@ -33,12 +33,8 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -85,7 +81,6 @@ private object NoOpCatalogCache : CatalogCache {
  * Screens talk only to the repository ports passed in here — never engine or DB types
  * (CLAUDE.md boundary).
  */
-@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun AppShell(
     library: LibraryRepository,
@@ -126,15 +121,16 @@ fun AppShell(
     searchHistory: List<SearchHistoryEntry> = emptyList(),
     onSearchHistoryChange: (List<SearchHistoryEntry>) -> Unit = {},
     navigator: Navigator = remember { Navigator() },
-    // Production reads the real side-button state; tests substitute a canned answer.
-    sideButton: () -> SideButton = ::pressedSideButton,
+    // Owned by the caller so Esc and mouse back over the title bar, which production draws
+    // outside this function, can close the manage-collections dialog.
+    manageCollectionsOpen: MutableState<Boolean> = remember { mutableStateOf(false) },
     // Owned by the caller so the title bar, which production draws outside this function, shares it.
     lastInputWasKeyboard: MutableState<Boolean> = remember { mutableStateOf(false) },
 ) {
     // Session-only, like searchState below: which collection the Library chip row is filtering
     // to, and whether the manage-collections dialog is open.
     var selectedCollectionId by remember { mutableStateOf<Long?>(null) }
-    var showManageCollections by remember { mutableStateOf(false) }
+    var showManageCollections by manageCollectionsOpen
     // Hoisted here (not inside BrowseScreen) so it survives tab switches: Library -> Browse ->
     // Library -> Browse must show the previous query/results instead of resetting.
     val browseState = remember { BrowseState() }
@@ -219,32 +215,21 @@ fun AppShell(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .trackLastInput(lastInputWasKeyboard)
-            // Nucleus reports a side-button press as a primary press. Consuming it on the
-            // Initial pass keeps every clickable below from treating it as a click.
-            .onPointerEvent(PointerEventType.Press, PointerEventPass.Initial) { event ->
-                when (sideButton()) {
-                    SideButton.Back -> {
-                        event.changes.forEach { it.consume() }
-                        navigator.back()
-                    }
-
-                    SideButton.Forward -> event.changes.forEach { it.consume() }
-                    SideButton.None -> Unit
-                }
-            },
+            .trackLastInput(lastInputWasKeyboard),
     ) {
+        val mouseBack = { backOrCloseOverlay(navigator, palette, sidebarOpen, onSidebarChange, manageCollectionsOpen) }
         if (showTitleBar) {
             MangoTitleBar(
                 sidebarOpen = sidebarOpen,
                 onToggleSidebar = { onSidebarChange(!sidebarOpen) },
                 canGoBack = navigator.canGoBack,
                 onBack = { navigator.back() },
+                onMouseBack = { mouseBack() },
             )
         }
         // Content, sidebar, and palette live in one Box so the overlays can stack above
         // whichever screen is showing; the title bar stays visible over all of them.
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+        Box(modifier = Modifier.weight(1f).fillMaxWidth().sideButtons { mouseBack() }) {
             CompositionLocalProvider(LocalSourceHeaderPolicy provides headerPolicy) {
                 // The content behind the palette blurs while it's open — the haze sidebar source
                 // modifier below stays untouched; this composes an ordinary blur onto the same Box.
@@ -461,6 +446,26 @@ fun AppShell(
             }
         }
     }
+}
+
+/**
+ * What Esc and the mouse back button do: close the top-most open overlay, or go back when none
+ * is open. False when there was nothing to close and nowhere to go back to.
+ */
+fun backOrCloseOverlay(
+    navigator: Navigator,
+    palette: PaletteState,
+    sidebarOpen: Boolean,
+    onSidebarChange: (Boolean) -> Unit,
+    manageCollectionsOpen: MutableState<Boolean>,
+): Boolean {
+    when {
+        manageCollectionsOpen.value -> manageCollectionsOpen.value = false
+        palette.visible -> palette.visible = false
+        sidebarOpen -> onSidebarChange(false)
+        else -> return navigator.back()
+    }
+    return true
 }
 
 /**

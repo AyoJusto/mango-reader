@@ -169,6 +169,7 @@ fun DetailsScreenContent(
         val to = toText.toDoubleOrNull()
         AlertDialog(
             onDismissRequest = { showRangeDialog = false },
+            modifier = Modifier.sideButtons { showRangeDialog = false },
             title = { Text("Download range") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -215,6 +216,7 @@ fun DetailsScreenContent(
     if (showClearStorageDialog) {
         AlertDialog(
             onDismissRequest = { showClearStorageDialog = false },
+            modifier = Modifier.sideButtons { showClearStorageDialog = false },
             title = { Text("Clear storage") },
             text = { Text("Delete all downloaded chapters of this series from disk?") },
             confirmButton = {
@@ -579,20 +581,16 @@ private fun ChapterRow(
             color = theme.textTertiary,
             modifier = Modifier.width(76.dp),
         )
-        val title = realChapterTitle(chapter.number, chapter.title)
-        if (title != null) {
-            Text(
-                text = title,
-                fontSize = 13.5.sp,
-                fontWeight = FontWeight.Medium,
-                color = if (finished) theme.textSecondary else theme.textPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-        } else {
-            Spacer(Modifier.weight(1f))
-        }
+        // An empty title still takes the title's line, so every row in the list is the same height.
+        Text(
+            text = realChapterTitle(chapter.number, chapter.title) ?: "",
+            fontSize = 13.5.sp,
+            fontWeight = FontWeight.Medium,
+            color = if (finished) theme.textSecondary else theme.textPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
         if (isNew) {
             Box(
                 modifier = Modifier

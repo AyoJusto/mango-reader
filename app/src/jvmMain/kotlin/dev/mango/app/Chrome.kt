@@ -77,7 +77,8 @@ internal val TITLE_BAR_HEIGHT = 44.dp
 
 /**
  * The 44dp title bar: Back chevron, logo, sidebar-toggle glyph and app title on the left. Back
- * stays visible but dimmed and inert when [canGoBack] is false, so the bar never shifts. In the app window
+ * stays visible but dimmed and inert when [canGoBack] is false, so the bar never shifts. A mouse
+ * back press anywhere on the bar runs [onMouseBack] instead of clicking what it lands on. In the app window
  * the caller passes a drag-area [modifier] and Nucleus's native [windowControls]; without them
  * (tests, previews) it renders the same content with no controls.
  */
@@ -88,10 +89,11 @@ fun MangoTitleBar(
     modifier: Modifier = Modifier,
     canGoBack: Boolean = false,
     onBack: () -> Unit = {},
+    onMouseBack: () -> Unit = {},
     windowControls: @Composable BoxScope.() -> Unit = {},
 ) {
     val theme = LocalMangoTheme.current
-    Box(modifier.fillMaxWidth().height(TITLE_BAR_HEIGHT).background(theme.bg0)) {
+    Box(modifier.sideButtons(onMouseBack).fillMaxWidth().height(TITLE_BAR_HEIGHT).background(theme.bg0)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()

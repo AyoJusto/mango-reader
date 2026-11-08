@@ -200,6 +200,7 @@ class MangoMotion(val reduced: Boolean = false) {
     val screenSlide: Dp = if (reduced) 0.dp else 48.dp
     val viewChangeMs = fade(200)
     val viewRise: Dp = if (reduced) 0.dp else 8.dp
+    val pillPulseMs = fade(320)
 
     private companion object {
         const val REDUCED_FADE_MS = 120

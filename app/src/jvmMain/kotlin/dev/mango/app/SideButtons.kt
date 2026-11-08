@@ -1,5 +1,12 @@
 package dev.mango.app
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
 import java.lang.foreign.FunctionDescriptor
 import java.lang.foreign.ValueLayout
 import java.util.concurrent.atomic.AtomicBoolean
@@ -47,3 +54,29 @@ fun pressedSideButton(): SideButton =
         }
         SideButton.None
     }
+
+/** How [sideButtons] learns which side button is held; tests provide a canned answer. */
+val LocalSideButton = staticCompositionLocalOf<() -> SideButton> { ::pressedSideButton }
+
+/**
+ * Turns a mouse side-button press anywhere inside this element into [onBack] for Back and nothing
+ * for Forward. The press is consumed on the Initial pass, so no clickable inside treats it as the
+ * primary click Nucleus reports it as. Popups and dialogs are separate scene layers that a
+ * handler on the window content never sees, so each one applies its own.
+ */
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+fun Modifier.sideButtons(onBack: () -> Unit): Modifier {
+    val sideButton = LocalSideButton.current
+    return onPointerEvent(PointerEventType.Press, PointerEventPass.Initial) { event ->
+        when (sideButton()) {
+            SideButton.Back -> {
+                event.changes.forEach { it.consume() }
+                onBack()
+            }
+
+            SideButton.Forward -> event.changes.forEach { it.consume() }
+            SideButton.None -> Unit
+        }
+    }
+}

@@ -77,6 +77,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawOutline
@@ -769,7 +770,7 @@ fun CoverCard(
         val previous = previousUnreadCount
         if (previous != null && unreadCount != null && unreadCount > previous) {
             pillRing.snapTo(1f)
-            pillRing.animateTo(0f, tween(600))
+            pillRing.animateTo(0f, tween(motion.pillPulseMs))
         }
         previousUnreadCount = unreadCount
     }
@@ -927,7 +928,7 @@ fun KitDropdown(
             onDismissRequest = { expanded = false },
             shape = RoundedCornerShape(MangoRadius.panel),
             containerColor = theme.bg2,
-            modifier = Modifier.widthIn(min = triggerWidth),
+            modifier = Modifier.widthIn(min = triggerWidth).sideButtons { expanded = false },
         ) {
             if (filterable) {
                 LaunchedEffect(Unit) { filterFocus.requestFocus() }
@@ -1021,6 +1022,7 @@ private fun KitDropdownItem(text: String, selected: Boolean, active: Boolean, on
         modifier = Modifier
             .fillMaxWidth()
             .height(KIT_DROPDOWN_ITEM_HEIGHT)
+            .keyboardFocusRing(RectangleShape)
             .background(hover.fill)
             .hoverable(hover.interaction)
             .clickable(interactionSource = hover.interaction, indication = null, onClick = onClick)

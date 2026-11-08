@@ -278,7 +278,7 @@ private fun ReaderOverlayBar(
             .clip(RoundedCornerShape(MangoRadius.panel))
             .background(theme.overlay)
             .padding(vertical = MangoSpace.sm, horizontal = MangoSpace.md)
-            // The visible page count is gone; assistive tech and flow tests read position here.
+            // Position has no visible text; assistive tech and tests read it here.
             .semantics {
                 if (pageNumber != null && pageCount != null) contentDescription = "Page $pageNumber of $pageCount"
             },

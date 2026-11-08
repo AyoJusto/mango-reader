@@ -80,7 +80,7 @@ Easings: `decel = CubicBezier(0.2, 0, 0, 1)`, `standard = CubicBezier(0.4, 0, 0.
 ## Window Chrome (board 03)
 Borderless window, custom title bar 44 dp tall, background = bg0 (blends into app — no OS strip; whole bar is a drag region except buttons).
 - **Right**: standard Windows controls, each 44 dp wide: minimize (–), maximize (9×9 outline square), close (✕). Icon color text.secondary. Hover: surface fill 120 ms; close hover: danger fill.
-- **Far left, before the app icon**: the single Back control, a 16 dp chevron-left in a 34×28 dp, radius 8 box (`contentDescription` "Back"). Enabled: text.secondary glyph, surface hover fill. Disabled (nothing to go back to): text.tertiary at 50% alpha, no hover, not clickable, never hidden. Details and the Reader have no in-screen back arrow; Esc and the mouse back button trigger the same Back.
+- **Far left, before the app icon**: the single Back control, a 16 dp chevron-left in a 34×28 dp, radius 8 box (`contentDescription` "Back"). Enabled: text.secondary glyph, surface hover fill. Disabled (nothing to go back to): text.tertiary at 50% alpha, no hover, not clickable, never hidden. Details and the Reader have no in-screen back arrow; Esc and the mouse back button trigger the same Back. While the palette, the sidebar or a dialog is open, Esc and the mouse back button close it instead.
 - **Left, mirrored in the same row**: sidebar-toggle glyph (34×28 dp, radius 8, a 16 dp panel-with-left-rail icon). Active/open: surface fill + accent-colored icon. Reserve room for 1–2 future glyphs.
 
 ## Sidebar (board 03 — signature element)
@@ -107,8 +107,8 @@ Mid-transition reference: at t≈120 ms the panel sits at translateX −38%, alp
 
 ### 2. Reader (board 05)
 - Fully immersive: long-strip images centered at user-set strip width (default 880 px), bg0 letterbox either side, **zero chrome while reading**.
-- On mouse-move, overlay fades in (160 ms): top-left back button (34×30, overlay fill + blur, radius 10, chevron-left) and a bottom-centered floating bar (520 dp wide, radius 14, overlay fill + 24 dp blur, shadow `0 16dp 48dp rgba(0,0,0,0.5)`, padding 12/16) containing: chapter label (13 Semibold; "Ch. 12", plus " — Title" only when the title says more than the number) + a bare "offline" (11.5 secondary) only when the chapter is offline; right cluster: prev/next chapter buttons (30×28, white @ 6% fill, radius 8) and an **Auto-scroll** toggle pill (accent @ 16% fill, accent text + 6 dp dot when on); below, full-width 3 dp progress bar (white @ 10% track, accent fill).
-- Fades out after 1.5 s idle (320 ms); cursor hides with it. Esc or back button exits.
+- On mouse-move, overlay fades in (160 ms): a bottom-centered floating bar (520 dp wide, radius 14, overlay fill + 24 dp blur, shadow `0 16dp 48dp rgba(0,0,0,0.5)`, padding 12/16) containing: chapter label (13 Semibold; "Ch. 12", plus " — Title" only when the title says more than the number) + a bare "offline" (11.5 secondary) only when the chapter is offline; right cluster: prev/next chapter buttons (30×28, white @ 6% fill, radius 8) and an **Auto-scroll** toggle pill (accent @ 16% fill, accent text + 6 dp dot when on); below, full-width 3 dp progress bar (white @ 10% track, accent fill).
+- Fades out after 1.5 s idle (320 ms); cursor hides with it. No in-screen back control: the title-bar Back, Esc or the mouse back button exits.
 - **Loading placeholder (no reflow)**: pre-reserve the panel's known pixel height from source metadata (fallback 3:4 ratio); shimmer bg1→bg2 sweep, 1.8 s linear; loaded image crossfades over it in 200 ms. Scroll position never jumps.
 
 ### 3. Details (board 06)

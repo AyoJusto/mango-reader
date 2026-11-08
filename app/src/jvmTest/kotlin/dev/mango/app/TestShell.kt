@@ -45,6 +45,7 @@ fun TestAppShell(
         CompositionLocalProvider(
             LocalMangoMotion provides motion,
             LocalLastInputWasKeyboard provides lastInputWasKeyboard,
+            LocalSideButton provides sideButton,
         ) {
             AppShell(
                 library = library,
@@ -62,7 +63,6 @@ fun TestAppShell(
                 searchHistory = history,
                 onSearchHistoryChange = { history = it; onSearchHistoryChange(it) },
                 navigator = navigator ?: remember { Navigator() },
-                sideButton = sideButton,
                 lastInputWasKeyboard = lastInputWasKeyboard,
             )
         }

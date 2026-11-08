@@ -43,6 +43,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -50,6 +51,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
@@ -213,7 +215,7 @@ fun AddToCollectionsPicker(
         onDismissRequest = onDismissRequest,
         shape = RoundedCornerShape(MangoRadius.panel),
         containerColor = theme.bg2,
-        modifier = modifier.widthIn(min = 220.dp),
+        modifier = modifier.widthIn(min = 220.dp).sideButtons(onDismissRequest),
     ) {
         Text(
             text = "ADD TO",
@@ -279,9 +281,23 @@ fun ManageCollectionsDialog(
     val theme = LocalMangoTheme.current
     var creatingNew by remember { mutableStateOf(false) }
     val ordered = collections.sortedBy { it.position }
+    // Holding focus keeps Esc here: it is an overlay inside the window, so an Esc nothing
+    // inside it consumes would otherwise reach the window and go back underneath it.
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .onKeyEvent { event ->
+                if (event.key == Key.Escape && event.type == KeyEventType.KeyDown) {
+                    onDismiss()
+                    true
+                } else {
+                    false
+                }
+            }
+            .focusRequester(focus)
+            .focusTarget()
             .background(theme.bg0.copy(alpha = 0.55f))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -606,6 +622,7 @@ private fun ManageCollectionsRow(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
+            modifier = Modifier.sideButtons { showDeleteConfirm = false },
             title = { Text("Delete collection") },
             text = { Text("Delete ${collection.name}? Series stay in All.") },
             confirmButton = {

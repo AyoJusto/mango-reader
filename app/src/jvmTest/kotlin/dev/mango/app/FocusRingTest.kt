@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -115,6 +116,18 @@ class FocusRingTest {
         rule.waitForIdle()
 
         rule.onAllNodes(hasRing).assertCountEquals(1)
+    }
+
+    @Test
+    fun aFocusedDropdownItemShowsTheRing() {
+        setKeyboardContent { KitDropdown(selected = "Dark", options = listOf("Dark", "Light"), onSelect = {}) }
+        rule.onNodeWithText("Dark").performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Light").requestFocus()
+        rule.waitForIdle()
+
+        rule.onNode(hasText("Light") and hasRing).assertExists()
     }
 
     @Test
