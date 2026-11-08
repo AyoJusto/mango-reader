@@ -97,9 +97,9 @@ class SidebarFlowTest {
         rule.waitForIdle()
         rule.waitForIdle()
 
-        // The "offline" page counter is Reader-only text: its presence proves the Continue
+        // The bar's "offline" label is Reader-only text: its presence proves the Continue
         // card ended in the Reader, serving the downloaded pages.
-        rule.onNode(hasText("· offline", substring = true)).assertExists()
+        rule.onNode(hasText("offline")).assertExists()
         rule.onNodeWithTag(SIDEBAR_TEST_TAG).assertDoesNotExist()
     }
 

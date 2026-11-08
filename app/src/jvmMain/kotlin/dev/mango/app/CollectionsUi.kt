@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -42,6 +43,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -49,6 +51,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
@@ -109,6 +112,7 @@ private fun CollectionCheckboxItem(row: CollectionCheckboxRow, onToggle: () -> U
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .keyboardFocusRing(RectangleShape)
             .background(hover.fill)
             .hoverable(hover.interaction)
             .clickable(interactionSource = hover.interaction, indication = null, onClick = onToggle)
@@ -142,6 +146,7 @@ private fun PickerActionRow(text: String, color: Color, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .keyboardFocusRing(RectangleShape)
             .background(hover.fill)
             .hoverable(hover.interaction)
             .clickable(interactionSource = hover.interaction, indication = null, onClick = onClick)
@@ -210,7 +215,7 @@ fun AddToCollectionsPicker(
         onDismissRequest = onDismissRequest,
         shape = RoundedCornerShape(MangoRadius.panel),
         containerColor = theme.bg2,
-        modifier = modifier.widthIn(min = 220.dp),
+        modifier = modifier.widthIn(min = 220.dp).sideButtons(onDismissRequest),
     ) {
         Text(
             text = "ADD TO",
@@ -276,9 +281,23 @@ fun ManageCollectionsDialog(
     val theme = LocalMangoTheme.current
     var creatingNew by remember { mutableStateOf(false) }
     val ordered = collections.sortedBy { it.position }
+    // Holding focus keeps Esc here: it is an overlay inside the window, so an Esc nothing
+    // inside it consumes would otherwise reach the window and go back underneath it.
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .onKeyEvent { event ->
+                if (event.key == Key.Escape && event.type == KeyEventType.KeyDown) {
+                    onDismiss()
+                    true
+                } else {
+                    false
+                }
+            }
+            .focusRequester(focus)
+            .focusTarget()
             .background(theme.bg0.copy(alpha = 0.55f))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -338,7 +357,7 @@ fun ManageCollectionsDialog(
                     text = "＋ New collection",
                     style = MangoType.body,
                     color = theme.textSecondary,
-                    modifier = Modifier.clickable(
+                    modifier = Modifier.keyboardFocusRing(RoundedCornerShape(MangoRadius.keycap)).clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = { creatingNew = true },
@@ -546,7 +565,7 @@ private fun ManageCollectionsRow(
                     text = "Make default",
                     style = MangoType.caption,
                     color = theme.accent,
-                    modifier = Modifier.clickable(
+                    modifier = Modifier.keyboardFocusRing(RoundedCornerShape(MangoRadius.keycap)).clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = onSetDefault,
@@ -559,7 +578,7 @@ private fun ManageCollectionsRow(
                     text = "▲",
                     style = MangoType.body,
                     color = if (canMoveUp) theme.textSecondary else theme.textTertiary.copy(alpha = 0.3f),
-                    modifier = Modifier.clickable(
+                    modifier = Modifier.keyboardFocusRing(RoundedCornerShape(MangoRadius.keycap)).clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         enabled = canMoveUp,
@@ -570,7 +589,7 @@ private fun ManageCollectionsRow(
                     text = "▼",
                     style = MangoType.body,
                     color = if (canMoveDown) theme.textSecondary else theme.textTertiary.copy(alpha = 0.3f),
-                    modifier = Modifier.clickable(
+                    modifier = Modifier.keyboardFocusRing(RoundedCornerShape(MangoRadius.keycap)).clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         enabled = canMoveDown,
@@ -583,7 +602,7 @@ private fun ManageCollectionsRow(
                     text = "✕",
                     style = MangoType.body,
                     color = theme.danger.copy(alpha = 0.8f),
-                    modifier = Modifier.clickable(
+                    modifier = Modifier.keyboardFocusRing(RoundedCornerShape(MangoRadius.keycap)).clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = { showDeleteConfirm = true },
@@ -603,6 +622,7 @@ private fun ManageCollectionsRow(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
+            modifier = Modifier.sideButtons { showDeleteConfirm = false },
             title = { Text("Delete collection") },
             text = { Text("Delete ${collection.name}? Series stay in All.") },
             confirmButton = {

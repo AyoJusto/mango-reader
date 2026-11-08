@@ -7,12 +7,14 @@ import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -161,30 +163,52 @@ object MangoRadius {
     val pill = 999.dp
 }
 
-/** Easings and named durations shared by every transition in the app; nothing bounces, nothing exceeds 320 ms. */
-object MangoMotion {
+/**
+ * Easings and named durations shared by every transition in the app; nothing bounces, nothing
+ * exceeds 320 ms. With [reduced] set, movement (slides, lifts, scales) is gone and every
+ * animation is a short fade. [readerIdleMs] is a delay rather than an animation, so it never changes.
+ */
+@Immutable
+class MangoMotion(val reduced: Boolean = false) {
     val decel = CubicBezierEasing(0.2f, 0f, 0f, 1f)
     val standard = CubicBezierEasing(0.4f, 0f, 0.2f, 1f)
 
-    const val HOVER_MS = 120
-    const val PRESS_MS = 100
-    const val PRESS_SCALE = 0.97f
-    const val SIDEBAR_OPEN_MS = 240
-    const val SIDEBAR_CLOSE_MS = 200
-    const val SIDEBAR_STAGGER_MS = 20
-    const val SIDEBAR_STAGGER_CAP_MS = 60
-    const val PALETTE_OPEN_MS = 180
-    const val PALETTE_BACKDROP_MS = 240
-    const val READER_OVERLAY_IN_MS = 160
-    const val READER_OVERLAY_OUT_MS = 320
-    const val READER_IDLE_MS = 1500
-    const val READER_PAGE_CROSSFADE_MS = 200
-    const val COVER_HOVER_MS = 160
-    const val COVER_HOVER_SCALE = 1.03f
-    const val PROGRESS_BAR_MS = 300
-    const val BANNER_IN_MS = 200
-    const val SHIMMER_MS = 1800
+    /** Whether things may travel across the screen; false means they only fade. */
+    val slides: Boolean get() = !reduced
+
+    private fun fade(ms: Int) = if (reduced) REDUCED_FADE_MS else ms
+
+    val hoverMs = fade(120)
+    val pressMs = fade(100)
+    val pressScale = if (reduced) 1f else 0.97f
+    val sidebarOpenMs = fade(240)
+    val sidebarCloseMs = fade(200)
+    val sidebarStaggerMs = if (reduced) 0 else 20
+    val sidebarStaggerCapMs = if (reduced) 0 else 60
+    val paletteOpenMs = fade(180)
+    val paletteBackdropMs = fade(240)
+    val readerOverlayInMs = fade(160)
+    val readerOverlayOutMs = fade(320)
+    val readerIdleMs = 1500
+    val readerPageCrossfadeMs = fade(200)
+    val coverHoverMs = fade(160)
+    val coverHoverScale = if (reduced) 1f else 1.03f
+    val progressBarMs = fade(300)
+    val bannerInMs = fade(200)
+    val shimmerMs = 1800
+    val screenMs = fade(240)
+    val screenSlide: Dp = if (reduced) 0.dp else 48.dp
+    val viewChangeMs = fade(200)
+    val viewRise: Dp = if (reduced) 0.dp else 8.dp
+    val pillPulseMs = fade(320)
+
+    private companion object {
+        const val REDUCED_FADE_MS = 120
+    }
 }
+
+/** The active [MangoMotion]; Main.kt derives it from the Windows animation setting. */
+val LocalMangoMotion = staticCompositionLocalOf { MangoMotion() }
 
 /** The active [MangoTheme] for the current composition; defaults to [MangoDark] outside [ProvideMangoTheme]. */
 val LocalMangoTheme = staticCompositionLocalOf { MangoDark }

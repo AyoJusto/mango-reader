@@ -1,11 +1,17 @@
 package dev.mango.app
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.performTextInput
 import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.MangaDetails
@@ -244,5 +250,69 @@ class DownloadsFlowTest {
         rule.waitForIdle()
 
         assertEquals(1, clearCount)
+    }
+    @Test
+    fun aChapterRowWithoutATitleIsAsTallAsOneWithATitle() {
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        val chapters = listOf(
+            Chapter(chapterId = "c1", number = 1.0, title = "The Beginning", publishedAt = null),
+            Chapter(chapterId = "c2", number = 2.0, title = null, publishedAt = null),
+        )
+
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                DetailsScreenContent(
+                    details = details,
+                    chapters = chapters,
+                    inLibrary = false,
+                    onOpenChapter = { _, _ -> },
+                    onDownloadChapter = { _, _ -> },
+                    onDownloadAll = { _, _ -> },
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        val titled = rule.onNode(hasText("The Beginning") and hasClickAction()).fetchSemanticsNode()
+        val untitled = rule.onNode(hasText("2") and hasClickAction()).fetchSemanticsNode()
+        assertEquals(titled.boundsInRoot.height, untitled.boundsInRoot.height)
+    }
+    // A dialog is its own scene layer, out of reach of the shell's side-button handler, and
+    // Nucleus reports the side press as a primary click on whatever button it lands on.
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun mouseBackOnTheClearStorageConfirmCancelsInsteadOfClearing() {
+        val entry = MangaEntry(sourceId = "FlameComics", mangaId = "manga-1", title = "Solo Leveling")
+        val details = MangaDetails(entry = entry, status = MangaStatus.ONGOING)
+        var clearCount = 0
+        var side = SideButton.None
+
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                CompositionLocalProvider(LocalSideButton provides { side }) {
+                    DetailsScreenContent(
+                        details = details,
+                        chapters = emptyList(),
+                        inLibrary = false,
+                        hasDownloads = true,
+                        onOpenChapter = { _, _ -> },
+                        onDownloadChapter = { _, _ -> },
+                        onDownloadAll = { _, _ -> },
+                        onClearStorage = { clearCount++ },
+                    )
+                }
+            }
+        }
+        rule.waitForIdle()
+        rule.onNodeWithText("Clear storage").performClick()
+        rule.waitForIdle()
+
+        side = SideButton.Back
+        rule.onNodeWithText("Clear").performMouseInput { click() }
+        rule.waitForIdle()
+
+        assertEquals(0, clearCount)
+        rule.onNodeWithText("Delete all downloaded chapters of this series from disk?").assertDoesNotExist()
     }
 }

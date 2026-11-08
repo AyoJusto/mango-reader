@@ -1,5 +1,6 @@
 package dev.mango.app
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,16 +67,21 @@ fun main() {
         // A floating window this size fills a 2560x1440 monitor; the OS clamps it on smaller screens
         val windowState = rememberWindowState(size = DpSize(2560.dp, 1440.dp))
         val palette = remember { PaletteState() }
+        val navigator = remember { Navigator() }
+        val manageCollectionsOpen = remember { mutableStateOf(false) }
         // A hand-rolled IntelliJ-style double-Shift chord detector, own file/class — this is
         // Window-level, not a focusable Box inside AppShell, so it fires no matter which
         // screen or field currently has focus.
         val detector = remember { DoubleShiftDetector() }
+        val lastInputWasKeyboard = remember { mutableStateOf(false) }
         DecoratedWindow(
             onCloseRequest = { graph.dispose(); exitApplication() },
             state = windowState,
             title = "mango",
             icon = painterResource(Res.drawable.mango_icon),
             onPreviewKeyEvent = { keyEvent ->
+                // The window sees keys even when nothing inside holds focus yet (the first Tab).
+                if (keyEvent.type == KeyEventType.KeyDown) lastInputWasKeyboard.value = true
                 when {
                     keyEvent.key == Key.S && keyEvent.isCtrlPressed && keyEvent.type == KeyEventType.KeyDown -> {
                         if (!sidebarKeyDown) {
@@ -93,7 +99,7 @@ fun main() {
                     // Esc closes the sidebar only when nothing above it is open; the palette
                     // and the reader own their Esc semantics.
                     keyEvent.key == Key.Escape && keyEvent.type == KeyEventType.KeyDown &&
-                            sidebarOpen && !palette.visible -> {
+                            sidebarOpen && !palette.visible && !manageCollectionsOpen.value -> {
                         sidebarOpen = false
                         true
                     }
@@ -107,76 +113,105 @@ fun main() {
                     else -> false
                 }
             },
+            // Bubbling, not preview: a focused field or the reader that wants Esc consumes it
+            // first, and only a leftover Esc means back.
+            onKeyEvent = { keyEvent ->
+                if (keyEvent.key == Key.Escape && keyEvent.type == KeyEventType.KeyDown) {
+                    backOrCloseOverlay(navigator, palette, sidebarOpen, { sidebarOpen = it }, manageCollectionsOpen)
+                } else {
+                    false
+                }
+            },
         ) {
             val appFont = remember(fontFamilyName, installedFonts) {
                 resolveAppFontFamily(fontFamilyName, installedFonts)
             }
+            val animationsOn = rememberWindowsAnimationsOn()
+            val motion = remember(animationsOn) { MangoMotion(reduced = !animationsOn) }
             ProvideMangoTheme(theme, fontFamily = appFont) {
                 WindowAppearance(WindowAppearanceMode.Dark)
                 WindowBackground(LocalMangoTheme.current.bg0)
-                WindowScaffold(
-                    titleBar = {
-                        if (windowState.placement != WindowPlacement.Fullscreen) {
-                            MangoTitleBar(sidebarOpen, { sidebarOpen = !sidebarOpen }, Modifier.windowDragArea()) {
-                                WindowControls(Modifier.align(Alignment.CenterEnd))
-                            }
-                        }
-                    },
-                    titleBarPlacement = TitleBarPlacement.Docked,
+                CompositionLocalProvider(
+                    LocalMangoMotion provides motion,
+                    LocalLastInputWasKeyboard provides lastInputWasKeyboard,
                 ) {
-                    AppShell(
-                        graph.library,
-                        graph.catalog,
-                        graph.downloads,
-                        graph.extensions,
-                        graph.challengeSolver,
-                        graph.catalogCache,
-                        headerPolicy = graph.headerPolicy,
-                        theme = theme,
-                        onThemeChange = { theme = it; themeStore.save(it) },
-                        themeLibrary = themeLibrary,
-                        onThemeImport = { imported ->
-                            val err = themeStore.saveImported(imported)
-                            if (err == null) {
+                    WindowScaffold(
+                        titleBar = {
+                            if (windowState.placement != WindowPlacement.Fullscreen) {
+                                MangoTitleBar(
+                                    sidebarOpen,
+                                    { sidebarOpen = !sidebarOpen },
+                                    // First in the chain so it sees presses the title-bar buttons consume.
+                                    Modifier.trackLastInput(lastInputWasKeyboard).windowDragArea(),
+                                    canGoBack = navigator.canGoBack,
+                                    onBack = { navigator.back() },
+                                    onMouseBack = {
+                                        backOrCloseOverlay(navigator, palette, sidebarOpen, { sidebarOpen = it }, manageCollectionsOpen)
+                                    },
+                                ) {
+                                    WindowControls(Modifier.align(Alignment.CenterEnd))
+                                }
+                            }
+                        },
+                        titleBarPlacement = TitleBarPlacement.Docked,
+                    ) {
+                        AppShell(
+                            graph.library,
+                            graph.catalog,
+                            graph.downloads,
+                            graph.extensions,
+                            graph.challengeSolver,
+                            graph.catalogCache,
+                            headerPolicy = graph.headerPolicy,
+                            theme = theme,
+                            onThemeChange = { theme = it; themeStore.save(it) },
+                            themeLibrary = themeLibrary,
+                            onThemeImport = { imported ->
+                                val err = themeStore.saveImported(imported)
+                                if (err == null) {
+                                    themeLibrary = themeStore.list()
+                                    theme = imported
+                                    themeStore.save(imported)
+                                }
+                                err
+                            },
+                            onThemeDelete = {
+                                themeStore.deleteImported(theme.name)
                                 themeLibrary = themeStore.list()
-                                theme = imported
-                                themeStore.save(imported)
-                            }
-                            err
-                        },
-                        onThemeDelete = {
-                            themeStore.deleteImported(theme.name)
-                            themeLibrary = themeStore.list()
-                            theme = MangoDark
-                            themeStore.save(MangoDark)
-                        },
-                        autoScrollSpeed = autoScrollSpeed,
-                        onAutoScrollSpeedChange = { autoScrollSpeed = it; settings.autoScrollSpeed = it },
-                        stripWidthDp = stripWidthDp,
-                        onStripWidthDpChange = { stripWidthDp = it; settings.stripWidth = it },
-                        hideCursorInReader = hideCursorInReader,
-                        onHideCursorInReaderChange = { hideCursorInReader = it; settings.hideCursorInReader = it },
-                        onToggleFullscreen = {
-                            windowState.placement = if (windowState.placement == WindowPlacement.Fullscreen) {
-                                WindowPlacement.Floating
-                            } else {
-                                WindowPlacement.Fullscreen
-                            }
-                        },
-                        palette = palette,
-                        sidebarOpen = sidebarOpen,
-                        onSidebarChange = { sidebarOpen = it },
-                        libraryView = libraryView,
-                        onLibraryViewChange = { libraryView = it; settings.libraryView = it },
-                        fontFamilyName = fontFamilyName,
-                        installedFonts = installedFonts,
-                        onFontFamilyChange = { fontFamilyName = it; settings.fontFamilyName = it },
-                        showTitleBar = false,
-                        libraryCheckedAt = libraryCheckedAt,
-                        onLibraryChecked = { libraryCheckedAt = it; settings.libraryCheckedAt = it },
-                        searchHistory = searchHistory,
-                        onSearchHistoryChange = { searchHistory = it; settings.searchHistory = it },
-                    )
+                                theme = MangoDark
+                                themeStore.save(MangoDark)
+                            },
+                            autoScrollSpeed = autoScrollSpeed,
+                            onAutoScrollSpeedChange = { autoScrollSpeed = it; settings.autoScrollSpeed = it },
+                            stripWidthDp = stripWidthDp,
+                            onStripWidthDpChange = { stripWidthDp = it; settings.stripWidth = it },
+                            hideCursorInReader = hideCursorInReader,
+                            onHideCursorInReaderChange = { hideCursorInReader = it; settings.hideCursorInReader = it },
+                            onToggleFullscreen = {
+                                windowState.placement = if (windowState.placement == WindowPlacement.Fullscreen) {
+                                    WindowPlacement.Floating
+                                } else {
+                                    WindowPlacement.Fullscreen
+                                }
+                            },
+                            palette = palette,
+                            navigator = navigator,
+                            sidebarOpen = sidebarOpen,
+                            onSidebarChange = { sidebarOpen = it },
+                            libraryView = libraryView,
+                            onLibraryViewChange = { libraryView = it; settings.libraryView = it },
+                            fontFamilyName = fontFamilyName,
+                            installedFonts = installedFonts,
+                            onFontFamilyChange = { fontFamilyName = it; settings.fontFamilyName = it },
+                            showTitleBar = false,
+                            libraryCheckedAt = libraryCheckedAt,
+                            onLibraryChecked = { libraryCheckedAt = it; settings.libraryCheckedAt = it },
+                            searchHistory = searchHistory,
+                            lastInputWasKeyboard = lastInputWasKeyboard,
+                            manageCollectionsOpen = manageCollectionsOpen,
+                            onSearchHistoryChange = { searchHistory = it; settings.searchHistory = it },
+                        )
+                    }
                 }
             }
         }

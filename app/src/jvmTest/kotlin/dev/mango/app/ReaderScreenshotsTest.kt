@@ -41,7 +41,7 @@ class ReaderScreenshotsTest {
     }
 
     private val fakeSegments = listOf(
-        ReaderSegment(chapterId = "ch-12", shortLabel = "Ch. 12", label = "Chapter 12", pages = fakePages),
+        ReaderSegment(chapterId = "ch-12", shortLabel = "Ch. 12", label = "Ch. 12", pages = fakePages),
     )
 
     @Test
@@ -52,7 +52,6 @@ class ReaderScreenshotsTest {
                     segments = fakeSegments,
                     listState = rememberLazyListState(),
                     controlsVisible = true,
-                    onBack = {},
                     pageContent = { page, _ -> FakePageContent(page) },
                 )
             }
@@ -68,7 +67,6 @@ class ReaderScreenshotsTest {
                     segments = fakeSegments,
                     listState = rememberLazyListState(),
                     controlsVisible = false,
-                    onBack = {},
                     pageContent = { page, _ -> FakePageContent(page) },
                 )
             }

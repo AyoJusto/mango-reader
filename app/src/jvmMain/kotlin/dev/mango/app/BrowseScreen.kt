@@ -123,10 +123,8 @@ private fun BrowseSectionRow(section: HomeSection, onOpenDetails: (MangaEntry) -
                     title = entry.title,
                     coverUrl = entry.cover,
                     sourceId = entry.sourceId,
-                    // MangaEntry carries no chapter/genre metadata to show here or on hover.
-                    metaLine = "",
+                    mangaId = entry.mangaId,
                     unreadCount = null,
-                    progress = null,
                     finished = false,
                     onClick = { onOpenDetails(entry) },
                     modifier = Modifier.width(BROWSE_COVER_WIDTH),
@@ -167,12 +165,6 @@ fun BrowseScreenContent(
     Surface(modifier = Modifier.fillMaxSize(), color = theme.bg0) {
         ContentColumn(max = MangoSpace.gridMaxWidth) {
             Column(modifier = Modifier.fillMaxSize().padding(MangoSpace.md)) {
-                val selectedSource = sources.firstOrNull { it.sourceId == selectedSourceId }
-                if (selectedSource != null) {
-                    // "updated …" caption from board 07 is skipped: SourceInfo carries no such timestamp.
-                    Text(text = selectedSource.name, style = MangoType.title, color = theme.textPrimary)
-                    Spacer(modifier = Modifier.height(MangoSpace.sm))
-                }
                 if (sources.isNotEmpty()) {
                     SegmentedControl(
                         options = sources.map { it.name },
@@ -227,9 +219,8 @@ fun BrowseScreenContent(
                                         title = entry.title,
                                         coverUrl = entry.cover,
                                         sourceId = entry.sourceId,
-                                        metaLine = "",
+                                        mangaId = entry.mangaId,
                                         unreadCount = null,
-                                        progress = null,
                                         finished = false,
                                         onClick = { onOpenDetails(entry) },
                                     )

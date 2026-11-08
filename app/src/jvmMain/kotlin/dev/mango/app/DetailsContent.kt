@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -168,6 +169,7 @@ fun DetailsScreenContent(
         val to = toText.toDoubleOrNull()
         AlertDialog(
             onDismissRequest = { showRangeDialog = false },
+            modifier = Modifier.sideButtons { showRangeDialog = false },
             title = { Text("Download range") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -214,6 +216,7 @@ fun DetailsScreenContent(
     if (showClearStorageDialog) {
         AlertDialog(
             onDismissRequest = { showClearStorageDialog = false },
+            modifier = Modifier.sideButtons { showClearStorageDialog = false },
             title = { Text("Clear storage") },
             text = { Text("Delete all downloaded chapters of this series from disk?") },
             confirmButton = {
@@ -265,6 +268,8 @@ private fun DetailsSidebarColumn(
     ) {
         Box(
             modifier = Modifier
+                .sharedCover(details.entry.sourceId, details.entry.mangaId)
+                .testTag("detailsCover")
                 .fillMaxWidth()
                 .aspectRatio(2f / 3f)
                 .shadow(elevation = 16.dp, shape = RoundedCornerShape(MangoRadius.panel))
@@ -463,15 +468,13 @@ private fun DetailsChapterListColumn(
                 color = theme.textPrimary,
                 modifier = Modifier.weight(1f),
             )
-            Text(
-                text = if (checkedAt != null) {
-                    "sorted newest first · checked ${formatRelativeTime(checkedAt, Clock.System.now())}"
-                } else {
-                    "sorted newest first"
-                },
-                fontSize = 12.5.sp,
-                color = theme.textTertiary,
-            )
+            if (checkedAt != null) {
+                Text(
+                    text = "checked ${formatRelativeTime(checkedAt, Clock.System.now())}",
+                    fontSize = 12.5.sp,
+                    color = theme.textTertiary,
+                )
+            }
             RefreshGlyphButton(
                 checking = revalidating,
                 onClick = onRefresh,
@@ -562,6 +565,7 @@ private fun ChapterRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.control))
             .clip(RoundedCornerShape(MangoRadius.control))
             .background(hover.fill)
             .hoverable(hover.interaction)
@@ -577,8 +581,9 @@ private fun ChapterRow(
             color = theme.textTertiary,
             modifier = Modifier.width(76.dp),
         )
+        // An empty title still takes the title's line, so every row in the list is the same height.
         Text(
-            text = chapter.title ?: "Chapter ${formatChapterNumber(chapter.number)}",
+            text = realChapterTitle(chapter.number, chapter.title) ?: "",
             fontSize = 13.5.sp,
             fontWeight = FontWeight.Medium,
             color = if (finished) theme.textSecondary else theme.textPrimary,
@@ -659,6 +664,7 @@ private fun ChapterDownloadGlyph(onClick: () -> Unit) {
     val hover = rememberHoverFill(rest = theme.surface.copy(alpha = 0f), hover = theme.surface)
     Box(
         modifier = Modifier
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.keycap))
             .clip(RoundedCornerShape(MangoRadius.keycap))
             .background(hover.fill)
             .hoverable(hover.interaction)

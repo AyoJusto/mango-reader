@@ -25,10 +25,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -38,11 +35,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.Page
-import kotlin.math.roundToInt
 
 /** The reading strip's default width — the spec's literal value; a user-facing width slider is not wired yet. */
 internal const val DEFAULT_STRIP_WIDTH_DP = 880f
@@ -175,7 +173,6 @@ fun ReaderContent(
     nextChallengeUrl: String? = null,
     autoScrolling: Boolean = false,
     stripWidthDp: Float = DEFAULT_STRIP_WIDTH_DP,
-    onBack: () -> Unit,
     onPrev: () -> Unit = {},
     onNext: () -> Unit = {},
     onRetryNext: () -> Unit = {},
@@ -185,6 +182,7 @@ fun ReaderContent(
     pageContent: @Composable (Page, Boolean) -> Unit,
 ) {
     val theme = LocalMangoTheme.current
+    val motion = LocalMangoMotion.current
     val rows = remember(segments, isLastChapter, nextLoading, nextError, nextChallengeUrl) {
         buildRows(segments, isLastChapter, nextLoading, nextError, nextChallengeUrl)
     }
@@ -225,15 +223,11 @@ fun ReaderContent(
             }
             AnimatedVisibility(
                 visible = controlsVisible,
-                enter = fadeIn(animationSpec = tween(MangoMotion.READER_OVERLAY_IN_MS, easing = MangoMotion.decel)),
-                exit = fadeOut(animationSpec = tween(MangoMotion.READER_OVERLAY_OUT_MS, easing = MangoMotion.standard)),
+                enter = fadeIn(animationSpec = tween(motion.readerOverlayInMs, easing = motion.decel)),
+                exit = fadeOut(animationSpec = tween(motion.readerOverlayOutMs, easing = motion.standard)),
                 modifier = Modifier.fillMaxSize(),
             ) {
                 Box(modifier = Modifier.fillMaxSize()) {
-                    ReaderBackButton(
-                        onClick = onBack,
-                        modifier = Modifier.align(Alignment.TopStart).padding(16.dp),
-                    )
                     ReaderOverlayBar(
                         label = currentSegment?.label.orEmpty(),
                         pageNumber = pageNumber,
@@ -251,22 +245,6 @@ fun ReaderContent(
                 }
             }
         }
-    }
-}
-
-/** Top-left exit control, per board 05: overlay-token fill, a leading chevron, wired to [onClick]. */
-@Composable
-private fun ReaderBackButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val theme = LocalMangoTheme.current
-    Box(
-        modifier = modifier
-            .size(width = 34.dp, height = 30.dp)
-            .clip(RoundedCornerShape(MangoRadius.control))
-            .background(theme.overlay)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(imageVector = Icons.Filled.ChevronLeft, contentDescription = "Back", tint = theme.textPrimary)
     }
 }
 
@@ -299,7 +277,11 @@ private fun ReaderOverlayBar(
             .shadow(elevation = 16.dp, shape = RoundedCornerShape(MangoRadius.panel))
             .clip(RoundedCornerShape(MangoRadius.panel))
             .background(theme.overlay)
-            .padding(vertical = MangoSpace.sm, horizontal = MangoSpace.md),
+            .padding(vertical = MangoSpace.sm, horizontal = MangoSpace.md)
+            // Position has no visible text; assistive tech and tests read it here.
+            .semantics {
+                if (pageNumber != null && pageCount != null) contentDescription = "Page $pageNumber of $pageCount"
+            },
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
@@ -310,21 +292,8 @@ private fun ReaderOverlayBar(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (pageNumber != null && pageCount != null) {
-                    Row {
-                        Text(
-                            text = "$pageNumber / $pageCount" + if (offline) " · offline" else "",
-                            style = MangoType.meta,
-                            color = theme.textSecondary,
-                        )
-                        if (!offline) {
-                            Text(
-                                text = " panels · ${(progress * 100).roundToInt()}%",
-                                style = MangoType.meta,
-                                color = theme.textSecondary,
-                            )
-                        }
-                    }
+                if (offline) {
+                    Text(text = "offline", style = MangoType.meta, color = theme.textSecondary)
                 }
             }
             Spacer(modifier = Modifier.width(MangoSpace.sm))
@@ -352,6 +321,7 @@ private fun ReaderChapterNavButton(label: String, enabled: Boolean, onClick: () 
     Box(
         modifier = Modifier
             .height(28.dp)
+            .keyboardFocusRing(RoundedCornerShape(8.dp))
             .clip(RoundedCornerShape(8.dp))
             .background(theme.textPrimary.copy(alpha = 0.06f))
             .clickable(enabled = enabled, onClick = onClick)
@@ -373,6 +343,7 @@ private fun AutoScrollPill(active: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .height(28.dp)
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.pill))
             .clip(RoundedCornerShape(MangoRadius.pill))
             .background(theme.accent.copy(alpha = 0.16f))
             .clickable(onClick = onClick)

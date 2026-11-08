@@ -71,8 +71,8 @@ import kotlinx.coroutines.launch
 /** How long the strip scrolls forward/back per Space/PageDown/PageUp keypress, as a fraction of the viewport. */
 private const val PAGE_SCROLL_FRACTION = 0.9f
 
-/** How long the controls overlay stays up after the last reveal — mirrors [MangoMotion.READER_IDLE_MS]. */
-private const val CONTROLS_AUTO_HIDE_MS = MangoMotion.READER_IDLE_MS.toLong()
+/** How long the controls overlay stays up after the last reveal — mirrors [MangoMotion.readerIdleMs], which is the same in every motion mode. */
+private val CONTROLS_AUTO_HIDE_MS = MangoMotion().readerIdleMs.toLong()
 
 /**
  * How close (in flattened rows) the last visible item must be to the strip's end before the next
@@ -123,12 +123,8 @@ private data class ChapterSegment(
 
 private fun ChapterSegment.toReaderSegment(): ReaderSegment {
     val short = chapter?.let { "Ch. " + formatChapterNumber(it.number) } ?: "Ch. ?"
-    val full = chapter?.let { c ->
-        buildString {
-            append(short)
-            c.title?.let { append(" — "); append(it) }
-        }
-    } ?: short
+    val title = chapter?.let { realChapterTitle(it.number, it.title) }
+    val full = if (title != null) "$short — $title" else short
     return ReaderSegment(chapterId = chapterId, shortLabel = short, label = full, pages = pages, offline = offline)
 }
 
@@ -604,7 +600,6 @@ fun ReaderScreen(
                     nextChallengeSolving = solvingNext,
                     autoScrolling = autoScrolling,
                     stripWidthDp = stripWidthDp,
-                    onBack = onBack,
                     onPrev = { reanchorToPreviousChapter() },
                     onNext = { goToNextChapter() },
                     onToggleAutoScroll = { autoScrolling = !autoScrolling },
@@ -723,10 +718,11 @@ private fun DefaultReaderPage(page: Page, local: Boolean, aspectRatios: MutableM
             if (size.width > 0f && size.height > 0f) {
                 SideEffect { aspectRatios[page.url] = size.width / size.height }
             }
+            val motion = LocalMangoMotion.current
             val alpha = remember(page) { Animatable(if (firstReveal) 0f else 1f) }
             LaunchedEffect(page) {
                 if (firstReveal) {
-                    alpha.animateTo(1f, animationSpec = tween(MangoMotion.READER_PAGE_CROSSFADE_MS))
+                    alpha.animateTo(1f, animationSpec = tween(motion.readerPageCrossfadeMs))
                 }
             }
             Image(

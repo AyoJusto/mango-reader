@@ -1,6 +1,7 @@
 package dev.mango.app
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -262,6 +263,7 @@ fun PaletteContent(
     onDismiss: () -> Unit,
 ) {
     val theme = LocalMangoTheme.current
+    val motion = LocalMangoMotion.current
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
     val listState = rememberLazyListState()
@@ -340,11 +342,15 @@ fun PaletteContent(
         AnimatedVisibility(
             visibleState = panelVisible,
             modifier = Modifier.padding(top = PALETTE_PANEL_TOP_OFFSET),
-            enter = scaleIn(
-                initialScale = 0.98f,
-                animationSpec = tween(MangoMotion.PALETTE_OPEN_MS, easing = MangoMotion.decel),
-            ) + fadeIn(
-                animationSpec = tween(MangoMotion.PALETTE_OPEN_MS, easing = MangoMotion.decel),
+            enter = (if (motion.slides) {
+                scaleIn(
+                    initialScale = 0.98f,
+                    animationSpec = tween(motion.paletteOpenMs, easing = motion.decel),
+                )
+            } else {
+                EnterTransition.None
+            }) + fadeIn(
+                animationSpec = tween(motion.paletteOpenMs, easing = motion.decel),
             ),
         ) {
             Box(
@@ -374,7 +380,6 @@ fun PaletteContent(
                             PaletteResultRow(hit = hit, selected = index == selectedIndex, onClick = { onRunHit(hit) })
                         }
                     }
-                    PaletteFooter(resultCount = hits.size)
                 }
             }
         }
@@ -426,7 +431,7 @@ private fun PaletteFilterTabs(tabNames: List<String>, activeTabIndex: Int, onTab
                 text = name,
                 container = if (active) theme.accent else theme.surface,
                 content = if (active) theme.accentOn else theme.textSecondary,
-                modifier = Modifier.clickable { onTabIndexChange(index) },
+                modifier = Modifier.keyboardFocusRing(RoundedCornerShape(MangoRadius.pill)).clickable { onTabIndexChange(index) },
             )
         }
     }
@@ -439,6 +444,7 @@ private fun PaletteResultRow(hit: PaletteHit, selected: Boolean, onClick: () -> 
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.control))
             .clip(RoundedCornerShape(MangoRadius.control))
             .background(if (selected) theme.accent.copy(alpha = 0.14f) else Color.Transparent)
             .clickable(onClick = onClick)
@@ -449,7 +455,7 @@ private fun PaletteResultRow(hit: PaletteHit, selected: Boolean, onClick: () -> 
         PaletteResultTile(category = hit.category, title = hit.title)
         Column(modifier = Modifier.weight(1f)) {
             Text(text = hit.title, fontSize = 13.5.sp, fontWeight = FontWeight.Medium, color = theme.textPrimary)
-            Text(text = hit.subtitle ?: hit.category, style = MangoType.meta, color = theme.textTertiary)
+            hit.subtitle?.let { Text(text = it, style = MangoType.meta, color = theme.textTertiary) }
         }
         hit.hint?.let { hint -> Keycap(hint) }
     }
@@ -468,23 +474,6 @@ private fun PaletteResultTile(category: String, title: String) {
     ) {
         val glyph = PALETTE_CATEGORY_GLYPHS[category] ?: title.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
         Text(text = glyph, style = MangoType.label, color = theme.textSecondary)
-    }
-}
-
-/** Hairline divider, keyboard hints, and the result count. */
-@Composable
-private fun PaletteFooter(resultCount: Int) {
-    val theme = LocalMangoTheme.current
-    Column(modifier = Modifier.padding(top = MangoSpace.sm)) {
-        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(theme.divider))
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = MangoSpace.sm),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(text = "↑↓ navigate · ↵ open · tab next filter", style = MangoType.hint, color = theme.textTertiary)
-            Text(text = resultCount.toString(), style = MangoType.hint, color = theme.textTertiary)
-        }
     }
 }
 
@@ -579,7 +568,7 @@ private fun libraryProvider(library: LibraryRepository, navigate: (Screen) -> Un
                 category = "Manhwa",
                 title = item.entry.title,
                 subtitle = item.entry.sourceId,
-                run = { navigate(Screen.Details(item.entry.sourceId, item.entry.mangaId, fromBrowse = false)) },
+                run = { navigate(Screen.Details(item.entry.sourceId, item.entry.mangaId)) },
             )
         }
     }

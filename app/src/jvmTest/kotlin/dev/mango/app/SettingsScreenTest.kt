@@ -1,8 +1,10 @@
 package dev.mango.app
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -27,14 +29,33 @@ class SettingsScreenTest {
             }
         }
 
-        // Board 09's Theme row sub-copy is "<name> · yours to edit", not the bare theme name —
-        // this replaces the old bare-name assertion (display-copy change, not a behavior change).
-        rule.onNodeWithText("${MangoDark.name} · yours to edit").assertExists()
+        // The dropdown is the only place the name shows.
+        rule.onAllNodesWithText(MangoDark.name).assertCountEquals(1)
+        rule.onNodeWithText("yours to edit", substring = true).assertDoesNotExist()
         rule.onNodeWithText("Export .json").assertExists()
         rule.onNodeWithText("Import…").assertExists()
         ACCENT_PRESETS.forEach { (label, _) ->
             rule.onNodeWithTag("accent-swatch-$label").assertExists()
         }
+    }
+
+    @Test
+    fun rowsCarryNoSubtitlesAndSliderValuesCarryTheirUnit() {
+        rule.setContent {
+            ProvideMangoTheme(MangoDark) {
+                SettingsScreenContent(theme = MangoDark, onThemeChange = {})
+            }
+        }
+
+        listOf(
+            "Recolors every accent token instantly",
+            "Applies to the interface, not the pages",
+            "Width of the centered reading column",
+            "dp/s while auto-scroll (A) is running",
+            "Blank the mouse cursor with the reader overlay",
+        ).forEach { rule.onNodeWithText(it).assertDoesNotExist() }
+        rule.onNodeWithText("120 dp/s").assertExists()
+        rule.onNodeWithText("880 dp").assertExists()
     }
 
     // Structure smoke test for board 09: the three micro-label group headers must render.

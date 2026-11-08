@@ -2,6 +2,7 @@ package dev.mango.app
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -112,10 +113,7 @@ fun SettingsScreenContent(
                 Text(text = "Settings", style = MangoType.display, color = theme.textPrimary)
 
                 SettingsGroup(label = "Appearance") {
-                    SettingsRow(
-                        title = "Theme",
-                        subtitle = "${theme.name} · yours to edit",
-                    ) {
+                    SettingsRow(title = "Theme") {
                         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(MangoSpace.xs)) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -198,7 +196,7 @@ fun SettingsScreenContent(
                         }
                     }
                     SettingsDivider()
-                    SettingsRow(title = "Accent", subtitle = "Recolors every accent token instantly") {
+                    SettingsRow(title = "Accent") {
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(MangoSpace.xs),
                             modifier = Modifier.testTag(settingsEntryTag("Accent")),
@@ -216,7 +214,6 @@ fun SettingsScreenContent(
                     SettingsDivider()
                     SettingsRow(
                         title = "App font",
-                        subtitle = "Applies to the interface, not the pages",
                         modifier = Modifier.testTag(settingsEntryTag("App font")),
                     ) {
                         // A stored name whose font is gone shows as the default rather than
@@ -234,7 +231,7 @@ fun SettingsScreenContent(
 
                 SettingsGroup(label = "Reader") {
                     var pendingStripWidth by remember(stripWidth) { mutableStateOf(stripWidth) }
-                    SettingsRow(title = "Strip width", subtitle = "Width of the centered reading column") {
+                    SettingsRow(title = "Strip width") {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)
@@ -244,19 +241,19 @@ fun SettingsScreenContent(
                                 onValueChange = { pendingStripWidth = it },
                                 onValueChangeFinished = { onStripWidthChange(pendingStripWidth) },
                                 valueRange = 600f..1400f,
-                                modifier = Modifier.width(180.dp).testTag(settingsEntryTag("Strip width")),
+                                modifier = Modifier.width(180.dp).keyboardFocusRing(RoundedCornerShape(MangoRadius.pill)).testTag(settingsEntryTag("Strip width")),
                             )
                             Text(
-                                text = pendingStripWidth.roundToInt().toString(),
+                                text = "${pendingStripWidth.roundToInt()} dp",
                                 style = MangoType.monoChapter,
                                 color = theme.textPrimary,
-                                modifier = Modifier.width(36.dp),
+                                modifier = Modifier.width(64.dp),
                             )
                         }
                     }
                     SettingsDivider()
                     var pendingAutoScroll by remember(autoScrollSpeed) { mutableStateOf(autoScrollSpeed) }
-                    SettingsRow(title = "Auto-scroll speed", subtitle = "dp/s while auto-scroll (A) is running") {
+                    SettingsRow(title = "Auto-scroll speed") {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(MangoSpace.sm)
@@ -266,18 +263,18 @@ fun SettingsScreenContent(
                                 onValueChange = { pendingAutoScroll = it },
                                 onValueChangeFinished = { onAutoScrollSpeedChange(pendingAutoScroll) },
                                 valueRange = 30f..600f,
-                                modifier = Modifier.width(180.dp).testTag(settingsEntryTag("Auto-scroll speed")),
+                                modifier = Modifier.width(180.dp).keyboardFocusRing(RoundedCornerShape(MangoRadius.pill)).testTag(settingsEntryTag("Auto-scroll speed")),
                             )
                             Text(
-                                text = pendingAutoScroll.roundToInt().toString(),
+                                text = "${pendingAutoScroll.roundToInt()} dp/s",
                                 style = MangoType.monoChapter,
                                 color = theme.textPrimary,
-                                modifier = Modifier.width(36.dp),
+                                modifier = Modifier.width(64.dp),
                             )
                         }
                     }
                     SettingsDivider()
-                    SettingsRow(title = "Hide cursor", subtitle = "Blank the mouse cursor with the reader overlay") {
+                    SettingsRow(title = "Hide cursor") {
                         TogglePill(
                             checked = hideCursorInReader,
                             onCheckedChange = onHideCursorInReaderChange,
@@ -385,6 +382,8 @@ private fun AccentSwatch(label: String, color: Color, selected: Boolean, onClick
             modifier = Modifier
                 .testTag("accent-swatch-$label")
                 .size(26.dp)
+                // Past the selection ring (2 dp gap + 2 dp ring) so the two never coincide.
+                .keyboardFocusRing(CircleShape, gap = if (selected) 6.dp else 2.dp)
                 .clip(CircleShape)
                 .background(color)
                 .clickable(onClick = onClick),
@@ -413,9 +412,10 @@ private val TOGGLE_THUMB_INSET = 2.dp
 @Composable
 private fun TogglePill(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     val theme = LocalMangoTheme.current
+    val motion = LocalMangoMotion.current
     val trackColor by animateColorAsState(
         targetValue = if (checked) theme.accent else theme.surface,
-        animationSpec = tween(MangoMotion.HOVER_MS),
+        animationSpec = tween(motion.hoverMs),
     )
     val thumbStart by animateDpAsState(
         targetValue = if (checked) {
@@ -423,11 +423,12 @@ private fun TogglePill(checked: Boolean, onCheckedChange: (Boolean) -> Unit, mod
         } else {
             TOGGLE_THUMB_INSET
         },
-        animationSpec = tween(MangoMotion.COVER_HOVER_MS, easing = MangoMotion.decel),
+        animationSpec = if (motion.slides) tween(motion.coverHoverMs, easing = motion.decel) else snap(),
     )
     Box(
         modifier = modifier
             .size(width = TOGGLE_PILL_SIZE.first, height = TOGGLE_PILL_SIZE.second)
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.pill))
             .clip(RoundedCornerShape(MangoRadius.pill))
             .background(trackColor)
             .clickable { onCheckedChange(!checked) },

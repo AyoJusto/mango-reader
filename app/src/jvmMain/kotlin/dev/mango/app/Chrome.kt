@@ -1,6 +1,8 @@
 package dev.mango.app
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -33,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.LibraryBooks
 import androidx.compose.material.icons.automirrored.outlined.ViewSidebar
+import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Extension
@@ -73,7 +76,9 @@ internal const val SIDEBAR_TOGGLE_TAG = "sidebar-toggle"
 internal val TITLE_BAR_HEIGHT = 44.dp
 
 /**
- * The 44dp title bar: logo, sidebar-toggle glyph and app title on the left. In the app window
+ * The 44dp title bar: Back chevron, logo, sidebar-toggle glyph and app title on the left. Back
+ * stays visible but dimmed and inert when [canGoBack] is false, so the bar never shifts. A mouse
+ * back press anywhere on the bar runs [onMouseBack] instead of clicking what it lands on. In the app window
  * the caller passes a drag-area [modifier] and Nucleus's native [windowControls]; without them
  * (tests, previews) it renders the same content with no controls.
  */
@@ -82,10 +87,13 @@ fun MangoTitleBar(
     sidebarOpen: Boolean,
     onToggleSidebar: () -> Unit,
     modifier: Modifier = Modifier,
+    canGoBack: Boolean = false,
+    onBack: () -> Unit = {},
+    onMouseBack: () -> Unit = {},
     windowControls: @Composable BoxScope.() -> Unit = {},
 ) {
     val theme = LocalMangoTheme.current
-    Box(modifier.fillMaxWidth().height(TITLE_BAR_HEIGHT).background(theme.bg0)) {
+    Box(modifier.sideButtons(onMouseBack).fillMaxWidth().height(TITLE_BAR_HEIGHT).background(theme.bg0)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -93,7 +101,31 @@ fun MangoTitleBar(
                 .background(theme.bg0),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            val backHover = rememberHoverFill(rest = theme.surface.copy(alpha = 0f), hover = theme.surface)
+            Box(
+                modifier = Modifier
+                    .size(width = 34.dp, height = 28.dp)
+                    .keyboardFocusRing(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(8.dp))
+                    .then(if (canGoBack) Modifier.background(backHover.fill).hoverable(backHover.interaction) else Modifier)
+                    .noWindowDrag()
+                    .clickable(
+                        enabled = canGoBack,
+                        interactionSource = backHover.interaction,
+                        indication = null,
+                        onClick = onBack,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.ChevronLeft,
+                    contentDescription = "Back",
+                    tint = if (canGoBack) theme.textSecondary else theme.textTertiary.copy(alpha = 0.5f),
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+            Spacer(modifier = Modifier.width(6.dp))
             Image(
                 painter = painterResource(Res.drawable.mango_icon),
                 contentDescription = null,
@@ -110,6 +142,7 @@ fun MangoTitleBar(
                 modifier = Modifier
                     .testTag(SIDEBAR_TOGGLE_TAG)
                     .size(width = 34.dp, height = 28.dp)
+                    .keyboardFocusRing(RoundedCornerShape(8.dp))
                     .clip(RoundedCornerShape(8.dp))
                     .background(hover.fill)
                     .hoverable(hover.interaction)
@@ -171,18 +204,27 @@ fun Sidebar(
     hazeState: HazeState? = null,
 ) {
     val theme = LocalMangoTheme.current
+    val motion = LocalMangoMotion.current
     AnimatedVisibility(
         visible = visible,
         modifier = modifier,
-        enter = slideInHorizontally(
-            animationSpec = tween(MangoMotion.SIDEBAR_OPEN_MS, easing = MangoMotion.decel),
-        ) { fullWidth -> -fullWidth } + fadeIn(
-            animationSpec = tween(MangoMotion.SIDEBAR_OPEN_MS, easing = MangoMotion.decel),
+        enter = (if (motion.slides) {
+            slideInHorizontally(
+                animationSpec = tween(motion.sidebarOpenMs, easing = motion.decel),
+            ) { fullWidth -> -fullWidth }
+        } else {
+            EnterTransition.None
+        }) + fadeIn(
+            animationSpec = tween(motion.sidebarOpenMs, easing = motion.decel),
         ),
-        exit = slideOutHorizontally(
-            animationSpec = tween(MangoMotion.SIDEBAR_CLOSE_MS, easing = MangoMotion.standard),
-        ) { fullWidth -> -fullWidth } + fadeOut(
-            animationSpec = tween(MangoMotion.SIDEBAR_CLOSE_MS, easing = MangoMotion.standard),
+        exit = (if (motion.slides) {
+            slideOutHorizontally(
+                animationSpec = tween(motion.sidebarCloseMs, easing = motion.standard),
+            ) { fullWidth -> -fullWidth }
+        } else {
+            ExitTransition.None
+        }) + fadeOut(
+            animationSpec = tween(motion.sidebarCloseMs, easing = motion.standard),
         ),
     ) {
         Column(
@@ -253,30 +295,31 @@ fun Sidebar(
 
 /**
  * One stagger group of the sidebar's contents: fades and rises in on first composition (the
- * panel opening), offset by [groupIndex] * [MangoMotion.SIDEBAR_STAGGER_MS] capped at
- * [MangoMotion.SIDEBAR_STAGGER_CAP_MS]. Content stays composed at full opacity once settled, so
+ * panel opening), offset by [groupIndex] * [motion.sidebarStaggerMs] capped at
+ * [motion.sidebarStaggerCapMs]. Content stays composed at full opacity once settled, so
  * closing the sidebar is just the outer panel's own slide-out — no separate exit animation here.
  */
 @Composable
 private fun SidebarStaggerGroup(groupIndex: Int, content: @Composable ColumnScope.() -> Unit) {
+    val motion = LocalMangoMotion.current
     val progress = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
-        val delayMs = (groupIndex * MangoMotion.SIDEBAR_STAGGER_MS).coerceAtMost(MangoMotion.SIDEBAR_STAGGER_CAP_MS)
+        val delayMs = (groupIndex * motion.sidebarStaggerMs).coerceAtMost(motion.sidebarStaggerCapMs)
         progress.animateTo(
             targetValue = 1f,
             // delayMillis, not a raw suspend delay(): stays on the same frame-clock-driven
             // timing every other animation in this file uses.
             animationSpec = tween(
-                durationMillis = MangoMotion.SIDEBAR_OPEN_MS,
+                durationMillis = motion.sidebarOpenMs,
                 delayMillis = delayMs,
-                easing = MangoMotion.decel
+                easing = motion.decel
             ),
         )
     }
     Column(
         modifier = Modifier.graphicsLayer {
             alpha = progress.value
-            translationY = (1f - progress.value) * 6.dp.toPx()
+            if (motion.slides) translationY = (1f - progress.value) * 6.dp.toPx()
         },
         verticalArrangement = Arrangement.spacedBy(4.dp),
         content = content,
@@ -290,6 +333,7 @@ private fun ContinueCard(item: ContinueItem, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.control))
             .clip(RoundedCornerShape(MangoRadius.control))
             .background(hover.fill)
             .hoverable(hover.interaction)
@@ -345,6 +389,7 @@ private fun SidebarNavRow(nav: SidebarNavItem, active: Boolean, pill: String?, o
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .keyboardFocusRing(RoundedCornerShape(MangoRadius.control))
             .clip(RoundedCornerShape(MangoRadius.control))
             .background(hover.fill)
             .hoverable(hover.interaction)
