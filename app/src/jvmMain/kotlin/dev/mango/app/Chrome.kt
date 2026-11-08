@@ -53,7 +53,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.input.pointer.AwaitPointerEventScope
+import androidx.compose.ui.input.pointer.PointerEvent
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -71,6 +78,11 @@ internal const val SIDEBAR_TEST_TAG = "mango-sidebar"
 internal const val SIDEBAR_TOGGLE_TAG = "sidebar-toggle"
 
 internal val TITLE_BAR_HEIGHT = 44.dp
+
+private val SIDEBAR_GUTTER = 10.dp
+private val SIDEBAR_WIDTH = 264.dp
+internal val SIDEBAR_EXTENT = SIDEBAR_GUTTER + SIDEBAR_WIDTH
+internal val SIDEBAR_PEEK_EDGE = 12.dp
 
 /** Back stays visible but inert when canGoBack is false; a mouse back press runs onMouseBack. */
 @Composable
@@ -173,6 +185,24 @@ private val SIDEBAR_NAV_ITEMS = listOf(
     SidebarNavItem("Settings", Icons.Outlined.Settings, Screen.Settings),
 )
 
+/** Peeks the sidebar while the pointer touches the left edge, until it moves past the panel or leaves. */
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+fun Modifier.sidebarPeek(enabled: Boolean, onPeekChange: (Boolean) -> Unit): Modifier {
+    val density = LocalDensity.current
+    val edgePx = with(density) { SIDEBAR_PEEK_EDGE.toPx() }
+    val extentPx = with(density) { SIDEBAR_EXTENT.toPx() }
+    if (!enabled) return this
+    val track: AwaitPointerEventScope.(PointerEvent) -> Unit = { event ->
+        val x = event.changes.first().position.x
+        if (x <= edgePx) onPeekChange(true) else if (x > extentPx) onPeekChange(false)
+    }
+    return this
+        .onPointerEvent(PointerEventType.Enter, PointerEventPass.Initial, track)
+        .onPointerEvent(PointerEventType.Move, PointerEventPass.Initial, track)
+        .onPointerEvent(PointerEventType.Exit) { onPeekChange(false) }
+}
+
 @Composable
 fun Sidebar(
     visible: Boolean,
@@ -211,9 +241,9 @@ fun Sidebar(
         Column(
             modifier = Modifier
                 .testTag(SIDEBAR_TEST_TAG)
-                .padding(start = 10.dp, bottom = 10.dp)
+                .padding(start = SIDEBAR_GUTTER, bottom = 10.dp)
                 .fillMaxHeight()
-                .width(264.dp)
+                .width(SIDEBAR_WIDTH)
                 .shadow(elevation = 24.dp, shape = RoundedCornerShape(MangoRadius.panel))
                 .clip(RoundedCornerShape(MangoRadius.panel))
                 .then(

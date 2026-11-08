@@ -69,4 +69,6 @@ fun ComposeContentTestRule.navigateVia(label: String) {
     waitForIdle()
     onNodeWithText(label).performClick()
     waitForIdle()
+    onNodeWithTag(SIDEBAR_TOGGLE_TAG).performClick()
+    waitForIdle()
 }

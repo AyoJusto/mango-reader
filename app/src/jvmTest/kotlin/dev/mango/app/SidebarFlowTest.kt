@@ -1,5 +1,6 @@
 package dev.mango.app
 
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -7,6 +8,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performMouseInput
 import dev.mango.core.domain.Chapter
 import dev.mango.core.domain.Download
 import dev.mango.core.domain.DownloadStatus
@@ -44,7 +46,7 @@ class SidebarFlowTest {
     }
 
     @Test
-    fun navClickNavigatesToTheScreenAndClosesTheSidebar() {
+    fun navClickNavigatesAndThePinnedSidebarStaysOpen() {
         rule.setContent { TestAppShell(FakeLibraryRepository(), FakeCatalogRepository(), FakeDownloadManager()) }
         rule.waitForIdle()
 
@@ -54,6 +56,20 @@ class SidebarFlowTest {
         rule.waitForIdle()
 
         rule.onNodeWithText("No sources installed — add one from the Extensions tab").assertExists()
+        rule.onNodeWithTag(SIDEBAR_TEST_TAG).assertExists()
+    }
+
+    @Test
+    fun hoveringTheLeftEdgePeeksTheSidebarUntilThePointerMovesPastIt() {
+        rule.setContent { TestAppShell(FakeLibraryRepository(), FakeCatalogRepository(), FakeDownloadManager()) }
+        rule.waitForIdle()
+
+        rule.onNodeWithTag("screen:Library").performMouseInput { moveTo(Offset(2f, centerY)) }
+        rule.waitForIdle()
+        rule.onNodeWithTag(SIDEBAR_TEST_TAG).assertExists()
+
+        rule.onNodeWithTag("screen:Library").performMouseInput { moveTo(Offset(width - 2f, centerY)) }
+        rule.waitForIdle()
         rule.onNodeWithTag(SIDEBAR_TEST_TAG).assertDoesNotExist()
     }
 
@@ -90,7 +106,7 @@ class SidebarFlowTest {
         rule.waitForIdle()
 
         rule.onNode(hasText("offline")).assertExists()
-        rule.onNodeWithTag(SIDEBAR_TEST_TAG).assertDoesNotExist()
+        rule.onNodeWithTag(SIDEBAR_TEST_TAG).assertExists()
     }
 
     @Test

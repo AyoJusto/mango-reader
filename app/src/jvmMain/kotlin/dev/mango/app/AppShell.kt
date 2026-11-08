@@ -137,9 +137,13 @@ fun AppShell(
         }
     }
 
+    var sidebarPeeking by remember { mutableStateOf(false) }
+    LaunchedEffect(sidebarOpen) { sidebarPeeking = false }
+    val sidebarVisible = sidebarOpen || sidebarPeeking
+
     var continueItems by remember { mutableStateOf<List<ContinueItem>>(emptyList()) }
-    LaunchedEffect(sidebarOpen) {
-        if (!sidebarOpen) return@LaunchedEffect
+    LaunchedEffect(sidebarVisible) {
+        if (!sidebarVisible) return@LaunchedEffect
         val items = library.observeLibrary().first()
         continueItems = items
             .mapNotNull { item ->
@@ -182,7 +186,7 @@ fun AppShell(
             .fillMaxSize()
             .trackLastInput(lastInputWasKeyboard),
     ) {
-        val mouseBack = { backOrCloseOverlay(navigator, palette, sidebarOpen, onSidebarChange, manageCollectionsOpen) }
+        val mouseBack = { backOrCloseOverlay(navigator, palette, manageCollectionsOpen) }
         if (showTitleBar) {
             MangoTitleBar(
                 sidebarOpen = sidebarOpen,
@@ -192,7 +196,13 @@ fun AppShell(
                 onMouseBack = { mouseBack() },
             )
         }
-        Box(modifier = Modifier.weight(1f).fillMaxWidth().sideButtons { mouseBack() }) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .sideButtons { mouseBack() }
+                .sidebarPeek(enabled = !sidebarOpen) { sidebarPeeking = it },
+        ) {
             CompositionLocalProvider(LocalSourceHeaderPolicy provides headerPolicy) {
                 val contentBlurDp by animateDpAsState(
                     targetValue = if (palette.visible) 10.dp else 0.dp,
@@ -345,17 +355,13 @@ fun AppShell(
                     }
                 }
                 Sidebar(
-                    visible = sidebarOpen,
+                    visible = sidebarVisible,
                     continueItems = continueItems,
                     activeScreen = navigator.current.screen,
                     pendingDownloadCount = pendingDownloadCount,
-                    onNavigate = { target ->
-                        navigator.go(target)
-                        onSidebarChange(false)
-                    },
+                    onNavigate = { target -> navigator.go(target) },
                     onContinue = { item ->
                         navigator.go(Screen.Details(item.sourceId, item.mangaId, autoContinue = true))
-                        onSidebarChange(false)
                     },
                     modifier = Modifier.align(Alignment.CenterStart),
                     hazeState = hazeState,
@@ -404,14 +410,11 @@ fun AppShell(
 fun backOrCloseOverlay(
     navigator: Navigator,
     palette: PaletteState,
-    sidebarOpen: Boolean,
-    onSidebarChange: (Boolean) -> Unit,
     manageCollectionsOpen: MutableState<Boolean>,
 ): Boolean {
     when {
         manageCollectionsOpen.value -> manageCollectionsOpen.value = false
         palette.visible -> palette.visible = false
-        sidebarOpen -> onSidebarChange(false)
         else -> return navigator.back()
     }
     return true

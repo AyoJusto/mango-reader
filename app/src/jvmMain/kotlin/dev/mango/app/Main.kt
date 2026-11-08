@@ -84,12 +84,6 @@ fun main() {
                         sidebarKeyDown = false
                         true
                     }
-                    // Esc closes the sidebar only when nothing above it is open; the palette and reader own theirs.
-                    keyEvent.key == Key.Escape && keyEvent.type == KeyEventType.KeyDown &&
-                            sidebarOpen && !palette.visible && !manageCollectionsOpen.value -> {
-                        sidebarOpen = false
-                        true
-                    }
                     // Feed downs and ups: the detector needs Shift releases to tell a double-tap from auto-repeat.
                     detector.onKeyEvent(keyEvent.key, keyEvent.type, System.currentTimeMillis()) -> {
                         palette.visible = !palette.visible
@@ -102,7 +96,7 @@ fun main() {
             // Bubbling, not preview: a field or the reader wanting Esc consumes it first.
             onKeyEvent = { keyEvent ->
                 if (keyEvent.key == Key.Escape && keyEvent.type == KeyEventType.KeyDown) {
-                    backOrCloseOverlay(navigator, palette, sidebarOpen, { sidebarOpen = it }, manageCollectionsOpen)
+                    backOrCloseOverlay(navigator, palette, manageCollectionsOpen)
                 } else {
                     false
                 }
@@ -131,7 +125,7 @@ fun main() {
                                     canGoBack = navigator.canGoBack,
                                     onBack = { navigator.back() },
                                     onMouseBack = {
-                                        backOrCloseOverlay(navigator, palette, sidebarOpen, { sidebarOpen = it }, manageCollectionsOpen)
+                                        backOrCloseOverlay(navigator, palette, manageCollectionsOpen)
                                     },
                                 ) {
                                     WindowControls(Modifier.align(Alignment.CenterEnd))
